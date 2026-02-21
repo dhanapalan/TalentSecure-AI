@@ -1,0 +1,57 @@
+import app from "./app.js";
+import { env } from "./config/env.js";
+import { logger } from "./config/logger.js";
+import { connectDatabase } from "./config/database.js";
+import { connectRedis } from "./config/redis.js";
+import { ensureBucket } from "./config/storage.js";
+import { initSocketIO } from "./config/socket.js";
+import { ensureAuditTable } from "./services/audit.service.js";
+import http from "http";
+
+const server = http.createServer(app);
+
+async function bootstrap(): Promise<void> {
+  try {
+    // 1. Connect PostgreSQL
+    await connectDatabase();
+
+    // 2. Ensure RBAC audit table exists
+    await ensureAuditTable();
+
+    // 3. Connect Redis
+    await connectRedis();
+    logger.info("✓ Redis connected");
+
+    // 4. Ensure S3/MinIO bucket exists
+    await ensureBucket();
+
+    // 5. Initialize Socket.IO for real-time proctoring
+    initSocketIO(server);
+    logger.info("✓ Socket.IO initialized");
+
+    // 6. Start HTTP server
+    server.listen(env.PORT, () => {
+      logger.info(`✓ TalentSecure AI server running on port ${env.PORT}`);
+      logger.info(`  Environment : ${env.NODE_ENV}`);
+      logger.info(`  Client URL  : ${env.CLIENT_URL}`);
+      logger.info(`  AI Engine   : ${env.AI_ENGINE_URL}`);
+    });
+  } catch (error) {
+    logger.error("Failed to start server:", error);
+    process.exit(1);
+  }
+}
+
+// Graceful shutdown
+const shutdown = async (signal: string) => {
+  logger.info(`${signal} received — shutting down gracefully`);
+  server.close(() => {
+    logger.info("HTTP server closed");
+    process.exit(0);
+  });
+};
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
+
+bootstrap();

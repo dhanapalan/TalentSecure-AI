@@ -1,0 +1,23 @@
+# TalentSecure AI — Python ML / CV Engine
+# Core framework
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+pydantic==2.10.0
+
+# ML / Scientific
+numpy>=1.26.0,<2.1.0
+pandas>=2.2.0
+scikit-learn>=1.5.0
+scikit-image>=0.22.0
+tensorflow-cpu==2.18.0
+
+# Computer Vision
+opencv-python-headless>=4.9.0
+
+# HTTP client (alert dispatch to Node.js backend)
+httpx>=0.27.0
+
+# Utilities
+python-multipart>=0.0.12
+python-dotenv>=1.0.0
+Pillow>=10.0.0

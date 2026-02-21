@@ -1,0 +1,305 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// TalentSecure AI — Prisma Schema
+// ─────────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN           // legacy alias for SUPER_ADMIN
+  HR
+  ENGINEER
+  CXO
+  COLLEGE_ADMIN
+  COLLEGE         // legacy alias for COLLEGE_ADMIN
+  COLLEGE_STAFF
+  RECRUITER       // kept for backward compat
+  CAMPUS_COORDINATOR
+  STUDENT
+}
+
+enum AssessmentType {
+  MCQ
+  CODING
+  BEHAVIORAL
+  MIXED
+}
+
+enum AssessmentStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  TERMINATED
+  UNDER_REVIEW
+}
+
+enum QuestionType {
+  MCQ
+  CODING
+  SUBJECTIVE
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum ViolationType {
+  FACE_NOT_DETECTED
+  MULTIPLE_FACES
+  FACE_MISMATCH
+  TAB_SWITCH
+  BROWSER_MINIMIZED
+  COPY_PASTE_ATTEMPT
+  RIGHT_CLICK
+  SCREEN_SHARE_DETECTED
+  EXTERNAL_DISPLAY
+  DEVTOOLS_OPEN
+  NETWORK_ANOMALY
+}
+
+enum ViolationSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum SessionStatus {
+  ACTIVE
+  COMPLETED
+  TERMINATED
+}
+
+enum RoleStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+}
+
+// ── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id         String   @id @default(uuid())
+  email      String   @unique
+  password   String
+  firstName  String   @map("first_name")
+  lastName   String   @map("last_name")
+  role       UserRole @default(STUDENT)
+  avatarUrl  String?  @map("avatar_url")
+  collegeId  String?  @map("college_id")
+  department String?
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  profile StudentProfile?
+
+  @@index([role, collegeId])
+  @@map("users")
+}
+
+model StudentProfile {
+  id             String   @id @default(uuid())
+  userId         String   @unique @map("user_id")
+  firstName      String   @map("first_name")
+  lastName       String   @map("last_name")
+  email          String
+  phone          String?
+  university     String
+  campusId       String?  @map("campus_id")
+  degree         String
+  major          String
+  graduationYear Int      @map("graduation_year")
+  cgpa           Float
+  skills         String[]
+  resumeUrl      String?  @map("resume_url")
+  photoUrl       String?  @map("photo_url")
+  segmentId      String?  @map("segment_id")
+  matchScore     Float?   @map("match_score")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  segment            Segment?            @relation(fields: [segmentId], references: [id])
+  campus             Campus?             @relation(fields: [campusId], references: [id])
+  assessmentSessions AssessmentSession[]
+  proctoringSessions ProctoringSession[]
+
+  @@index([university])
+  @@index([segmentId])
+  @@index([cgpa])
+  @@map("student_profiles")
+}
+
+model Campus {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  collegeCode String   @unique @map("college_code")
+  city        String
+  state       String
+  country     String   @default("India")
+  tier        String?  // Tier 1, Tier 2, etc.
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  students    StudentProfile[]
+  assessments AssessmentCampus[]
+
+  @@map("campuses")
+}
+
+model Role {
+  id                      String     @id @default(uuid())
+  title                   String
+  company                 String
+  description             String
+  technicalSkills         Json       @map("technical_skills") // SkillRequirement[]
+  behavioralCompetencies  Json       @map("behavioral_competencies") // CompetencyRequirement[]
+  minCGPA                 Float      @map("min_cgpa")
+  eligibleDegrees         String[]   @map("eligible_degrees")
+  eligibleMajors          String[]   @map("eligible_majors")
+  maxPositions            Int        @map("max_positions")
+  status                  RoleStatus @default(DRAFT)
+  createdAt               DateTime   @default(now()) @map("created_at")
+  updatedAt               DateTime   @updatedAt @map("updated_at")
+
+  assessments Assessment[]
+
+  @@map("roles")
+}
+
+model Assessment {
+  id                String           @id @default(uuid())
+  roleId            String           @map("role_id")
+  title             String
+  type              String
+  durationMinutes   Int              @map("duration_minutes")
+  totalQuestions    Int              @default(0) @map("total_questions")
+  totalMarks        Int              @map("total_marks")
+  passingPercentage Float            @map("passing_percentage")
+  proctoringEnabled Boolean          @default(true) @map("proctoring_enabled")
+  browserLockdown   Boolean          @default(true) @map("browser_lockdown")
+  scheduledAt       DateTime         @map("scheduled_at")
+  status            AssessmentStatus @default(SCHEDULED)
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  role      Role                @relation(fields: [roleId], references: [id])
+  questions Question[]
+  sessions  AssessmentSession[]
+  campuses  AssessmentCampus[]
+
+  @@index([roleId])
+  @@index([status])
+  @@map("assessments")
+}
+
+model AssessmentCampus {
+  assessmentId String   @map("assessment_id")
+  campusId     String   @map("campus_id")
+  assignedAt   DateTime @default(now()) @map("assigned_at")
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  campus     Campus     @relation(fields: [campusId], references: [id], onDelete: Cascade)
+
+  @@id([assessmentId, campusId])
+  @@map("assessment_campuses")
+}
+
+model Question {
+  id            String   @id @default(uuid())
+  assessmentId  String   @map("assessment_id")
+  type          String
+  text          String
+  options       String[]
+  correctAnswer String?  @map("correct_answer")
+  marks         Int
+  difficulty    String
+  tags          String[]
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@index([assessmentId])
+  @@map("questions")
+}
+
+model AssessmentSession {
+  id           String    @id @default(uuid())
+  assessmentId String    @map("assessment_id")
+  studentId    String    @map("student_id")
+  startedAt    DateTime  @map("started_at")
+  completedAt  DateTime? @map("completed_at")
+  status       String    @default("IN_PROGRESS")
+  score        Int?
+  percentage   Float?
+  passed       Boolean?
+  answers      Json?
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  assessment Assessment     @relation(fields: [assessmentId], references: [id])
+  student    StudentProfile @relation(fields: [studentId], references: [id])
+
+  @@unique([assessmentId, studentId])
+  @@index([status])
+  @@map("assessment_sessions")
+}
+
+model ProctoringSession {
+  id                String   @id @default(uuid())
+  assessmentId      String   @map("assessment_id")
+  studentId         String   @map("student_id")
+  referencePhotoUrl String   @map("reference_photo_url")
+  startedAt         DateTime @map("started_at")
+  endedAt           DateTime? @map("ended_at")
+  integrityScore    Float    @default(100) @map("integrity_score")
+  status            String   @default("ACTIVE")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  student    StudentProfile       @relation(fields: [studentId], references: [id])
+  violations ProctoringViolation[]
+
+  @@index([assessmentId])
+  @@index([studentId])
+  @@map("proctoring_sessions")
+}
+
+model ProctoringViolation {
+  id          String   @id @default(uuid())
+  sessionId   String   @map("session_id")
+  type        String
+  severity    String
+  description String
+  snapshotUrl String?  @map("snapshot_url")
+  timestamp   DateTime
+
+  session ProctoringSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("proctoring_violations")
+}
+
+model Segment {
+  id            String   @id @default(uuid())
+  name          String   @unique
+  description   String
+  criteria      Json
+  studentCount  Int      @default(0) @map("student_count")
+  avgMatchScore Float    @default(0) @map("avg_match_score")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  students StudentProfile[]
+
+  @@map("segments")
+}
