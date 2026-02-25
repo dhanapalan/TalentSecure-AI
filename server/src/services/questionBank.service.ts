@@ -255,6 +255,14 @@ const CATEGORY_ALIAS_MAP: Record<string, QuestionCategory> = {
   data_structures: "data_structures",
   ds: "data_structures",
   programming: "programming",
+  "coding / programming": "programming",
+  "coding": "programming",
+  "python coding": "python_coding",
+  "java coding": "java_coding",
+  "data science": "data_science",
+  "sql & databases": "programming",
+  "sql": "programming",
+  "core cs (ds/algo)": "data_structures",
 };
 
 function normalizeCategory(label: string): QuestionCategory {

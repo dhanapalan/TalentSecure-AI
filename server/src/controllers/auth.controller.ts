@@ -36,3 +36,20 @@ export const me = async (
     next(err);
   }
 };
+
+export const setupPassword = async (
+  req: Request,
+  res: Response<ApiResponse>,
+  next: NextFunction,
+) => {
+  try {
+    const { password } = req.body;
+    const userId = req.user!.userId;
+
+    await authService.updatePassword(userId, password);
+
+    res.json({ success: true, message: "Password updated successfully" });
+  } catch (err) {
+    next(err);
+  }
+};

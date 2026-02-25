@@ -63,7 +63,11 @@ export const list = async (
   try {
     const limit = parseInt(String(req.query.limit)) || 50;
     const offset = parseInt(String(req.query.offset)) || 0;
-    const students = await studentService.listStudents(limit, offset);
+
+    const collegeId = req.user?.college_id;
+    const isCentral = ["super_admin", "admin", "hr"].includes(req.user?.role || "");
+
+    const students = await studentService.listStudents(limit, offset, isCentral ? undefined : (collegeId || undefined));
     res.json({ success: true, data: students });
   } catch (err) {
     next(err);
@@ -116,15 +120,52 @@ export const completeOnboarding = async (
   next: NextFunction,
 ) => {
   try {
+    const files = req.files as
+      | {
+        profile_photo?: Express.Multer.File[];
+        resume?: Express.Multer.File[];
+      }
+      | undefined;
+
     const result = await studentService.updateStudent(
       req.user!.userId,
-      req.body
+      {
+        ...req.body,
+        profilePhoto: files?.profile_photo?.[0],
+        resumeFile: files?.resume?.[0],
+      },
     );
 
     res.json({
       success: true,
       data: result,
       message: "Student profile completed successfully",
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /api/students/bulk
+ * Bulk register students.
+ */
+export const bulkRegister = async (
+  req: Request,
+  res: Response<ApiResponse>,
+  next: NextFunction,
+) => {
+  try {
+    const { college_id, students } = req.body;
+    if (!college_id || !Array.isArray(students)) {
+      return res.status(400).json({ success: false, error: "college_id and students mapping are required" });
+    }
+
+    const result = await studentService.bulkRegisterStudents(college_id, students);
+    res.status(201).json({
+      success: true,
+      data: result,
+      message: `${result.count} students registered successfully`,
     });
   } catch (err) {
     next(err);

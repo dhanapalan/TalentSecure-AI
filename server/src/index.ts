@@ -31,9 +31,9 @@ async function bootstrap(): Promise<void> {
 
     // 6. Start HTTP server
     server.listen(env.PORT, () => {
-      logger.info(`✓ TalentSecure AI server running on port ${env.PORT}`);
+      logger.info(`✓ Nallas Campus Connect server running on port ${env.PORT}`);
       logger.info(`  Environment : ${env.NODE_ENV}`);
-      logger.info(`  Client URL  : ${env.CLIENT_URL}`);
+      logger.info(`  Client URLs : ${env.CLIENT_URLS.join(", ")}`);
       logger.info(`  AI Engine   : ${env.AI_ENGINE_URL}`);
     });
   } catch (error) {

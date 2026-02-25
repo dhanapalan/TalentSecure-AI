@@ -1,6 +1,7 @@
 import { Outlet, NavLink, Link } from "react-router-dom";
 import { authActions, useAuthStore } from "../stores/authStore";
 import { resolveRole, type AppRole } from "../components/ProtectedRoute";
+import Logo from "../components/Logo";
 import {
   HomeIcon,
   UsersIcon,
@@ -8,7 +9,6 @@ import {
   ShieldCheckIcon,
   ChartBarIcon,
   CpuChipIcon,
-  BuildingLibraryIcon,
   ArrowRightOnRectangleIcon,
   UserPlusIcon,
   AcademicCapIcon,
@@ -29,37 +29,31 @@ const navigation: NavItem[] = [
   // Role-specific home pages
   {
     name: "HR Dashboard",
-    href: "/hr-dashboard",
+    href: "/app/hr-dashboard",
     icon: HomeIcon,
     roles: ["super_admin", "hr", "cxo"],
   },
   {
     name: "Campuses",
-    href: "/campuses",
+    href: "/app/campuses",
     icon: AcademicCapIcon,
     roles: ["super_admin", "hr"],
   },
   {
     name: "Engineer Panel",
-    href: "/engineer-panel",
+    href: "/app/engineer-panel",
     icon: WrenchScrewdriverIcon,
     roles: ["engineer"],
   },
   {
-    name: "CXO Analytics",
-    href: "/cxo-analytics",
-    icon: PresentationChartBarIcon,
-    roles: ["cxo", "super_admin"],
-  },
-  {
     name: "College Dashboard",
-    href: "/college-dashboard",
+    href: "/app/college-dashboard",
     icon: AcademicCapIcon,
     roles: ["college_admin", "college_staff"],
   },
   {
     name: "Student Portal",
-    href: "/student-portal",
+    href: "/app/student-portal",
     icon: HomeIcon,
     roles: ["student"],
   },
@@ -67,39 +61,45 @@ const navigation: NavItem[] = [
   // Feature links
   {
     name: "Students",
-    href: "/students",
+    href: "/app/students",
     icon: UsersIcon,
     roles: ["super_admin", "hr", "cxo", "college_admin"],
   },
   {
-    name: "Assessments",
-    href: "/assessments",
+    name: "Assessment Studio",
+    href: "/app/assessments",
     icon: ClipboardDocumentListIcon,
     roles: ["super_admin", "hr", "college_admin", "engineer"],
   },
   {
     name: "Segmentation",
-    href: "/segmentation",
+    href: "/app/segmentation",
     icon: CpuChipIcon,
     roles: ["super_admin", "hr"],
   },
   {
     name: "Proctoring",
-    href: "/proctoring",
+    href: "/app/proctoring",
     icon: ShieldCheckIcon,
     roles: ["super_admin", "hr", "engineer", "college_admin"],
   },
   {
     name: "Analytics",
-    href: "/analytics",
+    href: "/app/analytics",
     icon: ChartBarIcon,
     roles: ["super_admin", "hr", "cxo", "engineer"],
   },
   {
     name: "Administration",
-    href: "/administration",
+    href: "/app/administration",
     icon: WrenchScrewdriverIcon,
     roles: ["super_admin", "admin", "hr", "cxo"],
+  },
+  {
+    name: "CXO Analytics",
+    href: "/app/cxo-analytics",
+    icon: PresentationChartBarIcon,
+    roles: ["cxo", "super_admin"],
   },
 ];
 
@@ -132,8 +132,8 @@ export default function DashboardLayout() {
       <aside className="fixed inset-y-0 left-0 z-30 flex w-64 flex-col bg-primary-950">
         {/* Brand */}
         <div className="flex h-16 items-center gap-2 px-6">
-          <BuildingLibraryIcon className="h-8 w-8 text-primary-400" />
-          <span className="text-lg font-bold text-white">TalentSecure</span>
+          <Logo size={32} />
+          <span className="text-lg font-bold text-white">Nallas Connect</span>
         </div>
 
         {/* Nav Links */}
@@ -159,7 +159,7 @@ export default function DashboardLayout() {
           {["super_admin", "hr", "college_admin"].includes(effectiveRole) && (
             <div className="mt-4 border-t border-primary-800 pt-4">
               <Link
-                to="/register-student"
+                to="/student/register"
                 className="group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-primary-300 hover:bg-primary-900 hover:text-white transition-colors"
               >
                 <UserPlusIcon className="h-5 w-5 flex-shrink-0" />
@@ -190,7 +190,7 @@ export default function DashboardLayout() {
       </aside>
 
       {/* Main content */}
-      <main className="ml-64 flex-1 p-8">
+      <main className="ml-64 flex-1 p-8 h-screen overflow-y-auto">
         <Outlet />
       </main>
     </div>

@@ -1,0 +1,2 @@
+src/components/ExamProgressView.tsx(12,5): error TS6133: 'ArrowRight' is declared but its value is never read.
+src/pages/hr/CollegeManagement.tsx(33,11): error TS6133: 'navigate' is declared but its value is never read.

@@ -14,6 +14,7 @@ export interface AuthUser {
   phone_number?: string | null;
   dob?: string | null;
   is_profile_complete?: boolean;
+  must_change_password?: boolean;
 }
 
 interface AuthState {

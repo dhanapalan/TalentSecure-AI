@@ -56,4 +56,25 @@ router.get(
   collegeController.getCollegeStats,
 );
 
+router.get(
+  "/staff",
+  authenticate,
+  authorize("college_admin"),
+  collegeController.getStaff,
+);
+
+router.post(
+  "/staff",
+  authenticate,
+  authorize("college_admin"),
+  collegeController.addStaff,
+);
+
+router.delete(
+  "/staff/:id",
+  authenticate,
+  authorize("college_admin"),
+  collegeController.removeStaff,
+);
+
 export default router;

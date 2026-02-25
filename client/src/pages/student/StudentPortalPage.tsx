@@ -1,26 +1,25 @@
 import { useAuthStore } from "../../stores/authStore";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import api from "../../lib/api";
 import {
   Calendar,
   Clock,
   CheckCircle2,
+  Check,
   ArrowRight,
   BookOpen,
   Trophy,
   User,
   ShieldCheck,
-  AlertCircle,
-  Check
+  AlertCircle
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import toast from "react-hot-toast";
 
 export default function StudentPortalPage() {
   const user = useAuthStore((s) => s.user);
 
   // Queries
-  const { data: profile, isLoading: loadingProfile, refetch: refetchProfile } = useQuery({
+  const { data: profile, isLoading: loadingProfile } = useQuery({
     queryKey: ["student-profile"],
     queryFn: async () => {
       const { data } = await api.get("/auth/me");
@@ -35,18 +34,6 @@ export default function StudentPortalPage() {
       return data.data;
     },
     enabled: !!user?.id
-  });
-
-  // Mutations
-  const onboardingMutation = useMutation({
-    mutationFn: async (formData: any) => {
-      const { data } = await api.put("/students/me/onboarding", formData);
-      return data.data;
-    },
-    onSuccess: () => {
-      toast.success("Profile completed successfully!");
-      refetchProfile();
-    }
   });
 
   if (loadingProfile) {
@@ -64,69 +51,27 @@ export default function StudentPortalPage() {
     return (
       <div className="max-w-3xl mx-auto py-12 px-4 animate-in fade-in slide-in-from-bottom-8 duration-700">
         <div className="bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-gray-100">
-          <div className="bg-gray-900 p-10 text-white">
+          <div className="bg-gray-900 p-10 text-white text-center">
             <div className="flex items-center gap-4">
               <div className="h-12 w-12 rounded-2xl bg-indigo-500 flex items-center justify-center">
                 <ShieldCheck className="h-6 w-6" />
               </div>
               <div>
                 <h1 className="text-3xl font-black tracking-tight">Complete Your Profile</h1>
-                <p className="text-gray-400 font-medium">Finalize your candidate profile to access assessments</p>
+                <p className="text-gray-400 font-medium">
+                  Personal, contact, academic, and resume details are required before assessments.
+                </p>
               </div>
             </div>
           </div>
-
-          <form onSubmit={(e) => {
-            e.preventDefault();
-            const formData = new FormData(e.currentTarget);
-            onboardingMutation.mutate({
-              university: formData.get("university"),
-              degree: formData.get("degree"),
-              major: formData.get("major"),
-              graduation_year: parseInt(formData.get("graduation_year") as string),
-              cgpa: parseFloat(formData.get("cgpa") as string),
-            });
-          }} className="p-10 space-y-8">
-            <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">University Name</label>
-                <input required name="university" className="w-full rounded-2xl border-2 border-gray-50 bg-gray-50 px-6 py-4 text-sm font-bold focus:border-indigo-600 focus:bg-white outline-none transition-all" placeholder="e.g. Stanford University" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Degree Type</label>
-                <select required name="degree" className="w-full rounded-2xl border-2 border-gray-50 bg-gray-50 px-6 py-4 text-sm font-bold focus:border-indigo-600 focus:bg-white outline-none transition-all">
-                  <option value="B.Tech">B.Tech / B.E</option>
-                  <option value="M.Tech">M.Tech / M.E</option>
-                  <option value="BCA">BCA / MCA</option>
-                  <option value="B.Sc">B.Sc / M.Sc</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Specialization / Major</label>
-                <input required name="major" className="w-full rounded-2xl border-2 border-gray-50 bg-gray-50 px-6 py-4 text-sm font-bold focus:border-indigo-600 focus:bg-white outline-none transition-all" placeholder="e.g. Computer Science" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Graduation Year</label>
-                  <input required type="number" name="graduation_year" className="w-full rounded-2xl border-2 border-gray-50 bg-gray-50 px-6 py-4 text-sm font-bold focus:border-indigo-600 focus:bg-white outline-none transition-all" defaultValue={2025} />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Current CGPA</label>
-                  <input required type="number" step="0.01" name="cgpa" className="w-full rounded-2xl border-2 border-gray-50 bg-gray-50 px-6 py-4 text-sm font-bold focus:border-indigo-600 focus:bg-white outline-none transition-all" placeholder="X.XX" />
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-6">
-              <button
-                type="submit"
-                disabled={onboardingMutation.isPending}
-                className="w-full rounded-2xl bg-indigo-600 py-5 text-sm font-black text-white shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-50"
-              >
-                {onboardingMutation.isPending ? "FINALIZING..." : "CONFIRM & ENTER PORTAL"}
-              </button>
-            </div>
-          </form>
+          <div className="p-10">
+            <Link
+              to="/student-onboarding"
+              className="inline-flex w-full items-center justify-center rounded-2xl bg-indigo-600 py-4 text-sm font-black text-white shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all"
+            >
+              Go To Onboarding Form
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -203,7 +148,7 @@ export default function StudentPortalPage() {
                       </div>
                     </div>
                     <Link
-                      to={`/exams/${exam.id}/take`}
+                      to={`/student/exams/${exam.id}/take`}
                       className="flex items-center gap-2 rounded-2xl bg-gray-900 px-8 py-3.5 text-sm font-black text-white hover:bg-black transition-all group/btn"
                     >
                       LAUNCH EXAM
@@ -238,11 +183,13 @@ export default function StudentPortalPage() {
             <div className="space-y-4">
               <div className="p-4 rounded-2xl bg-gray-50 border border-gray-50">
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Affiliation</p>
-                <p className="text-sm font-black text-gray-900 mt-1">{profile?.university || "N/A"}</p>
+                <p className="text-sm font-black text-gray-900 mt-1">{profile?.college_name || "N/A"}</p>
               </div>
               <div className="p-4 rounded-2xl bg-gray-50 border border-gray-50">
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Course Focus</p>
-                <p className="text-sm font-black text-gray-900 mt-1">{profile?.major} ({profile?.degree})</p>
+                <p className="text-sm font-black text-gray-900 mt-1">
+                  {profile?.specialization || "N/A"} ({profile?.degree || "N/A"})
+                </p>
               </div>
             </div>
           </div>

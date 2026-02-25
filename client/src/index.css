@@ -3,6 +3,13 @@
 @tailwind utilities;
 
 @layer base {
+
+  html,
+  body,
+  #root {
+    @apply min-h-full;
+  }
+
   body {
     @apply font-sans;
   }

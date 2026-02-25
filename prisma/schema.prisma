@@ -1,7 +1,3 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// TalentSecure AI — Prisma Schema
-// ─────────────────────────────────────────────────────────────────────────────
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,295 +7,342 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ── Enums ────────────────────────────────────────────────────────────────────
-
-enum UserRole {
-  SUPER_ADMIN
-  ADMIN           // legacy alias for SUPER_ADMIN
-  HR
-  ENGINEER
-  CXO
-  COLLEGE_ADMIN
-  COLLEGE         // legacy alias for COLLEGE_ADMIN
-  COLLEGE_STAFF
-  RECRUITER       // kept for backward compat
-  CAMPUS_COORDINATOR
-  STUDENT
-}
-
-enum AssessmentType {
-  MCQ
-  CODING
-  BEHAVIORAL
-  MIXED
-}
-
-enum AssessmentStatus {
-  SCHEDULED
-  IN_PROGRESS
-  COMPLETED
-  TERMINATED
-  UNDER_REVIEW
-}
-
-enum QuestionType {
-  MCQ
-  CODING
-  SUBJECTIVE
-}
-
-enum Difficulty {
-  EASY
-  MEDIUM
-  HARD
-}
-
-enum ViolationType {
-  FACE_NOT_DETECTED
-  MULTIPLE_FACES
-  FACE_MISMATCH
-  TAB_SWITCH
-  BROWSER_MINIMIZED
-  COPY_PASTE_ATTEMPT
-  RIGHT_CLICK
-  SCREEN_SHARE_DETECTED
-  EXTERNAL_DISPLAY
-  DEVTOOLS_OPEN
-  NETWORK_ANOMALY
-}
-
-enum ViolationSeverity {
-  LOW
-  MEDIUM
-  HIGH
-  CRITICAL
-}
-
-enum SessionStatus {
-  ACTIVE
-  COMPLETED
-  TERMINATED
-}
-
-enum RoleStatus {
-  DRAFT
-  ACTIVE
-  CLOSED
-}
-
-// ── Models ───────────────────────────────────────────────────────────────────
-
 model User {
-  id         String   @id @default(uuid())
-  email      String   @unique
-  password   String
-  firstName  String   @map("first_name")
-  lastName   String   @map("last_name")
-  role       UserRole @default(STUDENT)
-  avatarUrl  String?  @map("avatar_url")
-  collegeId  String?  @map("college_id")
-  department String?
-  isActive   Boolean  @default(true) @map("is_active")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  id                                                  String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  role                                                user_role
+  name                                                String             @db.VarChar(200)
+  email                                               String             @unique @db.VarChar(255)
+  password                                            String             @db.VarChar(255)
+  isActive                                            Boolean            @default(true) @map("is_active")
+  createdAt                                           DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                                           DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  collegeId                                           String?            @map("college_id") @db.Uuid
+  phone_number                                        String?            @db.VarChar(20)
+  dob                                                 DateTime?          @db.Date
+  is_profile_complete                                 Boolean            @default(false)
+  department                                          String?            @db.VarChar(150)
+  must_change_password                                Boolean?           @default(false)
+  admin_audit_logs_admin_audit_logs_admin_idTousers   admin_audit_logs[] @relation("admin_audit_logs_admin_idTousers")
+  admin_audit_logs_admin_audit_logs_student_idTousers admin_audit_logs[] @relation("admin_audit_logs_student_idTousers")
+  cheating_logs                                       cheating_logs[]
+  colleges_colleges_created_byTousers                 colleges[]         @relation("colleges_created_byTousers")
+  colleges_colleges_legacy_user_idTousers             colleges?          @relation("colleges_legacy_user_idTousers")
+  exam_attempts                                       exam_attempts[]
+  exams                                               exams[]
+  marks_scored                                        marks_scored[]
+  question_bank                                       question_bank[]
+  student_details                                     student_details?
+  colleges_users_college_idTocolleges                 colleges?          @relation("users_college_idTocolleges", fields: [collegeId], references: [id], onUpdate: NoAction)
 
-  profile StudentProfile?
-
-  @@index([role, collegeId])
+  @@index([collegeId], map: "idx_users_college_id")
+  @@index([department], map: "idx_users_department")
+  @@index([email], map: "idx_users_email")
+  @@index([phone_number], map: "idx_users_phone_number")
+  @@index([role], map: "idx_users_role")
+  @@index([role, collegeId], map: "idx_users_role_college")
   @@map("users")
 }
 
-model StudentProfile {
-  id             String   @id @default(uuid())
-  userId         String   @unique @map("user_id")
-  firstName      String   @map("first_name")
-  lastName       String   @map("last_name")
-  email          String
-  phone          String?
-  university     String
-  campusId       String?  @map("campus_id")
-  degree         String
-  major          String
-  graduationYear Int      @map("graduation_year")
-  cgpa           Float
-  skills         String[]
-  resumeUrl      String?  @map("resume_url")
-  photoUrl       String?  @map("photo_url")
-  segmentId      String?  @map("segment_id")
-  matchScore     Float?   @map("match_score")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model admin_audit_logs {
+  id                                       String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  admin_id                                 String             @db.Uuid
+  student_id                               String             @db.Uuid
+  exam_id                                  String             @db.Uuid
+  action                                   admin_audit_action
+  reason                                   String             @default("")
+  created_at                               DateTime           @default(now()) @db.Timestamptz(6)
+  users_admin_audit_logs_admin_idTousers   User               @relation("admin_audit_logs_admin_idTousers", fields: [admin_id], references: [id], onUpdate: NoAction)
+  exams                                    exams              @relation(fields: [exam_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users_admin_audit_logs_student_idTousers User               @relation("admin_audit_logs_student_idTousers", fields: [student_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  segment            Segment?            @relation(fields: [segmentId], references: [id])
-  campus             Campus?             @relation(fields: [campusId], references: [id])
-  assessmentSessions AssessmentSession[]
-  proctoringSessions ProctoringSession[]
-
-  @@index([university])
-  @@index([segmentId])
-  @@index([cgpa])
-  @@map("student_profiles")
+  @@index([action], map: "idx_audit_logs_action")
+  @@index([admin_id], map: "idx_audit_logs_admin")
+  @@index([student_id, exam_id], map: "idx_audit_logs_student_exam")
 }
 
-model Campus {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  collegeCode String   @unique @map("college_code")
-  city        String
-  state       String
-  country     String   @default("India")
-  tier        String?  // Tier 1, Tier 2, etc.
-  createdAt   DateTime @default(now()) @map("created_at")
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model cheating_logs {
+  id             String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  student_id     String         @db.Uuid
+  exam_id        String         @db.Uuid
+  timestamp      DateTime       @default(now()) @db.Timestamptz(6)
+  violation_type violation_type
+  risk_score     Decimal        @default(0.00) @db.Decimal(5, 2)
+  screenshot_url String?        @db.VarChar(500)
+  created_at     DateTime       @default(now()) @db.Timestamptz(6)
+  exams          exams          @relation(fields: [exam_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users          User           @relation(fields: [student_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-  students    StudentProfile[]
-  assessments AssessmentCampus[]
-
-  @@map("campuses")
+  @@index([exam_id], map: "idx_cheating_logs_exam")
+  @@index([student_id, exam_id], map: "idx_cheating_logs_pair")
+  @@index([student_id], map: "idx_cheating_logs_student")
 }
 
-model Role {
-  id                      String     @id @default(uuid())
-  title                   String
-  company                 String
-  description             String
-  technicalSkills         Json       @map("technical_skills") // SkillRequirement[]
-  behavioralCompetencies  Json       @map("behavioral_competencies") // CompetencyRequirement[]
-  minCGPA                 Float      @map("min_cgpa")
-  eligibleDegrees         String[]   @map("eligible_degrees")
-  eligibleMajors          String[]   @map("eligible_majors")
-  maxPositions            Int        @map("max_positions")
-  status                  RoleStatus @default(DRAFT)
-  createdAt               DateTime   @default(now()) @map("created_at")
-  updatedAt               DateTime   @updatedAt @map("updated_at")
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model colleges {
+  id                                   String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  college_code                         String            @unique @db.VarChar(50)
+  name                                 String            @db.VarChar(255)
+  legacy_user_id                       String?           @unique @db.Uuid
+  created_by                           String?           @db.Uuid
+  created_at                           DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at                           DateTime          @default(now()) @db.Timestamptz(6)
+  city                                 String?           @db.VarChar(100)
+  state                                String?           @db.VarChar(100)
+  tier                                 String?           @db.VarChar(20)
+  country                              String?           @default("India") @db.VarChar(50)
+  is_active                            Boolean           @default(true)
+  users_colleges_created_byTousers     User?             @relation("colleges_created_byTousers", fields: [created_by], references: [id], onUpdate: NoAction)
+  users_colleges_legacy_user_idTousers User?             @relation("colleges_legacy_user_idTousers", fields: [legacy_user_id], references: [id], onUpdate: NoAction)
+  exam_colleges                        exam_colleges[]
+  student_details                      student_details[]
+  users_users_college_idTocolleges     User[]            @relation("users_college_idTocolleges")
 
-  assessments Assessment[]
-
-  @@map("roles")
+  @@index([legacy_user_id], map: "idx_colleges_legacy_user_id")
+  @@index([name], map: "idx_colleges_name")
 }
 
-model Assessment {
-  id                String           @id @default(uuid())
-  roleId            String           @map("role_id")
-  title             String
-  type              String
-  durationMinutes   Int              @map("duration_minutes")
-  totalQuestions    Int              @default(0) @map("total_questions")
-  totalMarks        Int              @map("total_marks")
-  passingPercentage Float            @map("passing_percentage")
-  proctoringEnabled Boolean          @default(true) @map("proctoring_enabled")
-  browserLockdown   Boolean          @default(true) @map("browser_lockdown")
-  scheduledAt       DateTime         @map("scheduled_at")
-  status            AssessmentStatus @default(SCHEDULED)
-  createdAt         DateTime         @default(now()) @map("created_at")
-  updatedAt         DateTime         @updatedAt @map("updated_at")
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model exam_attempts {
+  id                     String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  student_id             String              @db.Uuid
+  exam_id                String              @db.Uuid
+  status                 exam_attempt_status @default(in_progress)
+  current_question_index Int                 @default(0)
+  saved_answers          Json                @default("{}")
+  started_at             DateTime            @default(now()) @db.Timestamptz(6)
+  last_saved_at          DateTime            @default(now()) @db.Timestamptz(6)
+  completed_at           DateTime?           @db.Timestamptz(6)
+  question_ids           String[]            @db.Uuid
+  exams                  exams               @relation(fields: [exam_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users                  User                @relation(fields: [student_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-  role      Role                @relation(fields: [roleId], references: [id])
-  questions Question[]
-  sessions  AssessmentSession[]
-  campuses  AssessmentCampus[]
-
-  @@index([roleId])
-  @@index([status])
-  @@map("assessments")
+  @@index([saved_answers], map: "idx_exam_attempts_answers_gin", type: Gin)
+  @@index([status], map: "idx_exam_attempts_status")
+  @@index([student_id, exam_id], map: "idx_exam_attempts_student_exam")
 }
 
-model AssessmentCampus {
-  assessmentId String   @map("assessment_id")
-  campusId     String   @map("campus_id")
-  assignedAt   DateTime @default(now()) @map("assigned_at")
+model exam_colleges {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  exam_id    String   @db.Uuid
+  college_id String   @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  colleges   colleges @relation(fields: [college_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  exams      exams    @relation(fields: [exam_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
-  campus     Campus     @relation(fields: [campusId], references: [id], onDelete: Cascade)
-
-  @@id([assessmentId, campusId])
-  @@map("assessment_campuses")
+  @@unique([exam_id, college_id], map: "uq_exam_college")
+  @@index([college_id], map: "idx_exam_colleges_college")
+  @@index([exam_id], map: "idx_exam_colleges_exam")
 }
 
-model Question {
-  id            String   @id @default(uuid())
-  assessmentId  String   @map("assessment_id")
-  type          String
-  text          String
-  options       String[]
-  correctAnswer String?  @map("correct_answer")
-  marks         Int
-  difficulty    String
-  tags          String[]
-  createdAt     DateTime @default(now()) @map("created_at")
+model exam_questions {
+  id            String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  exam_id       String        @db.Uuid
+  question_id   String        @db.Uuid
+  sort_order    Int           @default(0)
+  created_at    DateTime      @default(now()) @db.Timestamptz(6)
+  exams         exams         @relation(fields: [exam_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  question_bank question_bank @relation(fields: [question_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
-
-  @@index([assessmentId])
-  @@map("questions")
+  @@unique([exam_id, question_id], map: "uq_exam_question")
+  @@index([exam_id], map: "idx_exam_questions_exam")
 }
 
-model AssessmentSession {
-  id           String    @id @default(uuid())
-  assessmentId String    @map("assessment_id")
-  studentId    String    @map("student_id")
-  startedAt    DateTime  @map("started_at")
-  completedAt  DateTime? @map("completed_at")
-  status       String    @default("IN_PROGRESS")
-  score        Int?
-  percentage   Float?
-  passed       Boolean?
-  answers      Json?
-  createdAt    DateTime  @default(now()) @map("created_at")
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model exams {
+  id                    String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  title                 String             @db.VarChar(300)
+  scheduled_time        DateTime           @db.Timestamptz(6)
+  duration              Int
+  created_by            String?            @db.Uuid
+  is_active             Boolean            @default(true)
+  created_at            DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime           @default(now()) @db.Timestamptz(6)
+  total_questions       Int?               @default(0)
+  duration_minutes      Int?
+  questions_per_student Int?
+  admin_audit_logs      admin_audit_logs[]
+  cheating_logs         cheating_logs[]
+  exam_attempts         exam_attempts[]
+  exam_colleges         exam_colleges[]
+  exam_questions        exam_questions[]
+  users                 User?              @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  marks_scored          marks_scored[]
 
-  assessment Assessment     @relation(fields: [assessmentId], references: [id])
-  student    StudentProfile @relation(fields: [studentId], references: [id])
-
-  @@unique([assessmentId, studentId])
-  @@index([status])
-  @@map("assessment_sessions")
+  @@index([scheduled_time], map: "idx_exams_scheduled")
 }
 
-model ProctoringSession {
-  id                String   @id @default(uuid())
-  assessmentId      String   @map("assessment_id")
-  studentId         String   @map("student_id")
-  referencePhotoUrl String   @map("reference_photo_url")
-  startedAt         DateTime @map("started_at")
-  endedAt           DateTime? @map("ended_at")
-  integrityScore    Float    @default(100) @map("integrity_score")
-  status            String   @default("ACTIVE")
-  createdAt         DateTime @default(now()) @map("created_at")
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model marks_scored {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  student_id  String   @db.Uuid
+  exam_id     String   @db.Uuid
+  final_score Decimal  @default(0.00) @db.Decimal(6, 2)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+  exams       exams    @relation(fields: [exam_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users       User     @relation(fields: [student_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-  student    StudentProfile       @relation(fields: [studentId], references: [id])
-  violations ProctoringViolation[]
-
-  @@index([assessmentId])
-  @@index([studentId])
-  @@map("proctoring_sessions")
+  @@unique([student_id, exam_id], map: "uq_marks_student_exam")
+  @@index([exam_id], map: "idx_marks_exam")
+  @@index([student_id], map: "idx_marks_student")
 }
 
-model ProctoringViolation {
-  id          String   @id @default(uuid())
-  sessionId   String   @map("session_id")
-  type        String
-  severity    String
-  description String
-  snapshotUrl String?  @map("snapshot_url")
-  timestamp   DateTime
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model question_bank {
+  id               String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  category         question_category
+  type             question_type
+  difficulty_level difficulty_level
+  question_text    String
+  options          Json?
+  correct_answer   String?
+  test_cases       Json?
+  starter_code     Json?
+  time_limit_ms    Int?              @default(5000)
+  memory_limit_kb  Int?              @default(262144)
+  marks            Decimal           @default(5.00) @db.Decimal(5, 2)
+  tags             String[]          @default([])
+  explanation      String?
+  created_by       String?           @db.Uuid
+  is_active        Boolean           @default(true)
+  created_at       DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime          @default(now()) @db.Timestamptz(6)
+  exam_questions   exam_questions[]
+  users            User?             @relation(fields: [created_by], references: [id], onUpdate: NoAction)
 
-  session ProctoringSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-
-  @@index([sessionId])
-  @@map("proctoring_violations")
+  @@index([category], map: "idx_qb_category")
+  @@index([category, difficulty_level], map: "idx_qb_category_difficulty")
+  @@index([category, type], map: "idx_qb_category_type")
+  @@index([created_by], map: "idx_qb_created_by")
+  @@index([difficulty_level], map: "idx_qb_difficulty")
+  @@index([tags], map: "idx_qb_tags", type: Gin)
+  @@index([type], map: "idx_qb_type")
 }
 
-model Segment {
-  id            String   @id @default(uuid())
-  name          String   @unique
-  description   String
-  criteria      Json
-  studentCount  Int      @default(0) @map("student_count")
-  avgMatchScore Float    @default(0) @map("avg_match_score")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+model rbac_audit_logs {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actor_id    String?  @db.Uuid
+  actor_role  String   @db.VarChar(50)
+  actor_email String?  @db.VarChar(255)
+  action      String   @db.VarChar(100)
+  target_type String?  @db.VarChar(50)
+  target_id   String?  @db.Uuid
+  exam_id     String?  @db.Uuid
+  student_id  String?  @db.Uuid
+  reason      String?
+  metadata    Json?    @default("{}")
+  ip_address  String?  @db.VarChar(45)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
 
-  students StudentProfile[]
+  @@index([action], map: "idx_rbac_audit_action")
+  @@index([actor_id], map: "idx_rbac_audit_actor")
+  @@index([created_at(sort: Desc)], map: "idx_rbac_audit_created")
+  @@index([target_type, target_id], map: "idx_rbac_audit_target")
+}
 
-  @@map("segments")
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model student_details {
+  id                 String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id            String    @unique @db.Uuid
+  college_id         String    @db.Uuid
+  face_photo_url     String?   @db.VarChar(500)
+  id_photo_url       String?   @db.VarChar(500)
+  created_at         DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime  @default(now()) @db.Timestamptz(6)
+  student_identifier String?   @db.VarChar(100)
+  phone_number       String?   @db.VarChar(20)
+  dob                DateTime? @db.Date
+  degree             String?   @db.VarChar(150)
+  class_name         String?   @db.VarChar(100)
+  section            String?   @db.VarChar(50)
+  first_name         String?   @db.VarChar(120)
+  middle_name        String?   @db.VarChar(120)
+  last_name          String?   @db.VarChar(120)
+  gender             String?   @db.VarChar(30)
+  alternate_email    String?   @db.VarChar(255)
+  alternate_phone    String?   @db.VarChar(20)
+  specialization     String?   @db.VarChar(150)
+  passing_year       Int?
+  cgpa               Decimal?  @db.Decimal(4, 2)
+  percentage         Decimal?  @db.Decimal(5, 2)
+  resume_url         String?   @db.VarChar(500)
+  skills             String[]
+  linkedin_url       String?   @db.VarChar(500)
+  github_url         String?   @db.VarChar(500)
+  colleges           colleges  @relation(fields: [college_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users              User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([class_name, section], map: "idx_student_details_class_section")
+  @@index([college_id], map: "idx_student_details_college_id")
+  @@index([degree], map: "idx_student_details_degree")
+  @@index([gender], map: "idx_student_details_gender")
+  @@index([passing_year], map: "idx_student_details_passing_year")
+  @@index([specialization], map: "idx_student_details_specialization")
+  @@index([user_id], map: "idx_student_details_user_id")
+}
+
+enum admin_audit_action {
+  EXAM_RESET
+  EXAM_RESUMED
+}
+
+enum difficulty_level {
+  easy
+  medium
+  hard
+}
+
+enum exam_attempt_status {
+  in_progress
+  interrupted
+  completed
+  reset
+}
+
+enum question_category {
+  reasoning
+  maths
+  aptitude
+  data_structures
+  programming
+  python_coding
+  java_coding
+  data_science
+}
+
+enum question_type {
+  multiple_choice
+  coding_challenge
+}
+
+enum user_role {
+  admin
+  college
+  student
+  college_staff
+  super_admin
+  hr
+  engineer
+  cxo
+  college_admin
+}
+
+enum violation_type {
+  face_not_detected
+  multiple_faces
+  face_mismatch
+  tab_switch
+  browser_minimized
+  copy_paste_attempt
+  right_click
+  screen_share_detected
+  devtools_open
+  external_display
+  network_anomaly
 }

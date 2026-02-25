@@ -84,7 +84,8 @@ const blueprintCuratorSchema = z.object({
       (w) => Object.keys(w).length >= 1,
       { message: "At least one category is required" },
     ),
-  total_questions: z.number().int().min(1).max(200),
+  total_questions: z.number().int().min(1).max(500),
+  questions_per_student: z.number().int().min(1).max(100).optional(),
   duration_minutes: z.number().int().min(1).max(600).optional().default(60),
 });
 
@@ -105,7 +106,8 @@ const generateDynamicSchema = z.object({
       },
       { message: "Category weight percentages must sum to 100%" },
     ),
-  total_questions: z.number().int().min(1).max(200),
+  total_questions: z.number().int().min(1).max(500),
+  questions_per_student: z.number().int().min(1).max(100).optional(),
   duration_minutes: z.number().int().min(1).max(600).optional().default(60),
 });
 
@@ -143,6 +145,14 @@ router.get("/", authenticate, examController.list);
 router.get("/active", authenticate, examController.listActive);
 router.get("/languages", authenticate, examController.getSupportedLanguages);
 router.get("/:id", authenticate, examController.getById);
+
+// Get curated questions for an exam
+router.get(
+  "/:id/questions",
+  authenticate,
+  authorize("admin", "super_admin", "hr", "college", "college_admin", "engineer"),
+  examController.getExamQuestions,
+);
 
 // Assessment generation (admin / hr / college)
 router.post(

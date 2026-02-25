@@ -145,5 +145,5 @@ CREATE TRIGGER trg_marks_scored_updated_at
 -- Seed: default admin user (password: admin123 — bcrypt hash)
 -- =============================================================================
 INSERT INTO users (role, name, email, password) VALUES
-    ('admin', 'Admin User', 'admin@talentsecure.ai',
+    ('admin', 'Admin User', 'admin@nallastalent.ai',
      crypt('admin123', gen_salt('bf', 12)));

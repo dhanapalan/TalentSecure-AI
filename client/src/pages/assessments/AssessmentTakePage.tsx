@@ -17,8 +17,12 @@ export default function AssessmentTakePage() {
   const { data: assessment } = useQuery({
     queryKey: ["assessment", id],
     queryFn: async () => {
-      const { data } = await api.get(`/assessments/${id}`);
-      return data.data;
+      const { data } = await api.get(`/exams/${id}/questions`);
+      const { exam, questions, attemptId } = data.data;
+      if (attemptId) {
+        localStorage.setItem(`exam_attempt_${id}`, attemptId);
+      }
+      return { ...exam, questions };
     },
   });
 
@@ -171,13 +175,12 @@ export default function AssessmentTakePage() {
               <div className="text-sm">
                 <p className="font-medium text-gray-700">Integrity</p>
                 <p
-                  className={`text-lg font-bold ${
-                    integrityScore >= 80
-                      ? "text-green-600"
-                      : integrityScore >= 50
+                  className={`text-lg font-bold ${integrityScore >= 80
+                    ? "text-green-600"
+                    : integrityScore >= 50
                       ? "text-yellow-600"
                       : "text-red-600"
-                  }`}
+                    }`}
                 >
                   {integrityScore}%
                 </p>
@@ -219,11 +222,10 @@ export default function AssessmentTakePage() {
               {question.options.map((opt: string, i: number) => (
                 <label
                   key={i}
-                  className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors ${
-                    answers[question.id] === opt
-                      ? "border-primary-500 bg-primary-50"
-                      : "border-gray-200 hover:border-gray-300"
-                  }`}
+                  className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors ${answers[question.id] === opt
+                    ? "border-primary-500 bg-primary-50"
+                    : "border-gray-200 hover:border-gray-300"
+                    }`}
                 >
                   <input
                     type="radio"

@@ -11,16 +11,16 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import clsx from "clsx";
 import api from "../../lib/api";
-import { CheckCircle2, School, Plus, ShieldCheck, ChevronRight } from "lucide-react";
+import { CheckCircle2, Plus, ShieldCheck, ChevronRight, X, Library } from "lucide-react";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const CATEGORIES = [
   { key: "Reasoning", icon: "🧠", gradient: "from-blue-500   to-blue-600", bar: "bg-blue-500", ring: "ring-blue-400", badge: "bg-blue-50   text-blue-700" },
-  { key: "Maths", icon: "📐", gradient: "from-emerald-500 to-emerald-600", bar: "bg-emerald-500", ring: "ring-emerald-400", badge: "bg-emerald-50 text-emerald-700" },
   { key: "Aptitude", icon: "💡", gradient: "from-amber-500  to-amber-600", bar: "bg-amber-500", ring: "ring-amber-400", badge: "bg-amber-50  text-amber-700" },
-  { key: "Data Structures", icon: "🌳", gradient: "from-purple-500 to-purple-600", bar: "bg-purple-500", ring: "ring-purple-400", badge: "bg-purple-50 text-purple-700" },
-  { key: "Programming", icon: "💻", gradient: "from-rose-500   to-rose-600", bar: "bg-rose-500", ring: "ring-rose-400", badge: "bg-rose-50   text-rose-700" },
+  { key: "Coding / Programming", icon: "💻", gradient: "from-emerald-500 to-emerald-600", bar: "bg-emerald-500", ring: "ring-emerald-400", badge: "bg-emerald-50 text-emerald-700" },
+  { key: "SQL & Databases", icon: "🗄️", gradient: "from-cyan-500 to-cyan-600", bar: "bg-cyan-500", ring: "ring-cyan-400", badge: "bg-cyan-50 text-cyan-700" },
+  { key: "Core CS (DS/Algo)", icon: "🌳", gradient: "from-purple-500 to-purple-600", bar: "bg-purple-500", ring: "ring-purple-400", badge: "bg-purple-50 text-purple-700" },
 ] as const;
 
 type GenerationMode = "curator" | "dynamic";
@@ -45,18 +45,22 @@ interface GeneratedQuestion {
 }
 
 interface CuratorResponse {
-  totalRequested: number;
-  totalCurated: number;
-  breakdown: { category: string; requested: number; fulfilled: number; available: number }[];
-  questions: GeneratedQuestion[];
   exam: { id: string };
+  blueprint: {
+    totalRequested: number;
+    totalCurated: number;
+    breakdown: { category: string; requested: number; fulfilled: number; available: number }[];
+    questions: GeneratedQuestion[];
+  };
 }
 
 interface DynamicResponse {
-  total_questions: number;
-  category_breakdown: { category: string; count: number; percentage: number }[];
-  questions: GeneratedQuestion[];
   exam: { id: string };
+  assessment: {
+    total_questions: number;
+    category_breakdown: { category: string; count: number; percentage: number }[];
+    questions: GeneratedQuestion[];
+  };
 }
 
 interface Campus {
@@ -69,7 +73,12 @@ interface Campus {
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function initialSliders(): SliderState {
-  return Object.fromEntries(CATEGORIES.map((c) => [c.key, 20]));
+  const cats = CATEGORIES.map((c) => c.key);
+  const base = Math.floor(100 / cats.length);          // 16 each for 6 cats
+  const remainder = 100 - base * cats.length;           // 4 leftover
+  return Object.fromEntries(
+    cats.map((key, i) => [key, base + (i < remainder ? 1 : 0)]),
+  );
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -80,10 +89,12 @@ export default function AssessmentBlueprintWizard() {
   const [totalQuestions, setTotalQuestions] = useState(45);
   const [durationMinutes, setDurationMinutes] = useState(120);
   const [mode, setMode] = useState<GenerationMode>("curator");
+  const [questionsPerStudent, setQuestionsPerStudent] = useState(15);
   const [results, setResults] = useState<GeneratedQuestion[] | null>(null);
   const [examId, setExamId] = useState<string | null>(null);
   const [selectedCampuses, setSelectedCampuses] = useState<string[]>([]);
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
 
   // ── Queries ──
   const { data: campuses } = useQuery({
@@ -94,25 +105,82 @@ export default function AssessmentBlueprintWizard() {
     },
   });
 
+  const { data: qbQuestions } = useQuery({
+    queryKey: ["qb-questions"],
+    queryFn: async () => {
+      const { data } = await api.get("/questions");
+      return data.data as any[];
+    },
+  });
+
   // ── Derived ──────────────────────────────────────────────────────────────
   const total = useMemo(
     () => Object.values(sliders).reduce((s, v) => s + v, 0),
     [sliders],
   );
-  const remaining = 100 - total;
   const isValid = Math.abs(total - 100) < 0.5;
 
-  // ── Slider change handler (constrained to not exceed 100%) ───────────────
+  // ── Slider change handler (Maintains 100% total by adjusting others) ──────
   const handleSlider = useCallback(
-    (category: string, raw: number) => {
+    (category: string, newValue: number) => {
       setSliders((prev) => {
-        const others = total - prev[category];
-        const maxAllowed = 100 - others;
-        const clamped = Math.min(raw, maxAllowed);
-        return { ...prev, [category]: clamped };
+        const oldValue = prev[category];
+        const diff = newValue - oldValue;
+        if (diff === 0) return prev;
+
+        const otherCats = CATEGORIES.map((c) => c.key).filter((k) => k !== category);
+        const nextSliders = { ...prev, [category]: newValue };
+
+        // We need to distribute -diff among otherCats
+        const toDistribute = -diff;
+        const othersTotal = otherCats.reduce((sum, k) => sum + prev[k], 0);
+
+        if (toDistribute < 0) {
+          // We are increasing the current slider, must decrease others
+          if (othersTotal === 0) return prev; // Cannot increase if others are all 0
+          otherCats.forEach((k) => {
+            const weight = prev[k] / othersTotal;
+            nextSliders[k] = Math.max(0, prev[k] + toDistribute * weight);
+          });
+        } else {
+          // We are decreasing the current slider, increase others proportionally
+          if (othersTotal === 0) {
+            const perOther = toDistribute / otherCats.length;
+            otherCats.forEach((k) => (nextSliders[k] = perOther));
+          } else {
+            otherCats.forEach((k) => {
+              const weight = prev[k] / othersTotal;
+              nextSliders[k] = Math.min(100, prev[k] + toDistribute * weight);
+            });
+          }
+        }
+
+        // Final normalization to ensure sum is exactly 100 (handling float rounding)
+        const currentSum = Object.values(nextSliders).reduce((s, v) => s + v, 0);
+        const error = 100 - currentSum;
+        if (Math.abs(error) > 0.01) {
+          const firstOther = otherCats[0];
+          nextSliders[firstOther] = Math.max(0, nextSliders[firstOther] + error);
+        }
+
+        // Round to integers for cleaner UX
+        const rounded: SliderState = {};
+        Object.entries(nextSliders).forEach(([k, v]) => {
+          rounded[k] = Math.round(v);
+        });
+
+        // Ensure rounded sum is still exactly 100
+        const roundedSum = Object.values(rounded).reduce((s, v) => s + v, 0);
+        if (roundedSum !== 100) {
+          const diff2 = 100 - roundedSum;
+          const largest = otherCats.sort((a, b) => rounded[b] - rounded[a])[0];
+          rounded[largest] += diff2;
+        }
+
+        return rounded;
       });
     },
-    [total],
+    [setSliders],
   );
 
   // ── Auto-balance remaining across zero-value sliders ─────────────────────
@@ -139,14 +207,19 @@ export default function AssessmentBlueprintWizard() {
       }
       const { data } = await api.post<{ success: boolean; data: CuratorResponse }>(
         "/exams/blueprint-curator",
-        { weights, total_questions: totalQuestions, duration_minutes: durationMinutes },
+        {
+          weights,
+          total_questions: totalQuestions,
+          questions_per_student: questionsPerStudent,
+          duration_minutes: durationMinutes
+        },
       );
       return data.data;
     },
     onSuccess: (data) => {
-      setResults(data.questions);
+      setResults(data.blueprint.questions);
       setExamId(data.exam.id);
-      toast.success(`Curated ${data.totalCurated} questions from the bank`);
+      toast.success(`Curated ${data.blueprint.totalCurated} questions from the bank`);
     },
     onError: (err: any) => {
       toast.error(err?.response?.data?.error ?? "Failed to curate questions");
@@ -161,14 +234,19 @@ export default function AssessmentBlueprintWizard() {
       }
       const { data } = await api.post<{ success: boolean; data: DynamicResponse }>(
         "/exams/generate-dynamic",
-        { weights, total_questions: totalQuestions, duration_minutes: durationMinutes },
+        {
+          weights,
+          total_questions: totalQuestions,
+          questions_per_student: questionsPerStudent,
+          duration_minutes: durationMinutes
+        },
       );
       return data.data;
     },
     onSuccess: (data) => {
-      setResults(data.questions);
+      setResults(data.assessment.questions);
       setExamId(data.exam.id);
-      toast.success(`Generated ${data.total_questions} original questions via AI`);
+      toast.success(`Generated ${data.assessment.total_questions} original questions via AI`);
     },
     onError: (err: any) => {
       toast.error(err?.response?.data?.error ?? "Failed to generate questions");
@@ -208,228 +286,255 @@ export default function AssessmentBlueprintWizard() {
   };
 
   const toggleCampus = (id: string) => {
-    setSelectedCampuses(prev =>
-      prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
+    setSelectedCampuses((prev) =>
+      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id],
     );
   };
 
   // ── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className="mx-auto max-w-5xl space-y-8 p-4 sm:p-6 lg:p-8 animate-in fade-in duration-500">
-      {/* ── Header ────────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between">
+    <div className="mx-auto max-w-7xl animate-in fade-in duration-700">
+      {/* ── Header ── */}
+      <div className="mb-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="space-y-1">
-          <h1 className="text-4xl font-black tracking-tight text-gray-900">
-            Assessment Blueprint Wizard
+          <h1 className="text-4xl font-extrabold tracking-tight text-gray-900">
+            Assessment Wizard
           </h1>
-          <p className="text-lg text-gray-500 font-medium">
-            AI-powered exam strategy for precision hiring.
+          <p className="text-gray-500">
+            Define your recruitment strategy and deploy assessments to partner campuses.
           </p>
         </div>
-        <div className="hidden lg:flex items-center gap-2 rounded-full bg-indigo-50 px-4 py-2 text-indigo-700 shadow-sm border border-indigo-100">
-          <ShieldCheck className="h-4 w-4" />
-          <span className="text-xs font-bold uppercase tracking-wider">AI Proctoring Enabled</span>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setIsLibraryOpen(true)}
+            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
+          >
+            <Library className="h-4 w-4" />
+            Question Library
+          </button>
+          <div className="flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-2 text-emerald-700 border border-emerald-100 shadow-sm">
+            <ShieldCheck className="h-4 w-4" />
+            <span className="text-xs font-bold uppercase tracking-wider">Secure Assessment</span>
+          </div>
         </div>
       </div>
 
-      {/* ── Main Card ─────────────────────────────────────────────── */}
-      <div className="group relative overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-2xl transition-all duration-300">
-        <div className="absolute inset-x-0 top-0 h-1.5 flex transition-all duration-500">
-          {CATEGORIES.map((c) => (
-            <div
-              key={c.key}
-              className={clsx("h-full transition-all duration-500", c.bar)}
-              style={{ width: `${sliders[c.key]}%` }}
-            />
-          ))}
-          {remaining > 0 && <div className="h-full bg-gray-100" style={{ width: `${remaining}%` }} />}
-        </div>
-
-        <div className="p-8 sm:p-10 space-y-10">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="space-y-2">
-              <h2 className="text-xl font-bold text-gray-900">Strategic Allocation</h2>
-              <p className="text-sm text-gray-500 max-w-sm">Distribute the exam's focus across core technical and cognitive domains.</p>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className={clsx(
-                "rounded-2xl px-6 py-3 transition-all",
-                isValid ? "bg-emerald-50 text-emerald-700 ring-2 ring-emerald-100" : "bg-rose-50 text-rose-700 ring-2 ring-rose-100"
-              )}>
-                <span className="text-2xl font-black">{total}%</span>
-                <span className="ml-2 text-xs font-bold uppercase tracking-widest opacity-70">TotalFocus</span>
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+        {/* Left Column: Sliders */}
+        <div className="lg:col-span-12 xl:col-span-7 space-y-6">
+          <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
+            <div className="mb-8 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 leading-none">Strategic Focus</h2>
+                <p className="mt-2 text-sm text-gray-500 italic">Adjust sliders to define focus. Weights auto-balance.</p>
               </div>
-              <div className="flex flex-col gap-1">
-                <button onClick={autoBalance} className="text-[10px] font-bold uppercase tracking-widest text-indigo-600 hover:text-indigo-800 transition-colors">AutoBalance</button>
-                <button onClick={resetSliders} className="text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-gray-600 transition-colors">Reset</button>
+              <div className="flex gap-2">
+                <button
+                  onClick={autoBalance}
+                  className="rounded-lg bg-gray-50 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-600 hover:bg-gray-100 transition-colors border border-gray-100"
+                >
+                  Balance All
+                </button>
+                <button
+                  onClick={resetSliders}
+                  className="rounded-lg bg-gray-50 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:bg-gray-100 transition-colors border border-gray-100"
+                >
+                  Reset
+                </button>
               </div>
             </div>
-          </div>
 
-          <div className="grid grid-cols-1 gap-10 md:grid-cols-2">
-            <div className="space-y-8">
+            <div className="space-y-6">
               {CATEGORIES.map((cat) => {
                 const value = sliders[cat.key];
-                const others = total - value;
-                const max = 100 - others;
                 return (
-                  <div key={cat.key} className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className={clsx("p-2 rounded-xl text-white shadow-md", cat.gradient)}>
-                          <span className="text-lg">{cat.icon}</span>
+                  <div key={cat.key} className="group flex items-center gap-8">
+                    <div className="w-48 flex-shrink-0">
+                      <div className="flex items-center gap-4">
+                        <div className={clsx("flex h-12 w-12 items-center justify-center rounded-xl text-xl shadow-inner", cat.badge)}>
+                          {cat.icon}
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-gray-800 uppercase tracking-tight">{cat.key}</p>
-                          <p className="text-[10px] font-medium text-gray-400">Target Weighting</p>
+                          <p className="text-sm font-bold text-gray-900 uppercase tracking-tight">{cat.key}</p>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Weighting</p>
                         </div>
                       </div>
-                      <div className="flex items-center bg-gray-50 rounded-lg px-3 py-1.5 border border-gray-100">
-                        <input
-                          type="number"
-                          value={value}
-                          onChange={(e) => handleSlider(cat.key, parseInt(e.target.value) || 0)}
-                          className="w-10 bg-transparent text-right font-black text-indigo-600 focus:outline-none"
-                        />
-                        <span className="ml-1 text-[10px] font-bold text-gray-400">%</span>
-                      </div>
                     </div>
-                    <div className="relative">
+
+                    <div className="relative flex flex-1 items-center gap-6">
                       <input
                         type="range"
                         min={0}
-                        max={max}
+                        max={100}
                         value={value}
                         onChange={(e) => handleSlider(cat.key, parseInt(e.target.value))}
-                        className="slider-thumb h-2 w-full appearance-none rounded-full bg-gray-100"
+                        className="slider-thumb h-2 w-full appearance-none rounded-full bg-gray-100 outline-none"
                       />
+                      <div className="w-16 text-right">
+                        <span className={clsx("text-2xl font-black tabular-nums transition-colors", value > 0 ? "text-indigo-600" : "text-gray-300")}>
+                          {value}
+                        </span>
+                        <span className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">%</span>
+                      </div>
                     </div>
                   </div>
                 );
               })}
             </div>
+          </div>
+        </div>
 
-            <div className="rounded-3xl bg-gray-50 p-8 flex flex-col justify-between border border-gray-100">
-              <div className="space-y-8">
-                <div>
-                  <h3 className="font-bold text-gray-900 border-l-4 border-indigo-600 pl-4">Delivery Parameters</h3>
-                </div>
-
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-[11px] font-bold uppercase tracking-widest text-gray-400">QuestionCount</label>
-                    <input
-                      type="number"
-                      value={totalQuestions}
-                      onChange={(e) => setTotalQuestions(Number(e.target.value))}
-                      className="w-full bg-white rounded-2xl border border-gray-200 p-4 text-xl font-black text-gray-900 focus:ring-4 focus:ring-indigo-100 outline-none transition-all"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[11px] font-bold uppercase tracking-widest text-gray-400">TimeLimit (min)</label>
-                    <input
-                      type="number"
-                      value={durationMinutes}
-                      onChange={(e) => setDurationMinutes(Number(e.target.value))}
-                      className="w-full bg-white rounded-2xl border border-gray-200 p-4 text-xl font-black text-gray-900 focus:ring-4 focus:ring-indigo-100 outline-none transition-all"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <label className="text-[11px] font-bold uppercase tracking-widest text-gray-400">Intelligence Engine</label>
-                  <div className="grid grid-cols-2 gap-3 p-1.5 bg-white rounded-2xl border border-gray-200">
-                    <button
-                      onClick={() => setMode("curator")}
-                      className={clsx(
-                        "rounded-xl py-3 text-sm font-bold transition-all",
-                        mode === "curator" ? "bg-gray-900 text-white shadow-xl" : "text-gray-400 hover:text-gray-600"
-                      )}
-                    >📚 Curator</button>
-                    <button
-                      onClick={() => setMode("dynamic")}
-                      className={clsx(
-                        "rounded-xl py-3 text-sm font-bold transition-all",
-                        mode === "dynamic" ? "bg-indigo-600 text-white shadow-xl" : "text-gray-400 hover:text-gray-600"
-                      )}
-                    >🤖 GPT-4o</button>
-                  </div>
-                </div>
+        {/* Right Column: Config & Generation */}
+        <div className="lg:col-span-12 xl:col-span-5 space-y-6 lg:sticky lg:top-8">
+          <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm space-y-8">
+            <div className="flex items-center justify-between border-b border-gray-50 pb-6">
+              <h3 className="font-bold text-gray-900 uppercase tracking-wider text-xs">Generation Parameters</h3>
+              <div className={clsx(
+                "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border",
+                isValid ? "bg-emerald-50 border-emerald-100 text-emerald-600" : "bg-rose-50 border-rose-100 text-rose-600"
+              )}>
+                {isValid ? "Calibrated (100%)" : "Unbalanced"}
               </div>
-
-              <button
-                onClick={handleGenerate}
-                disabled={!isValid || isLoading}
-                className={clsx(
-                  "mt-10 w-full rounded-2xl py-5 text-lg font-black tracking-tight text-white shadow-2xl transition-all active:scale-95 group overflow-hidden",
-                  isValid && !isLoading ? "bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700" : "bg-gray-200 cursor-not-allowed"
-                )}
-              >
-                {isLoading ? (
-                  <span className="flex items-center justify-center gap-3">
-                    <svg className="h-6 w-6 animate-spin" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                    Initializing AI...
-                  </span>
-                ) : (
-                  <span className="flex items-center justify-center gap-2">
-                    <Plus className="h-6 w-6" /> Generate Blueprint
-                  </span>
-                )}
-              </button>
             </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Total Pool</label>
+              <input
+                type="number"
+                value={totalQuestions}
+                onChange={(e) => setTotalQuestions(Number(e.target.value))}
+                className="w-full rounded-xl border border-gray-200 p-4 text-2xl font-black text-gray-900 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 outline-none transition-all"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Questions/Student</label>
+              <input
+                type="number"
+                value={questionsPerStudent}
+                onChange={(e) => setQuestionsPerStudent(Number(e.target.value))}
+                className="w-full rounded-xl border border-gray-200 p-4 text-2xl font-black text-indigo-600 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 outline-none transition-all"
+              />
+            </div>
+            <div className="space-y-2 col-span-2">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Duration (mins)</label>
+              <input
+                type="number"
+                value={durationMinutes}
+                onChange={(e) => setDurationMinutes(Number(e.target.value))}
+                className="w-full rounded-xl border border-gray-200 p-4 text-2xl font-black text-gray-900 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 outline-none transition-all"
+              />
+            </div>
+
+            <div className="space-y-4">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Delivery Logic</label>
+              <div className="flex gap-2 p-1.5 bg-gray-50 rounded-2xl border border-gray-100">
+                <button
+                  onClick={() => setMode("curator")}
+                  className={clsx(
+                    "flex-1 py-4 rounded-xl text-xs font-bold transition-all",
+                    mode === "curator" ? "bg-white text-indigo-600 shadow-sm ring-1 ring-gray-200" : "text-gray-400 hover:text-gray-600"
+                  )}
+                >
+                  <span className="flex items-center justify-center gap-2">📚 Curator</span>
+                </button>
+                <button
+                  onClick={() => setMode("dynamic")}
+                  className={clsx(
+                    "flex-1 py-4 rounded-xl text-xs font-bold transition-all",
+                    mode === "dynamic" ? "bg-indigo-600 text-white shadow-md shadow-indigo-200" : "text-gray-400 hover:text-gray-600"
+                  )}
+                >
+                  <span className="flex items-center justify-center gap-2">🤖 Creative Drive</span>
+                </button>
+              </div>
+            </div>
+
+            <button
+              onClick={handleGenerate}
+              disabled={!isValid || isLoading}
+              className={clsx(
+                "w-full rounded-2xl py-6 text-lg font-bold tracking-tight text-white transition-all active:scale-95",
+                isValid && !isLoading
+                  ? "bg-indigo-600 hover:bg-indigo-700 shadow-xl shadow-indigo-100"
+                  : "bg-gray-100 text-gray-400 cursor-not-allowed"
+              )}
+            >
+              {isLoading ? (
+                <span className="flex items-center justify-center gap-3">
+                  <svg className="h-6 w-6 animate-spin" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                  Processing...
+                </span>
+              ) : (
+                <span className="flex items-center justify-center gap-2">
+                  <Plus className="h-6 w-6" /> Generate Assessment
+                </span>
+              )}
+            </button>
           </div>
         </div>
       </div>
 
-      {/* ── Results & Assignment ──────────────────────────────────── */}
+      {/* ── Results & Deployment ── */}
       {results && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in slide-in-from-bottom-8 duration-700">
-          <div className="lg:col-span-2 space-y-6">
-            <h3 className="text-2xl font-black text-gray-900 flex items-center gap-3 italic">
-              <CheckCircle2 className="h-7 w-7 text-emerald-500" /> Assessment Preview
-            </h3>
+        <div className="mt-12 grid grid-cols-1 gap-12 border-t border-gray-100 pt-12 lg:grid-cols-12 animate-in slide-in-from-bottom-8 duration-700">
+          <div className="lg:col-span-12 xl:col-span-7 space-y-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-2xl font-bold text-gray-900">Assessment Breakdown</h3>
+              <span className="rounded-xl bg-gray-50 px-4 py-1.5 text-xs font-bold text-gray-500 border border-gray-100">
+                {results.length} Questions Prepared
+              </span>
+            </div>
+
             <div className="space-y-4">
-              {results.slice(0, expandedIdx === null ? 5 : 20).map((q, i) => (
-                <div key={i} className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm hover:shadow-md transition-shadow cursor-default group">
-                  <div className="flex items-start justify-between">
-                    <span className="h-6 w-6 rounded-lg bg-gray-50 flex items-center justify-center text-xs font-bold text-gray-400 group-hover:bg-indigo-600 group-hover:text-white transition-colors">{i + 1}</span>
-                    <span className="text-[10px] font-black uppercase tracking-wider text-indigo-400 bg-indigo-50 px-2 py-1 rounded-md">{q.category}</span>
+              {results.slice(0, expandedIdx === null ? 5 : 50).map((q, i) => (
+                <div key={i} className="group rounded-2xl border border-gray-100 bg-white p-8 shadow-sm transition-all hover:shadow-md">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-50 text-xs font-bold text-gray-400 group-hover:bg-indigo-600 group-hover:text-white transition-colors">{i + 1}</span>
+                      <span className="rounded-lg bg-indigo-50 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-indigo-600 border border-indigo-100">{q.category}</span>
+                    </div>
                   </div>
-                  <p className="mt-4 text-gray-700 font-medium leading-relaxed">{q.question_text}</p>
+                  <p className="text-lg font-medium leading-relaxed text-gray-800">{q.question_text}</p>
                 </div>
               ))}
               {results.length > 5 && expandedIdx === null && (
-                <button onClick={() => setExpandedIdx(1)} className="w-full py-4 rounded-xl border-2 border-dashed border-gray-200 text-gray-400 font-bold hover:bg-gray-50 transition-colors">
-                  View {results.length - 5} more questions...
+                <button
+                  onClick={() => setExpandedIdx(1)}
+                  className="w-full rounded-2xl border-2 border-dashed border-gray-200 py-6 text-sm font-bold text-gray-400 hover:bg-gray-50 hover:text-indigo-600 hover:border-indigo-100 transition-all uppercase tracking-widest"
+                >
+                  Review all {results.length} questions
                 </button>
               )}
             </div>
           </div>
 
-          <div className="space-y-6">
-            <h3 className="text-2xl font-black text-gray-900 flex items-center gap-3 italic">
-              <School className="h-7 w-7 text-indigo-600" /> Target Campuses
-            </h3>
-            <div className="rounded-3xl border border-indigo-100 bg-indigo-50/30 p-8 space-y-8">
-              <p className="text-sm text-gray-600 leading-relaxed font-medium">Select one or more colleges to assign this generated assessment to.</p>
+          <div className="lg:col-span-12 xl:col-span-5 space-y-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-2xl font-bold text-gray-900">Campus Assignment</h3>
+            </div>
 
-              <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                {campuses?.map(campus => (
+            <div className="rounded-2xl border border-indigo-100 bg-indigo-50/20 p-8 space-y-8">
+              <div className="space-y-3 max-h-[450px] overflow-y-auto pr-2 custom-scrollbar">
+                {campuses?.map((campus: Campus) => (
                   <button
                     key={campus.id}
                     onClick={() => toggleCampus(campus.id)}
                     className={clsx(
-                      "w-full flex items-center justify-between p-4 rounded-2xl transition-all border-2",
+                      "flex w-full items-center justify-between rounded-2xl border-2 p-5 transition-all text-gray-900",
                       selectedCampuses.includes(campus.id)
-                        ? "bg-white border-indigo-600 shadow-lg text-indigo-700 ring-4 ring-indigo-50 scale-[1.02]"
-                        : "bg-white/50 border-white hover:border-gray-200 text-gray-400"
+                        ? "bg-white border-indigo-600 shadow-md text-indigo-900 scale-[1.02]"
+                        : "bg-white/50 border-white text-gray-400 hover:bg-white"
                     )}
                   >
-                    <div className="text-left">
-                      <p className="text-sm font-black">{campus.name}</p>
-                      <p className="text-[10px] uppercase tracking-widest opacity-60">{campus.city} • {campus.tier}</p>
+                    <div className="text-left font-bold">
+                      <p className="text-base">{campus.name}</p>
+                      <p className="mt-1 text-[10px] uppercase tracking-widest opacity-60 font-black">{campus.city} • {campus.tier} Campus</p>
                     </div>
-                    {selectedCampuses.includes(campus.id) && <CheckCircle2 className="h-5 w-5 text-indigo-600" />}
+                    {selectedCampuses.includes(campus.id) && (
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 shadow-lg shadow-indigo-200">
+                        <CheckCircle2 className="h-5 w-5 text-white" />
+                      </div>
+                    )}
                   </button>
                 ))}
               </div>
@@ -438,14 +543,17 @@ export default function AssessmentBlueprintWizard() {
                 onClick={() => assignMutation.mutate()}
                 disabled={selectedCampuses.length === 0 || assignMutation.isPending}
                 className={clsx(
-                  "w-full rounded-2xl py-4 font-black flex items-center justify-center gap-3 shadow-xl transition-all",
+                  "flex w-full items-center justify-center gap-3 rounded-2xl py-6 text-lg font-bold transition-all active:scale-95",
                   selectedCampuses.length > 0 && !assignMutation.isPending
-                    ? "bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95"
-                    : "bg-gray-200 text-gray-500 cursor-not-allowed"
+                    ? "bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl shadow-indigo-100"
+                    : "bg-gray-100 text-gray-400 cursor-not-allowed"
                 )}
               >
-                {assignMutation.isPending ? "Assigning..." : (
-                  <>Assign to {selectedCampuses.length} Campus{selectedCampuses.length !== 1 && 'es'}<ChevronRight className="h-5 w-5" /></>
+                {assignMutation.isPending ? "Deploying..." : (
+                  <>
+                    Host Drive for {selectedCampuses.length} Campuses
+                    <ChevronRight className="h-6 w-6" />
+                  </>
                 )}
               </button>
             </div>
@@ -453,30 +561,78 @@ export default function AssessmentBlueprintWizard() {
         </div>
       )}
 
-      {/* ── Custom styles ─────────────────────────────────────────── */}
+      {/* ── Question Library Drawer ── */}
+      {isLibraryOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="fixed inset-0 bg-black/20 backdrop-blur-sm" onClick={() => setIsLibraryOpen(false)} />
+          <div className="relative w-full max-w-xl animate-in slide-in-from-right duration-300 border-l border-gray-100 bg-white shadow-2xl">
+            <div className="flex h-full flex-col">
+              <div className="flex items-center justify-between border-b border-gray-100 p-6">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Question Library</h3>
+                  <p className="text-sm text-gray-500">Browse existing questions in your bank</p>
+                </div>
+                <button
+                  onClick={() => setIsLibraryOpen(false)}
+                  className="rounded-lg p-2 text-gray-400 hover:bg-gray-50 hover:text-gray-600"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+                {qbQuestions?.map((q: any, i: number) => (
+                  <div key={q.id || i} className="rounded-xl border border-gray-100 bg-gray-50/50 p-4 transition-all hover:bg-white hover:shadow-md">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="rounded-lg bg-white px-2 py-1 text-[10px] font-black uppercase tracking-widest text-indigo-600 border border-indigo-50">{q.category}</span>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{q.type}</span>
+                    </div>
+                    <p className="text-sm font-medium text-gray-800 leading-relaxed">{q.question_text}</p>
+                  </div>
+                ))}
+                {(!qbQuestions || qbQuestions.length === 0) && (
+                  <div className="flex flex-col items-center justify-center py-20 text-center">
+                    <Library className="h-12 w-12 text-gray-200 mb-4" />
+                    <p className="text-gray-400 font-medium">Your question bank is empty</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Custom styles ── */}
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e0e7ff; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e0e7ff; border-radius: 99px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #6366f1; }
+
         input[type="range"].slider-thumb {
           -webkit-appearance: none;
           appearance: none;
-          background: transparent;
+          background: #f3f4f6;
+          height: 8px;
+          border-radius: 999px;
+          cursor: pointer;
         }
         input[type="range"].slider-thumb::-webkit-slider-thumb {
           -webkit-appearance: none;
           appearance: none;
-          width: 24px;
-          height: 24px;
-          border-radius: 12px;
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
           background: #ffffff;
           border: 4px solid #6366f1;
-          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+          box-shadow: 0 4px 10px rgba(99, 102, 241, 0.2);
           cursor: pointer;
-          transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          transition: all 0.2s ease;
         }
-        input[type="range"].slider-thumb::-webkit-slider-thumb:hover { transform: scale(1.2); }
+        input[type="range"].slider-thumb::-webkit-slider-thumb:hover {
+          transform: scale(1.1);
+          box-shadow: 0 6px 14px rgba(99, 102, 241, 0.3);
+        }
       `}</style>
     </div>
   );

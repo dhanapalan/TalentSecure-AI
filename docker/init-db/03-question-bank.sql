@@ -17,7 +17,10 @@ BEGIN
       'maths',
       'aptitude',
       'data_structures',
-      'programming'
+      'programming',
+      'python_coding',
+      'java_coding',
+      'data_science'
     );
   END IF;
 END $$;
@@ -401,6 +404,156 @@ VALUES
   NULL, NULL, 5.00,
   '{profit-loss,percentage}',
   'CP = SP / 1.10 = 450 / 1.1 ≈ 409.09.'
+),
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- PYTHON CODING — Coding Challenges
+-- ─────────────────────────────────────────────────────────────────────────────
+(
+  'python_coding', 'coding_challenge', 'easy',
+  'Write a Python function that takes a list of integers and returns the sum of all even numbers.',
+  NULL, NULL,
+  '[
+    {"input": "1 2 3 4 5 6",   "expectedOutput": "12"},
+    {"input": "10 15 20 25",    "expectedOutput": "30"},
+    {"input": "1 3 5 7",        "expectedOutput": "0",  "hidden": true}
+  ]',
+  '{"python": "nums = list(map(int, input().split()))\n# Your code here\n"}',
+  5.00,
+  '{python,list,filter,sum}',
+  'Filter even numbers with a list comprehension and sum them.'
+),
+(
+  'python_coding', 'coding_challenge', 'medium',
+  'Write a Python program that reads a string and prints the count of each character in alphabetical order (lowercase only, ignore non-alpha).',
+  NULL, NULL,
+  '[
+    {"input": "hello",     "expectedOutput": "e:1 h:1 l:2 o:1"},
+    {"input": "aabbcc",    "expectedOutput": "a:2 b:2 c:2"},
+    {"input": "Python3!",  "expectedOutput": "h:1 n:1 o:1 p:1 t:1 y:1", "hidden": true}
+  ]',
+  '{"python": "s = input().strip()\n# Your code here\n"}',
+  10.00,
+  '{python,string,dictionary,sorting}',
+  'Use a dict/Counter to tally lowercase alpha chars, then sort and format.'
+),
+(
+  'python_coding', 'coding_challenge', 'hard',
+  'Implement a Python function to find the longest common subsequence (LCS) length of two strings read from stdin (one per line).',
+  NULL, NULL,
+  '[
+    {"input": "abcde\nace",    "expectedOutput": "3"},
+    {"input": "abc\nabc",      "expectedOutput": "3"},
+    {"input": "abc\ndef",      "expectedOutput": "0", "hidden": true}
+  ]',
+  '{"python": "a = input().strip()\nb = input().strip()\n# Your code here\n"}',
+  15.00,
+  '{python,dynamic-programming,lcs,string}',
+  'Classic DP approach: build a 2D table of size (m+1)×(n+1).'
+),
+(
+  'python_coding', 'multiple_choice', 'easy',
+  'What is the output of: print(type([]) == list)?',
+  '["True", "False", "TypeError", "None"]',
+  '0',
+  NULL, NULL, 5.00,
+  '{python,types,basics}',
+  'type([]) returns <class ''list''>, which equals list, so True.'
+),
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- JAVA CODING — Coding Challenges
+-- ─────────────────────────────────────────────────────────────────────────────
+(
+  'java_coding', 'coding_challenge', 'easy',
+  'Write a Java program that reads an integer N and prints the sum of digits of N.',
+  NULL, NULL,
+  '[
+    {"input": "1234",   "expectedOutput": "10"},
+    {"input": "999",    "expectedOutput": "27"},
+    {"input": "0",      "expectedOutput": "0", "hidden": true}
+  ]',
+  '{"java": "import java.util.Scanner;\npublic class Main {\n  public static void main(String[] args) {\n    int n = new Scanner(System.in).nextInt();\n    // Your code here\n  }\n}\n"}',
+  5.00,
+  '{java,math,digit-sum}',
+  'Repeatedly take n % 10 and divide by 10 until 0.'
+),
+(
+  'java_coding', 'coding_challenge', 'medium',
+  'Write a Java program that reads a string and checks whether it is a palindrome (case-insensitive, ignore spaces). Print "true" or "false".',
+  NULL, NULL,
+  '[
+    {"input": "racecar",         "expectedOutput": "true"},
+    {"input": "Hello World",     "expectedOutput": "false"},
+    {"input": "A man a plan a canal Panama", "expectedOutput": "true", "hidden": true}
+  ]',
+  '{"java": "import java.util.Scanner;\npublic class Main {\n  public static void main(String[] args) {\n    String s = new Scanner(System.in).nextLine();\n    // Your code here\n  }\n}\n"}',
+  10.00,
+  '{java,string,palindrome}',
+  'Strip spaces, convert to lowercase, compare with reversed string.'
+),
+(
+  'java_coding', 'coding_challenge', 'hard',
+  'Write a Java program that reads N integers (space-separated) and prints the length of the longest increasing subsequence (LIS).',
+  NULL, NULL,
+  '[
+    {"input": "10 9 2 5 3 7 101 18",  "expectedOutput": "4"},
+    {"input": "0 1 0 3 2 3",          "expectedOutput": "4"},
+    {"input": "7 7 7 7",              "expectedOutput": "1", "hidden": true}
+  ]',
+  '{"java": "import java.util.*;\npublic class Main {\n  public static void main(String[] args) {\n    Scanner sc = new Scanner(System.in);\n    String[] parts = sc.nextLine().split(\" \");\n    int[] nums = Arrays.stream(parts).mapToInt(Integer::parseInt).toArray();\n    // Your code here\n  }\n}\n"}',
+  15.00,
+  '{java,dynamic-programming,lis,binary-search}',
+  'Use patience sorting or DP with binary search for O(n log n).'
+),
+(
+  'java_coding', 'multiple_choice', 'easy',
+  'Which keyword is used to prevent a class from being subclassed in Java?',
+  '["static", "abstract", "final", "private"]',
+  '2',
+  NULL, NULL, 5.00,
+  '{java,oop,inheritance}',
+  'The "final" keyword on a class declaration prevents inheritance.'
+),
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- DATA SCIENCE — MCQs
+-- ─────────────────────────────────────────────────────────────────────────────
+(
+  'data_science', 'multiple_choice', 'easy',
+  'Which Python library is primarily used for data manipulation and analysis with DataFrames?',
+  '["NumPy", "Pandas", "Matplotlib", "Scikit-learn"]',
+  '1',
+  NULL, NULL, 5.00,
+  '{data-science,pandas,python}',
+  'Pandas provides the DataFrame abstraction for tabular data manipulation.'
+),
+(
+  'data_science', 'multiple_choice', 'medium',
+  'What does the "bias-variance tradeoff" refer to in machine learning?',
+  '["Minimizing both training and test error simultaneously", "The tradeoff between model complexity and generalization", "Choosing between supervised and unsupervised learning", "The tradeoff between speed and accuracy"]',
+  '1',
+  NULL, NULL, 10.00,
+  '{data-science,ml,bias-variance}',
+  'High bias = underfitting, high variance = overfitting. The tradeoff is about model complexity vs. generalization.'
+),
+(
+  'data_science', 'multiple_choice', 'hard',
+  'In a confusion matrix for binary classification, precision is defined as:',
+  '["TP / (TP + FN)", "TP / (TP + FP)", "TN / (TN + FP)", "(TP + TN) / Total"]',
+  '1',
+  NULL, NULL, 15.00,
+  '{data-science,ml,classification,metrics}',
+  'Precision = True Positives / (True Positives + False Positives).'
+),
+(
+  'data_science', 'multiple_choice', 'medium',
+  'Which technique is used to reduce the dimensionality of a dataset while preserving maximum variance?',
+  '["K-Means Clustering", "Principal Component Analysis (PCA)", "Linear Regression", "Random Forest"]',
+  '1',
+  NULL, NULL, 10.00,
+  '{data-science,pca,dimensionality-reduction}',
+  'PCA finds orthogonal axes (principal components) that maximize variance.'
 );
 
 -- =============================================================================

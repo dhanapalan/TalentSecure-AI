@@ -21,4 +21,9 @@ router.post("/login", validate(loginSchema), authController.login);
  */
 router.get("/me", authenticate, authController.me);
 
+/**
+ * POST /api/auth/setup-password — force password change on first login
+ */
+router.post("/setup-password", authenticate, authController.setupPassword);
+
 export default router;

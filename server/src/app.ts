@@ -20,6 +20,8 @@ import hrRoutes from "./routes/hr.routes.js";
 import roleRoutes from "./routes/role.routes.js";
 import userRoutes from "./routes/user.routes.js";
 import auditLogRoutes from "./routes/auditLog.routes.js";
+import segmentationRoutes from "./routes/segmentation.routes.js";
+import analyticsRoutes from "./routes/analytics.routes.js";
 
 const app = express();
 
@@ -27,7 +29,13 @@ const app = express();
 app.use(helmet());
 app.use(
   cors({
-    origin: env.CLIENT_URL,
+    origin: (origin, callback) => {
+      if (!origin || env.CLIENT_URLS.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(null, false);
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
   }),
@@ -56,7 +64,7 @@ if (env.NODE_ENV !== "test") {
 app.get("/api/health", (_req, res) => {
   res.json({
     status: "healthy",
-    service: "TalentSecure AI API",
+    service: "Nallas Campus Connect API",
     timestamp: new Date().toISOString(),
     version: "1.0.0",
   });
@@ -75,6 +83,8 @@ app.use("/api/roles", roleRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/audit-logs", auditLogRoutes);
 app.use("/api/question-bank", questionBankRoutes);
+app.use("/api/segmentation", segmentationRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 // ── Error Handling ───────────────────────────────────────────────────────────
 app.use(notFoundHandler);

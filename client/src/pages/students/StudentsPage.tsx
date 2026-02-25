@@ -9,7 +9,9 @@ import {
   UserPlusIcon,
   AcademicCapIcon,
   FunnelIcon,
-  XMarkIcon
+  XMarkIcon,
+  ArrowUpTrayIcon,
+  CloudArrowUpIcon
 } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
 import { clsx } from "clsx";
@@ -26,6 +28,9 @@ export default function StudentsPage() {
 
   const [editingStudent, setEditingStudent] = useState<any>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [bulkCollegeId, setBulkCollegeId] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
 
   // Fetch students
   const { data: students, isLoading } = useQuery({
@@ -70,9 +75,71 @@ export default function StudentsPage() {
     }
   });
 
+  // Bulk Mutation
+  const bulkMutation = useMutation({
+    mutationFn: (data: { college_id: string; students: any[] }) => api.post("/students/bulk", data),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ["students"] });
+      toast.success(res.data.message || "Bulk import successful");
+      setIsBulkModalOpen(false);
+      setBulkCollegeId("");
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || "Bulk import failed");
+    },
+    onSettled: () => setIsUploading(false)
+  });
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!bulkCollegeId) {
+      toast.error("Please select a campus first");
+      e.target.value = "";
+      return;
+    }
+
+    setIsUploading(true);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const text = event.target?.result as string;
+      const lines = text.split("\n").filter(l => l.trim());
+      if (lines.length < 2) {
+        toast.error("CSV file is empty or missing data rows");
+        setIsUploading(false);
+        return;
+      }
+
+      const headers = lines[0].split(",").map(h => h.trim().toLowerCase());
+
+      const students = lines.slice(1).map(line => {
+        const values = line.split(",").map(v => v.trim());
+        const student: any = {};
+        headers.forEach((header, i) => {
+          if (header === "name" || header === "email" || header === "password") {
+            student[header] = values[i];
+          }
+        });
+        return student;
+      }).filter(s => s.name && s.email);
+
+      if (students.length === 0) {
+        toast.error("No valid student data found in CSV");
+        setIsUploading(false);
+        return;
+      }
+
+      bulkMutation.mutate({ college_id: bulkCollegeId, students });
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
   const filteredStudents = students?.filter((s: any) =>
     `${s.first_name} ${s.last_name}`.toLowerCase().includes(search.toLowerCase()) ||
     s.email.toLowerCase().includes(search.toLowerCase()) ||
+    s.roll_number?.toLowerCase().includes(search.toLowerCase()) ||
     s.college_name?.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -96,7 +163,14 @@ export default function StudentsPage() {
           <p className="mt-1 text-sm text-gray-500">Manage and oversee all registered students across campuses.</p>
         </div>
         <div className="flex gap-2">
-          <Link to="/register-student" className="btn-primary flex items-center gap-2">
+          <button
+            onClick={() => setIsBulkModalOpen(true)}
+            className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-all shadow-sm"
+          >
+            <ArrowUpTrayIcon className="h-5 w-5 text-gray-400" />
+            Bulk Import
+          </button>
+          <Link to="/student/register" className="btn-primary flex items-center gap-2">
             <UserPlusIcon className="h-5 w-5" />
             Add Student
           </Link>
@@ -185,7 +259,7 @@ export default function StudentsPage() {
                           <p className="text-sm font-bold text-gray-900 leading-none">
                             {student.first_name} {student.last_name}
                           </p>
-                          <p className="text-xs text-gray-500 mt-1">{student.email}</p>
+                          <p className="text-xs font-bold text-indigo-600 mt-1">{student.roll_number || student.email}</p>
                         </div>
                       </div>
                     </td>
@@ -282,6 +356,80 @@ export default function StudentsPage() {
                 <button type="submit" className="btn-primary flex-1">Save Changes</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Import Modal */}
+      {isBulkModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-gray-100 animate-in fade-in zoom-in duration-200">
+            <div className="p-6 border-b border-gray-50 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Bulk Student Import</h2>
+                <p className="text-xs text-gray-500 mt-1">Upload student directory via CSV</p>
+              </div>
+              <button onClick={() => setIsBulkModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <XMarkIcon className="h-6 w-6" />
+              </button>
+            </div>
+
+            <div className="p-8 space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Target Campus</label>
+                <select
+                  value={bulkCollegeId}
+                  onChange={(e) => setBulkCollegeId(e.target.value)}
+                  className="w-full rounded-xl border-gray-100 bg-gray-50 p-4 text-sm font-bold text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                >
+                  <option value="">Select a campus...</option>
+                  {campuses?.map((c: any) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="relative group">
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={handleFileUpload}
+                  disabled={!bulkCollegeId || isUploading}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed z-10"
+                />
+                <div className={clsx(
+                  "border-2 border-dashed rounded-2xl p-10 flex flex-col items-center justify-center gap-3 transition-all",
+                  bulkCollegeId ? "border-indigo-100 bg-indigo-50/30 group-hover:border-indigo-300 group-hover:bg-indigo-50" : "border-gray-100 bg-gray-50 opacity-50"
+                )}>
+                  {isUploading ? (
+                    <div className="h-10 w-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <CloudArrowUpIcon className="h-10 w-10 text-indigo-400 group-hover:scale-110 transition-transform" />
+                  )}
+                  <div className="text-center">
+                    <p className="text-sm font-bold text-gray-900">Click to upload CSV</p>
+                    <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-widest font-black">Expected: name, email, password</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-amber-50 rounded-xl p-4 border border-amber-100 flex gap-3">
+                <div className="mt-0.5">⚠️</div>
+                <p className="text-[10px] font-bold text-amber-700 leading-relaxed uppercase tracking-tight">
+                  Ensure the CSV headers match exactly: "name", "email", and "password".
+                  Duplicate emails will be automatically skipped.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 bg-gray-50 rounded-b-3xl border-t border-gray-100">
+              <button
+                onClick={() => setIsBulkModalOpen(false)}
+                className="w-full py-3 text-xs font-black text-gray-400 uppercase tracking-widest hover:text-gray-900 transition-colors"
+              >
+                Cancel Import
+              </button>
+            </div>
           </div>
         </div>
       )}

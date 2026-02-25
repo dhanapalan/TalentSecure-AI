@@ -1,42 +1,65 @@
 import { query, queryOne } from "../config/database.js";
-import { AppError } from "../middleware/errorHandler.js";
 
 export interface ExamRow {
   id: string;
   title: string;
-  scheduled_at: Date;
-  duration_minutes: number;
+  scheduled_time: Date;
+  duration: number;
+  duration_minutes: number | null;
   total_questions: number;
-  status: string;
+  questions_per_student: number | null;
+  is_active: boolean;
+  created_by: string | null;
   created_at: Date;
+  updated_at: Date;
 }
 
 /**
  * List all exams ordered by scheduled time.
+ * If collegeId is provided, only return exams assigned to that college.
  */
-export async function listExams() {
+export async function listExams(collegeId?: string) {
+  if (collegeId) {
+    return query<ExamRow>(
+      `SELECT e.* FROM exams e
+       JOIN exam_colleges ec ON ec.exam_id = e.id
+       WHERE ec.college_id = $1
+       ORDER BY e.scheduled_time DESC`,
+      [collegeId]
+    );
+  }
   return query<ExamRow>(
-    "SELECT * FROM assessments ORDER BY scheduled_at DESC",
+    "SELECT * FROM exams ORDER BY scheduled_time DESC",
   );
 }
 
 /**
  * List active assessments with their violation counts.
+ * If collegeId is provided, only return exams assigned to that college.
  */
-export async function listActiveExams() {
-  return query<ExamRow & { violation_count: number }>(
-    `SELECT a.*,
-            COALESCE(v.cnt, 0)::int AS violation_count
-     FROM   assessments a
-     LEFT JOIN (
-       SELECT ps.assessment_id, COUNT(*) AS cnt
-       FROM   proctoring_violations pv
-       JOIN   proctoring_sessions ps ON ps.id = pv.session_id
-       GROUP  BY ps.assessment_id
-     ) v ON v.assessment_id = a.id
-     WHERE  a.status = 'IN_PROGRESS' OR a.status = 'SCHEDULED'
-     ORDER  BY a.scheduled_at ASC`,
-  );
+export async function listActiveExams(collegeId?: string) {
+  let sql = `
+    SELECT e.*,
+           COALESCE(v.cnt, 0)::int AS violation_count
+    FROM   exams e
+    LEFT JOIN (
+      SELECT cl.exam_id, COUNT(*) AS cnt
+      FROM   cheating_logs cl
+      GROUP  BY cl.exam_id
+    ) v ON v.exam_id = e.id
+  `;
+
+  const params: any[] = [];
+  if (collegeId) {
+    sql += ` JOIN exam_colleges ec ON ec.exam_id = e.id WHERE ec.college_id = $1 AND e.is_active = TRUE `;
+    params.push(collegeId);
+  } else {
+    sql += ` WHERE e.is_active = TRUE `;
+  }
+
+  sql += ` ORDER BY e.scheduled_time ASC`;
+
+  return query<ExamRow & { violation_count: number }>(sql, params);
 }
 
 /**
@@ -44,7 +67,7 @@ export async function listActiveExams() {
  */
 export async function getExamById(id: string) {
   return queryOne<ExamRow>(
-    "SELECT * FROM assessments WHERE id = $1",
+    "SELECT * FROM exams WHERE id = $1",
     [id],
   );
 }
@@ -54,6 +77,7 @@ export async function getExamById(id: string) {
 export interface CreateExamInput {
   title: string;
   total_questions: number;
+  questions_per_student?: number | null;
   duration_minutes: number;
   created_by?: string | null;
   scheduled_at?: Date;
@@ -62,48 +86,101 @@ export interface CreateExamInput {
 
 export async function createExam(input: CreateExamInput) {
   const scheduledTime = input.scheduled_at ?? new Date();
-  const status = input.status ?? 'SCHEDULED';
 
-  // Fix: Need a default role_id since it's required in assessments table
-  // Let's find any role or use a placeholder if we're just generating
-  const role = await queryOne<{ id: string }>("SELECT id FROM roles LIMIT 1");
-  const roleId = role?.id;
-
-  if (!roleId) {
-    throw new AppError("No roles found. Please create a role first.", 400);
+  // Validate created_by FK — if the user doesn't exist (e.g. after DB reset), set null
+  let createdBy = input.created_by ?? null;
+  if (createdBy) {
+    const userExists = await queryOne<{ id: string }>(
+      "SELECT id FROM users WHERE id = $1",
+      [createdBy],
+    );
+    if (!userExists) createdBy = null;
   }
 
   return queryOne<ExamRow>(
-    `INSERT INTO assessments
-       (title, scheduled_at, duration_minutes, total_questions, total_marks, passing_percentage,
-        role_id, status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `INSERT INTO exams
+       (id, title, scheduled_time, duration, duration_minutes, total_questions,
+        questions_per_student, created_by, is_active, updated_at)
+     VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, TRUE, NOW())
      RETURNING *`,
     [
       input.title,
       scheduledTime,
-      input.duration_minutes,
+      input.duration_minutes,    // duration in minutes (legacy column)
+      input.duration_minutes,    // duration_minutes
       input.total_questions,
-      input.total_questions * 5, // assuming 5 marks per question
-      60, // 60% passing default
-      roleId,
-      status
+      input.questions_per_student ?? null,
+      createdBy,
     ],
   );
 }
 
 /**
- * Assign an assessment to multiple campuses.
+ * Persist curated question IDs linked to an exam.
  */
-export async function assignExamToCampuses(examId: string, campusIds: string[]) {
-  for (const campusId of campusIds) {
+export async function persistExamQuestions(examId: string, questionIds: string[]) {
+  for (let i = 0; i < questionIds.length; i++) {
     await query(
-      `INSERT INTO assessment_campuses (assessment_id, campus_id)
-       VALUES ($1, $2)
-       ON CONFLICT (assessment_id, campus_id) DO NOTHING`,
-      [examId, campusId]
+      `INSERT INTO exam_questions (exam_id, question_id, sort_order)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (exam_id, question_id) DO NOTHING`,
+      [examId, questionIds[i], i],
     );
   }
+}
+
+/**
+ * Get all questions linked to an exam (with full question data).
+ */
+export async function getExamQuestions(examId: string, subsetIds: string[] | null = null) {
+  if (subsetIds && subsetIds.length > 0) {
+    // Return only the randomized subset for the student, in the provided order
+    const placeholders = subsetIds.map((_, i) => `$${i + 2}`).join(",");
+    return query(
+      `SELECT qb.*, array_position(ARRAY[${placeholders}]::uuid[], qb.id) as sort_order
+       FROM question_bank qb
+       WHERE qb.id = ANY(ARRAY[${placeholders}]::uuid[])
+       ORDER BY sort_order`,
+      [examId, ...subsetIds],
+    );
+  }
+
+  // Default behavior for admins: return all questions for the exam
+  return query(
+    `SELECT eq.sort_order, qb.*
+     FROM   exam_questions eq
+     JOIN   question_bank qb ON qb.id = eq.question_id
+     WHERE  eq.exam_id = $1
+     ORDER  BY eq.sort_order`,
+    [examId],
+  );
+}
+
+/**
+ * Assign an exam to multiple colleges (campuses).
+ */
+export async function assignExamToColleges(examId: string, collegeIds: string[]) {
+  for (const collegeId of collegeIds) {
+    await query(
+      `INSERT INTO exam_colleges (exam_id, college_id)
+       VALUES ($1, $2)
+       ON CONFLICT (exam_id, college_id) DO NOTHING`,
+      [examId, collegeId],
+    );
+  }
+}
+
+/**
+ * Get colleges assigned to an exam.
+ */
+export async function getExamColleges(examId: string) {
+  return query(
+    `SELECT c.* FROM exam_colleges ec
+     JOIN colleges c ON c.id = ec.college_id
+     WHERE ec.exam_id = $1
+     ORDER BY c.name`,
+    [examId],
+  );
 }
 
 // ── Management Features ──────────────────────────────────────────────────────
@@ -114,30 +191,28 @@ export async function assignExamToCampuses(examId: string, campusIds: string[]) 
 export async function getExamProgress(examId: string, campusId?: string) {
   let sql = `
         SELECT 
-            sp.id as student_profile_id,
-            sp.first_name,
-            sp.last_name,
-            sp.email,
-            sp.campus_id,
-            c.name as campus_name,
-            ase.status as session_status,
-            ase.id as session_id,
-            ase.started_at,
-            ase.completed_at,
-            ase.score,
-            (SELECT COUNT(*) FROM proctoring_violations pv 
-             JOIN proctoring_sessions ps ON ps.id = pv.session_id 
-             WHERE ps.assessment_id = $1 AND ps.student_id = sp.id) as violation_count
-        FROM student_profiles sp
-        JOIN campuses c ON c.id = sp.campus_id
-        JOIN assessment_campuses ac ON ac.campus_id = sp.campus_id
-        LEFT JOIN assessment_sessions ase ON ase.assessment_id = $1 AND ase.student_id = sp.id
-        WHERE ac.assessment_id = $1
+            sd.id as student_id,
+            sd.first_name,
+            sd.last_name,
+            sd.email,
+            sd.college_id,
+            c.name as college_name,
+            ea.status as attempt_status,
+            ea.id as attempt_id,
+            ea.started_at,
+            ea.submitted_at,
+            ea.score,
+            (SELECT COUNT(*) FROM cheating_logs cl 
+             WHERE cl.exam_id = $1 AND cl.student_id = sd.user_id) as violation_count
+        FROM student_details sd
+        JOIN colleges c ON c.id = sd.college_id
+        LEFT JOIN exam_attempts ea ON ea.exam_id = $1 AND ea.student_id = sd.user_id
+        WHERE sd.college_id IS NOT NULL
     `;
 
   const params: any[] = [examId];
   if (campusId) {
-    sql += ` AND sp.campus_id = $2`;
+    sql += ` AND sd.college_id = $2`;
     params.push(campusId);
   }
 
@@ -148,45 +223,57 @@ export async function getExamProgress(examId: string, campusId?: string) {
  * Terminate the entire exam
  */
 export async function terminateExam(examId: string) {
-  // 1. Update assessment status
-  await query("UPDATE assessments SET status = 'TERMINATED' WHERE id = $1", [examId]);
+  // 1. Deactivate the exam
+  await query("UPDATE exams SET is_active = FALSE, updated_at = NOW() WHERE id = $1", [examId]);
 
-  // 2. Terminate all active sessions
+  // 2. Mark all in-progress attempts as interrupted
   await query(
-    "UPDATE assessment_sessions SET status = 'TERMINATED', completed_at = NOW() WHERE assessment_id = $1 AND status = 'IN_PROGRESS'",
+    "UPDATE exam_attempts SET status = 'interrupted', updated_at = NOW() WHERE exam_id = $1 AND status = 'in_progress'",
     [examId]
   );
 }
 
 /**
  * Terminate a specific student session
+ * If collegeId is provided, verifies that the session belongs to a student from that college.
  */
-export async function terminateStudentSession(sessionId: string) {
+export async function terminateStudentSession(sessionId: string, collegeId?: string) {
+  if (collegeId) {
+    const attempt = await queryOne(
+      `SELECT ea.id FROM exam_attempts ea
+       JOIN users u ON u.id = ea.student_id
+       WHERE ea.id = $1 AND u.college_id = $2`,
+      [sessionId, collegeId]
+    );
+    if (!attempt) return null;
+  }
+
   return query(
-    "UPDATE assessment_sessions SET status = 'TERMINATED', completed_at = NOW() WHERE id = $1 RETURNING *",
+    "UPDATE exam_attempts SET status = 'interrupted', updated_at = NOW() WHERE id = $1 RETURNING *",
     [sessionId]
   );
 }
 
 /**
  * Reset a student session (delete session and proctoring data)
+ * If collegeId is provided, verifies ownership first.
  */
-export async function resetStudentSession(sessionId: string) {
-  const session = await queryOne<{ assessment_id: string, student_id: string }>(
-    "SELECT assessment_id, student_id FROM assessment_sessions WHERE id = $1",
-    [sessionId]
+export async function resetStudentSession(sessionId: string, collegeId?: string) {
+  const attempt = await queryOne<{ exam_id: string, student_id: string }>(
+    `SELECT ea.exam_id, ea.student_id FROM exam_attempts ea
+     JOIN users u ON u.id = ea.student_id
+     WHERE ea.id = $1 ${collegeId ? 'AND u.college_id = $2' : ''}`,
+    collegeId ? [sessionId, collegeId] : [sessionId]
   );
 
-  if (!session) return;
+  if (!attempt) return false;
 
-  // Delete violations and sessions
+  // Delete cheating logs for this student+exam
   await query(
-    "DELETE FROM proctoring_violations WHERE session_id IN (SELECT id FROM proctoring_sessions WHERE assessment_id = $1 AND student_id = $2)",
-    [session.assessment_id, session.student_id]
+    "DELETE FROM cheating_logs WHERE exam_id = $1 AND student_id = $2",
+    [attempt.exam_id, attempt.student_id]
   );
-  await query(
-    "DELETE FROM proctoring_sessions WHERE assessment_id = $1 AND student_id = $2",
-    [session.assessment_id, session.student_id]
-  );
-  await query("DELETE FROM assessment_sessions WHERE id = $1", [sessionId]);
+  // Delete the exam attempt
+  await query("DELETE FROM exam_attempts WHERE id = $1", [sessionId]);
+  return true;
 }

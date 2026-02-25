@@ -256,7 +256,7 @@ export default function RoleManagement() {
                                     <input
                                         required
                                         name="company"
-                                        placeholder="TalentSecure AI"
+                                        placeholder="Nallas Campus Connect"
                                         className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all placeholder:text-gray-400"
                                     />
                                 </div>

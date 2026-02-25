@@ -1,0 +1,1 @@
+src/pages/hr/CollegeManagement.tsx(17,1): error TS6133: 'useNavigate' is declared but its value is never read.

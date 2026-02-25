@@ -1,0 +1,13 @@
+
+> talentsecure-client@1.0.0 build
+> tsc -b && vite build
+
+src/components/ExamProgressView.tsx(12,5): error TS6133: 'ArrowRight' is declared but its value is never read.
+src/pages/hr/CollegeManagement.tsx(7,5): error TS6133: 'MapPin' is declared but its value is never read.
+npm error Lifecycle script `build` failed with error:
+npm error code 1
+npm error path D:\Nallas\TalentSecure-AI\client
+npm error workspace talentsecure-client@1.0.0
+npm error location D:\Nallas\TalentSecure-AI\client
+npm error command failed
+npm error command C:\WINDOWS\system32\cmd.exe /d /s /c tsc -b && vite build

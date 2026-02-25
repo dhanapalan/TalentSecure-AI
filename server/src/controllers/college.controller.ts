@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { z } from "zod";
+import bcrypt from "bcryptjs";
 import { AppError } from "../middleware/errorHandler.js";
 import { ApiResponse } from "../types/index.js";
 import * as collegeService from "../services/college.service.js";
@@ -257,6 +258,100 @@ export const getCollegeStats = async (
         avg_cgpa: cgpaResult.rows[0].avg || 0,
       },
     });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getStaff = async (
+  req: Request,
+  res: Response<ApiResponse>,
+  next: NextFunction,
+) => {
+  try {
+    const collegeId = req.user?.college_id;
+    if (!collegeId) {
+      throw new AppError("User not associated with a college", 400);
+    }
+
+    const { rows } = await pool.query(
+      `SELECT id, name, email, role, is_active, created_at
+       FROM users
+       WHERE college_id = $1 AND role IN ('college_staff', 'college_admin')
+       ORDER BY created_at DESC`,
+      [collegeId],
+    );
+
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const addStaff = async (
+  req: Request,
+  res: Response<ApiResponse>,
+  next: NextFunction,
+) => {
+  try {
+    const collegeId = req.user?.college_id;
+    if (!collegeId) {
+      throw new AppError("User not associated with a college", 400);
+    }
+
+    const schema = z.object({
+      name: z.string().min(1),
+      email: z.string().email(),
+      password: z.string().min(6),
+    });
+
+    const { name, email, password } = schema.parse(req.body);
+
+    const existing = await pool.query("SELECT id FROM users WHERE email = $1", [email]);
+    if (existing.rows.length > 0) {
+      throw new AppError("Email already in use", 409);
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+    const { rows } = await pool.query(
+      `INSERT INTO users (name, email, password, role, college_id, is_active, is_profile_complete)
+       VALUES ($1, $2, $3, 'college_staff', $4, TRUE, TRUE)
+       RETURNING id, name, email, role`,
+      [name, email, hashedPassword, collegeId],
+    );
+
+    res.status(201).json({ success: true, data: rows[0] });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const removeStaff = async (
+  req: Request,
+  res: Response<ApiResponse>,
+  next: NextFunction,
+) => {
+  try {
+    const collegeId = req.user?.college_id;
+    const { id } = req.params;
+
+    if (!collegeId) {
+      throw new AppError("User not associated with a college", 400);
+    }
+
+    // Ensure they are removing staff from THEIR college
+    const staff = await pool.query(
+      "SELECT id FROM users WHERE id = $1 AND college_id = $2 AND role = 'college_staff'",
+      [id, collegeId],
+    );
+
+    if (staff.rows.length === 0) {
+      throw new AppError("Staff member not found or cannot be removed", 404);
+    }
+
+    await pool.query("DELETE FROM users WHERE id = $1", [id]);
+
+    res.json({ success: true, message: "Staff member removed successfully" });
   } catch (err) {
     next(err);
   }

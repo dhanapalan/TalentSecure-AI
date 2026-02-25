@@ -105,7 +105,7 @@ export async function bulkCreateStudents(input: BulkCreateStudentsInput) {
       const studentId = normalizeIdentifier(row.student_id);
       const phoneNumber = normalizePhone(row.phone_number);
       const name = row.name?.trim() || studentId;
-      const generatedEmail = `${slugify(studentId)}.${college.college_code.toLowerCase()}@students.talentsecure.ai`;
+      const generatedEmail = `${slugify(studentId)}.${college.college_code.toLowerCase()}@students.nallastalent.ai`;
       const email = (row.email?.trim().toLowerCase() || generatedEmail).slice(
         0,
         255,

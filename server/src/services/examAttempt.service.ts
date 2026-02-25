@@ -84,7 +84,7 @@ export async function autoSave(input: AutoSaveInput): Promise<ExamAttemptRow> {
   const { student_id, exam_id, current_question_index, answers_payload } = input;
 
   // Try to find an existing active attempt (in_progress or interrupted)
-  const existing = await queryOne<ExamAttemptRow>(
+  let existing = await queryOne<ExamAttemptRow>(
     `SELECT * FROM exam_attempts
      WHERE student_id = $1
        AND exam_id = $2
@@ -117,19 +117,44 @@ export async function autoSave(input: AutoSaveInput): Promise<ExamAttemptRow> {
     return updated!;
   }
 
-  // No active attempt yet — create a new one
+  // No active attempt yet — create a new one with randomized questions if needed
+  const exam = await queryOne<{ questions_per_student: number | null }>(
+    "SELECT questions_per_student FROM exams WHERE id = $1",
+    [exam_id]
+  );
+
+  let questionIds: string[] | null = null;
+  if (exam?.questions_per_student && exam.questions_per_student > 0) {
+    // Fetch all question IDs for this exam
+    const allQuestions = await query<{ question_id: string }>(
+      "SELECT question_id FROM exam_questions WHERE exam_id = $1 ORDER BY sort_order",
+      [exam_id]
+    );
+
+    // Shuffle and subset
+    const shuffled = allQuestions.map(q => q.question_id).sort(() => Math.random() - 0.5);
+    questionIds = shuffled.slice(0, exam.questions_per_student);
+  }
+
   const created = await queryOne<ExamAttemptRow>(
     `INSERT INTO exam_attempts
-       (student_id, exam_id, status, current_question_index, saved_answers, last_saved_at)
-     VALUES ($1, $2, 'in_progress', $3, $4, NOW())
+       (student_id, exam_id, status, current_question_index, saved_answers, question_ids, last_saved_at)
+     VALUES ($1, $2, 'in_progress', $3, $4, $5, NOW())
      RETURNING *`,
-    [student_id, exam_id, current_question_index, JSON.stringify(answers_payload)],
+    [
+      student_id,
+      exam_id,
+      current_question_index,
+      JSON.stringify(answers_payload),
+      questionIds
+    ],
   );
 
   logger.info("Exam auto-save created new attempt", {
     attemptId: created!.id,
     student_id,
     exam_id,
+    randomized: !!questionIds
   });
 
   return created!;

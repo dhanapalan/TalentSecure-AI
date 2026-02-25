@@ -459,11 +459,11 @@ CREATE POLICY colleges_corporate_select ON colleges
 -- Passwords: each role + "123" (e.g. hr123, cxo123)
 
 INSERT INTO users (role, name, email, password, department) VALUES
-  ('hr',       'HR Manager',       'hr@talentsecure.ai',
+  ('hr',       'HR Manager',       'hr@nallastalent.ai',
    crypt('hr123', gen_salt('bf', 12)),       'Human Resources'),
-  ('engineer', 'Lead Engineer',    'engineer@talentsecure.ai',
+  ('engineer', 'Lead Engineer',    'engineer@nallastalent.ai',
    crypt('engineer123', gen_salt('bf', 12)), 'Engineering'),
-  ('cxo',      'Chief Technology Officer', 'cto@talentsecure.ai',
+  ('cxo',      'Chief Technology Officer', 'cto@nallastalent.ai',
    crypt('cxo123', gen_salt('bf', 12)),      'Executive Leadership')
 ON CONFLICT (email) DO NOTHING;
 

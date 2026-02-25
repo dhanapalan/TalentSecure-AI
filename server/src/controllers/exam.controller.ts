@@ -16,7 +16,10 @@ export const list = async (
   next: NextFunction,
 ) => {
   try {
-    const exams = await examService.listExams();
+    const collegeId = req.user?.college_id || undefined;
+    const isCentral = ["super_admin", "admin", "hr"].includes(req.user?.role || "");
+
+    const exams = await examService.listExams(isCentral ? undefined : collegeId);
     res.json({ success: true, data: exams });
   } catch (err) {
     next(err);
@@ -32,7 +35,10 @@ export const listActive = async (
   next: NextFunction,
 ) => {
   try {
-    const exams = await examService.listActiveExams();
+    const collegeId = req.user?.college_id || undefined;
+    const isCentral = ["super_admin", "admin", "hr"].includes(req.user?.role || "");
+
+    const exams = await examService.listActiveExams(isCentral ? undefined : collegeId);
     res.json({ success: true, data: exams });
   } catch (err) {
     next(err);
@@ -62,7 +68,7 @@ export const getById = async (
 
 /**
  * POST /api/exams/generate
- * Body: { categories: [{ category, percentage }],
+ * Body: { categories: [{ category, percentage }], 
  *         totalQuestions?: number, total_questions?: number,
  *         duration_minutes?: number }
  *
@@ -215,7 +221,7 @@ export const generateDynamic = async (
   next: NextFunction,
 ) => {
   try {
-    const { weights, total_questions, duration_minutes = 60 } = req.body;
+    const { weights, total_questions, questions_per_student, duration_minutes = 60 } = req.body;
 
     // Convert { "Aptitude": 30, "Python Coding": 70 } → DynamicWeight[]
     const dynamicWeights: llmService.DynamicWeight[] = Object.entries(
@@ -231,8 +237,9 @@ export const generateDynamic = async (
     // Persist the generated exam
     const createdBy = req.user?.userId ?? null;
     const exam = await examService.createExam({
-      title: `AI Assessment — ${total_questions}Q / ${duration_minutes}min`,
+      title: `AI Assessment — ${assessment.total_questions}Q / ${duration_minutes}min`,
       total_questions: assessment.total_questions,
+      questions_per_student: questions_per_student || null,
       duration_minutes,
       created_by: createdBy,
     });
@@ -261,7 +268,7 @@ export const blueprintCurator = async (
   next: NextFunction,
 ) => {
   try {
-    const { weights, total_questions, duration_minutes = 60 } = req.body;
+    const { weights, total_questions, questions_per_student, duration_minutes = 60 } = req.body;
 
     // Convert { "Reasoning": 20, "Programming": 60, ... } → BlueprintWeight[]
     const weightEntries: qbService.BlueprintWeight[] = Object.entries(
@@ -278,9 +285,18 @@ export const blueprintCurator = async (
     const exam = await examService.createExam({
       title: `Curated Assessment — ${blueprint.totalCurated}Q / ${duration_minutes}min`,
       total_questions: blueprint.totalCurated,
+      questions_per_student: questions_per_student || null,
       duration_minutes,
       created_by: createdBy,
     });
+
+    // Persist curated questions linked to this exam
+    const questionIds = blueprint.questions
+      .map((q: any) => q.id)
+      .filter(Boolean);
+    if (questionIds.length > 0) {
+      await examService.persistExamQuestions(exam!.id, questionIds);
+    }
 
     res.json({
       success: true,
@@ -350,8 +366,51 @@ export const assignExam = async (
   try {
     const { id } = req.params;
     const { campus_ids } = req.body;
-    await examService.assignExamToCampuses(id as string, campus_ids);
-    res.json({ success: true, message: "Exam assigned successfully" });
+    await examService.assignExamToColleges(id as string, campus_ids);
+    res.json({ success: true, message: "Exam assigned to colleges successfully" });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * GET /api/exams/:id/questions
+ */
+export const getExamQuestions = async (
+  req: Request,
+  res: Response<ApiResponse>,
+  next: NextFunction,
+) => {
+  try {
+    const { id: examId } = req.params;
+    const userId = req.user?.userId;
+    const isStudent = req.user?.role === "student";
+
+    let subsetIds: string[] | null = null;
+    let attemptId: string | null = null;
+
+    if (isStudent && userId) {
+      const { getActiveAttempt } = await import("../services/examAttempt.service.js");
+      const attempt = await getActiveAttempt(userId, examId as string);
+      if (attempt?.question_ids) {
+        subsetIds = attempt.question_ids;
+        attemptId = attempt.id;
+      }
+    }
+
+    const questions = await examService.getExamQuestions(examId as string, subsetIds);
+    const exam = await examService.getExamById(examId as string);
+    const colleges = await examService.getExamColleges(examId as string);
+
+    res.json({
+      success: true,
+      data: {
+        exam,
+        questions,
+        assignedColleges: colleges,
+        attemptId // Include attempt ID for frontend context if it exists
+      }
+    });
   } catch (err) {
     next(err);
   }
@@ -370,9 +429,9 @@ export const getProgress = async (
     let campusId = req.query.campusId as string;
 
     // Security: If user is college staff/admin, they can ONLY see their own campus students
-    const userRole = req.user?.role?.toUpperCase();
-    if (userRole && (userRole.includes("COLLEGE") || userRole.includes("CAMPUS"))) {
-      campusId = req.user?.college_id as string;
+    const userRole = req.user?.role?.toLowerCase();
+    if (userRole && (userRole.includes("college") || userRole.includes("campus"))) {
+      campusId = (req.user?.college_id as string) || campusId;
     }
 
     const progress = await examService.getExamProgress(id as string, campusId);
@@ -409,7 +468,18 @@ export const terminateStudentSession = async (
 ) => {
   try {
     const { sessionId } = req.params;
-    await examService.terminateStudentSession(sessionId as string);
+    const collegeId = req.user?.college_id || undefined;
+    const isCentral = ["super_admin", "admin", "hr"].includes(req.user?.role || "");
+
+    const result = await examService.terminateStudentSession(
+      sessionId as string,
+      isCentral ? undefined : collegeId
+    );
+
+    if (!result) {
+      return res.status(403).json({ success: false, error: "Access denied or session not found" });
+    }
+
     res.json({ success: true, message: "Student session terminated" });
   } catch (err) {
     next(err);
@@ -426,7 +496,18 @@ export const resetStudentSession = async (
 ) => {
   try {
     const { sessionId } = req.params;
-    await examService.resetStudentSession(sessionId as string);
+    const collegeId = req.user?.college_id || undefined;
+    const isCentral = ["super_admin", "admin", "hr"].includes(req.user?.role || "");
+
+    const success = await examService.resetStudentSession(
+      sessionId as string,
+      isCentral ? undefined : collegeId
+    );
+
+    if (!success) {
+      return res.status(403).json({ success: false, error: "Access denied or session not found" });
+    }
+
     res.json({ success: true, message: "Student session reset" });
   } catch (err) {
     next(err);

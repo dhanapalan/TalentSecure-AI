@@ -7,8 +7,8 @@ import * as studentController from "../controllers/student.controller.js";
 
 const router = Router();
 
-// ── Multer: store file in memory buffer for direct S3 upload ─────────────────
-const upload = multer({
+// ── Multer: registration image upload (face capture) ─────────────────────────
+const imageUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
   fileFilter: (_req, file, cb) => {
@@ -20,7 +20,47 @@ const upload = multer({
   },
 });
 
+// ── Multer: onboarding uploads (profile photo + resume) ──────────────────────
+const onboardingUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // hard cap; resume is validated to 2MB in service
+  fileFilter: (_req, file, cb) => {
+    const resumeMimeTypes = new Set([
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ]);
+
+    if (file.fieldname === "profile_photo") {
+      if (file.mimetype.startsWith("image/")) {
+        cb(null, true);
+        return;
+      }
+      cb(new Error("profile_photo must be an image file"));
+      return;
+    }
+
+    if (file.fieldname === "resume") {
+      if (resumeMimeTypes.has(file.mimetype)) {
+        cb(null, true);
+        return;
+      }
+      cb(new Error("resume must be PDF or DOC/DOCX"));
+      return;
+    }
+
+    cb(new Error("Unsupported file field"));
+  },
+});
+
 // ── Validation Schemas ───────────────────────────────────────────────────────
+
+const emptyToUndefined = (value: unknown) => {
+  if (typeof value === "string" && value.trim() === "") {
+    return undefined;
+  }
+  return value;
+};
 
 const registerSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -30,11 +70,34 @@ const registerSchema = z.object({
 });
 
 const onboardingSchema = z.object({
-  university: z.string().min(2, "University is required"),
+  first_name: z.string().trim().min(1, "First name is required").max(120),
+  middle_name: z.preprocess(emptyToUndefined, z.string().trim().max(120).optional()),
+  last_name: z.string().trim().min(1, "Last name is required").max(120),
+  dob: z.string().trim().min(1, "Date of birth is required"),
+  gender: z.preprocess(
+    emptyToUndefined,
+    z.enum(["male", "female", "non_binary", "prefer_not_to_say"]).optional(),
+  ),
+  phone_number: z.string().trim().min(7, "Mobile number is required").max(20),
+  alternate_email: z.preprocess(
+    emptyToUndefined,
+    z.string().email("alternate_email must be a valid email").optional(),
+  ),
+  alternate_phone: z.preprocess(emptyToUndefined, z.string().trim().max(20).optional()),
   degree: z.string().min(2, "Degree is required"),
-  major: z.string().min(2, "Major is required"),
-  graduation_year: z.number().int().min(2000).max(2100),
-  cgpa: z.number().min(0).max(10),
+  specialization: z.string().trim().min(2, "Branch/Specialization is required").max(150),
+  passing_year: z.coerce.number().int().min(2000).max(2100),
+  cgpa: z.preprocess(emptyToUndefined, z.coerce.number().min(0).max(10).optional()),
+  percentage: z.preprocess(emptyToUndefined, z.coerce.number().min(0).max(100).optional()),
+  roll_number: z.string().trim().min(2, "Roll number / Student ID is required").max(100),
+  class_name: z.preprocess(emptyToUndefined, z.string().trim().max(100).optional()),
+  section: z.preprocess(emptyToUndefined, z.string().trim().max(50).optional()),
+  skills: z.preprocess(emptyToUndefined, z.string().trim().max(2000).optional()),
+  linkedin_url: z.preprocess(emptyToUndefined, z.string().url("Invalid LinkedIn URL").optional()),
+  github_url: z.preprocess(emptyToUndefined, z.string().url("Invalid GitHub URL").optional()),
+}).refine((data) => data.cgpa !== undefined || data.percentage !== undefined, {
+  message: "Either CGPA/GPA or Percentage is required",
+  path: ["cgpa"],
 });
 
 // ── Routes ───────────────────────────────────────────────────────────────────
@@ -46,7 +109,7 @@ const onboardingSchema = z.object({
  */
 router.post(
   "/register",
-  upload.single("webcam_photo"),
+  imageUpload.single("webcam_photo"),
   validate(registerSchema),
   studentController.register,
 );
@@ -60,6 +123,10 @@ router.put(
   "/me/onboarding",
   authenticate,
   authorize("student"),
+  onboardingUpload.fields([
+    { name: "profile_photo", maxCount: 1 },
+    { name: "resume", maxCount: 1 },
+  ]),
   validate(onboardingSchema),
   studentController.completeOnboarding,
 );
@@ -107,6 +174,17 @@ router.get(
   authenticate,
   authorize("super_admin", "admin", "hr", "cxo", "student"),
   studentController.getExamSchedule,
+);
+
+/**
+ * POST /api/students/bulk
+ * Bulk register students (Admin/HR)
+ */
+router.post(
+  "/bulk",
+  authenticate,
+  authorize("super_admin", "admin", "hr"),
+  studentController.bulkRegister
 );
 
 export default router;

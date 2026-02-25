@@ -34,7 +34,10 @@ export type QuestionCategory =
   | "maths"
   | "aptitude"
   | "data_structures"
-  | "programming";
+  | "programming"
+  | "python_coding"
+  | "java_coding"
+  | "data_science";
 
 export type QuestionType = "multiple_choice" | "coding_challenge";
 
@@ -48,6 +51,8 @@ export type AdminAuditAction =
   | "CAMPUS_CREATED"
   | "CAMPUS_UPDATED"
   | "CAMPUS_DELETED"
+  | "CAMPUS_ACTIVATED"
+  | "CAMPUS_DEACTIVATED"
   | "STUDENT_CREATED"
   | "STUDENT_UPDATED"
   | "STUDENT_DELETED"
@@ -73,8 +78,9 @@ export type AdminAuditAction =
 export interface UserRow {
   id: string;
   role: UserRole;
-  first_name: string;
-  last_name: string;
+  name?: string;
+  first_name?: string;
+  last_name?: string;
   email: string;
   password: string;
   college_id?: string | null;
@@ -82,6 +88,7 @@ export interface UserRow {
   phone_number?: string | null;
   dob?: Date | null;
   is_profile_complete?: boolean;
+  must_change_password?: boolean;
   is_active: boolean;
   created_at: Date;
   updated_at: Date;
@@ -91,12 +98,26 @@ export interface StudentDetailRow {
   id: string;
   user_id: string;
   college_id: string;
+  first_name?: string | null;
+  middle_name?: string | null;
+  last_name?: string | null;
   student_identifier?: string | null;
+  gender?: "male" | "female" | "non_binary" | "prefer_not_to_say" | null;
   phone_number?: string | null;
+  alternate_email?: string | null;
+  alternate_phone?: string | null;
   dob?: Date | null;
   degree?: string | null;
+  specialization?: string | null;
+  passing_year?: number | null;
+  cgpa?: number | null;
+  percentage?: number | null;
   class_name?: string | null;
   section?: string | null;
+  resume_url?: string | null;
+  skills?: string[] | null;
+  linkedin_url?: string | null;
+  github_url?: string | null;
   face_photo_url: string | null;
   id_photo_url: string | null;
   created_at: Date;
@@ -109,6 +130,7 @@ export interface ExamRow {
   scheduled_time: Date;
   duration: number;
   total_questions: number;
+  questions_per_student: number | null;
   duration_minutes: number | null;
   created_by: string | null;
   is_active: boolean;
@@ -170,6 +192,7 @@ export interface ExamAttemptRow {
   status: ExamAttemptStatus;
   current_question_index: number;
   saved_answers: Record<string, unknown>;
+  question_ids: string[] | null;
   started_at: Date;
   last_saved_at: Date;
   completed_at: Date | null;

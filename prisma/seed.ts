@@ -47,7 +47,7 @@ async function seed() {
   const adminPassword = await bcrypt.hash("admin123", 12);
   const admin = await prisma.user.create({
     data: {
-      email: "admin@talentsecure.ai",
+      email: "admin@nallastalent.ai",
       password: adminPassword,
       firstName: "Admin",
       lastName: "User",
@@ -326,7 +326,7 @@ async function seed() {
 
   console.log("\n✅ Seed complete!\n");
   console.log("  Credentials:");
-  console.log("    Admin    : admin@talentsecure.ai / admin123");
+  console.log("    Admin    : admin@nallastalent.ai / admin123");
   console.log("    Recruiter: recruiter@company.com / recruiter123");
   console.log("    Students : aarav.patel0@student.edu / student123\n");
 }

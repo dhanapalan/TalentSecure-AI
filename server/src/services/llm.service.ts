@@ -403,7 +403,7 @@ export async function generateDynamicAssessment(
           { role: "user", content: userPrompt },
         ],
         temperature: 0.8,      // slightly higher for originality
-        max_tokens: 12000,     // more headroom for coding test cases
+        max_tokens: 4096,      // Model's max output limit
         response_format: { type: "json_object" },
       }),
     });
@@ -422,6 +422,14 @@ export async function generateDynamicAssessment(
 
     const result: any = await response.json();
     const content = result.choices?.[0]?.message?.content;
+    const finishReason = result.choices?.[0]?.finish_reason;
+
+    if (finishReason === "length") {
+      throw new AppError(
+        "Assessment generation exceeded the model's token limit. Try requesting fewer questions or shorter duration.",
+        502,
+      );
+    }
 
     if (!content) {
       throw new AppError("OpenAI returned empty response", 502);
