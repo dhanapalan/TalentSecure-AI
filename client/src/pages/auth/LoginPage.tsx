@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import toast from "react-hot-toast";
 import { Mail, Lock, ArrowRight, Loader2 } from "lucide-react";
@@ -18,10 +18,8 @@ type LoginForm = {
 export default function LoginPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [msLoading, setMsLoading] = useState(false);
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>();
-  const hostname = typeof window !== "undefined" ? window.location.hostname.toLowerCase() : "";
-  const isAdminWorkflow = hostname === "admin" || hostname.startsWith("admin.");
-
   const onSubmit = async (form: LoginForm) => {
     setLoading(true);
     try {
@@ -40,13 +38,25 @@ export default function LoginPage() {
           window.location.replace(workflowRedirect);
           return;
         }
-
         navigate(landingPath);
       }, 100);
     } catch (err: any) {
       toast.error(err.response?.data?.error || "Login failed");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleMicrosoftLogin = async () => {
+    setMsLoading(true);
+    try {
+      const { data } = await api.get("/auth/microsoft/url");
+      if (data?.data?.url) {
+        window.location.href = data.data.url;
+      }
+    } catch (err) {
+      toast.error("Failed to initiate Microsoft login");
+      setMsLoading(false);
     }
   };
 
@@ -117,18 +127,45 @@ export default function LoginPage() {
             </span>
           )}
         </button>
+
+        {/* Only show Microsoft login on main TalentSecure platform, not for colleges/students/campuses */}
+        {!window.location.hostname.startsWith('college.') &&
+          !window.location.hostname.startsWith('campus.') &&
+          !window.location.hostname.startsWith('student.') && (
+            <>
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-slate-200" />
+                </div>
+                <div className="relative flex justify-center text-[10px] uppercase tracking-wider font-semibold">
+                  <span className="bg-white px-3 text-slate-500">Or continue with</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleMicrosoftLogin}
+                disabled={loading || msLoading}
+                className="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {msLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <svg className="h-4 w-4" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M10 0H0V10H10V0Z" fill="#F25022" />
+                      <path d="M21 0H11V10H21V0Z" fill="#7FBA00" />
+                      <path d="M10 11H0V21H10V11Z" fill="#00A4EF" />
+                      <path d="M21 11H11V21H21V11Z" fill="#FFB900" />
+                    </svg>
+                    Sign in with Microsoft
+                  </>
+                )}
+              </button>
+            </>
+          )}
       </form>
 
-      {!isAdminWorkflow && (
-        <div className="mt-4 text-center">
-          <p className="text-[11px] text-slate-500">
-            Don't have an account?{" "}
-            <Link to="/auth/register" className="font-semibold text-indigo-600 hover:text-indigo-500 hover:underline underline-offset-4">
-              Create one
-            </Link>
-          </p>
-        </div>
-      )}
     </div>
   );
 }

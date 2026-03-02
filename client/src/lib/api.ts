@@ -14,23 +14,18 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle 401 — attempt refresh
+// Handle 401 by forcing re-authentication when the request is not an auth endpoint.
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const original = error.config;
-    if (error.response?.status === 401 && !original._retry) {
-      original._retry = true;
-      try {
-        const refreshToken = localStorage.getItem("refreshToken");
-        const { data } = await axios.post("/api/auth/refresh", { refreshToken });
-        localStorage.setItem("accessToken", data.data.accessToken);
-        localStorage.setItem("refreshToken", data.data.refreshToken);
-        original.headers.Authorization = `Bearer ${data.data.accessToken}`;
-        return api(original);
-      } catch {
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("refreshToken");
+    const original = error.config as { url?: string };
+    const isAuthEndpoint = typeof original?.url === "string" && original.url.startsWith("/auth/");
+
+    if (error.response?.status === 401 && !isAuthEndpoint) {
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      localStorage.removeItem("user");
+      if (window.location.pathname !== "/auth/login") {
         window.location.href = "/auth/login";
       }
     }

@@ -4,6 +4,7 @@ import { env } from "../config/env.js";
 import { AppError } from "./errorHandler.js";
 import { AuthPayload, UserRole } from "../types/index.js";
 import { logPermissionDenied } from "../services/audit.service.js";
+import { queryOne } from "../config/database.js";
 
 // Extend Express Request
 declare global {
@@ -17,11 +18,11 @@ declare global {
 /**
  * Verify JWT access token and attach user payload to request.
  */
-export const authenticate = (
+export const authenticate = async (
   req: Request,
   _res: Response,
   next: NextFunction,
-): void => {
+): Promise<void> => {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
     return next(new AppError("Authentication required", 401));
@@ -31,6 +32,16 @@ export const authenticate = (
 
   try {
     const payload = jwt.verify(token, env.JWT_SECRET) as AuthPayload;
+
+    // Verify user still exists in DB (guards against stale tokens after re-seeds or account deletion)
+    const exists = await queryOne<{ id: string }>(
+      "SELECT id FROM users WHERE id = $1 AND is_active = TRUE",
+      [payload.userId]
+    );
+    if (!exists) {
+      return next(new AppError("Session expired. Please log in again.", 401));
+    }
+
     req.user = payload;
     next();
   } catch {
@@ -73,8 +84,10 @@ export const authorize = (...roles: UserRole[]) => {
     }
 
     if (!expanded.has(effective)) {
+      // DEBUG — remove after root cause is found
+      console.warn(`[AUTH 403] raw="${req.user.role}" effective="${effective}" expanded=[${[...expanded].join(",")}] path="${req.path}"`);
       // Log permission denial for audit trail
-      logPermissionDenied(req).catch(() => {});
+      logPermissionDenied(req).catch(() => { });
       return next(new AppError("Insufficient permissions", 403));
     }
     next();
@@ -113,7 +126,7 @@ export const enforceCxoReadOnly = (
   const effective = ROLE_ALIASES[raw] ?? raw;
 
   if (effective === "cxo" && ["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) {
-    logPermissionDenied(req).catch(() => {});
+    logPermissionDenied(req).catch(() => { });
     return next(new AppError("CxO role has read-only access", 403));
   }
   next();

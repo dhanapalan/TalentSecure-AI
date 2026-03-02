@@ -1,8 +1,12 @@
+
 import { useQuery } from "@tanstack/react-query";
 import api from "../../lib/api";
+import { useState } from "react";
+import PerStudentLiveView from "../../components/PerStudentLiveView";
+import EventStream from "../../components/EventStream";
+import ViolationHeatmap from "../../components/ViolationHeatmap";
 
 export default function ProctoringMonitorPage() {
-  // In production, this would stream live data via WebSocket
   const { data: metrics } = useQuery({
     queryKey: ["dashboard-metrics"],
     queryFn: async () => {
@@ -10,6 +14,8 @@ export default function ProctoringMonitorPage() {
       return data.data;
     },
   });
+
+  const [tab, setTab] = useState<"student" | "events" | "heatmap">("student");
 
   return (
     <div>
@@ -21,6 +27,7 @@ export default function ProctoringMonitorPage() {
       <div className="card mt-6">
         <h2 className="text-lg font-semibold">System Capabilities</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {/* ...existing code for capabilities... */}
           {[
             {
               title: "Face Verification",
@@ -78,6 +85,32 @@ export default function ProctoringMonitorPage() {
             {metrics?.avgProctoringIntegrity || "—"}%
           </span>
         </p>
+      </div>
+
+      <div className="card mt-6">
+        <div className="flex gap-4 mb-4">
+          <button
+            className={`px-4 py-2 rounded-lg font-bold ${tab === "student" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-700"}`}
+            onClick={() => setTab("student")}
+          >
+            Per-Student Live View
+          </button>
+          <button
+            className={`px-4 py-2 rounded-lg font-bold ${tab === "events" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-700"}`}
+            onClick={() => setTab("events")}
+          >
+            Event Stream
+          </button>
+          <button
+            className={`px-4 py-2 rounded-lg font-bold ${tab === "heatmap" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-700"}`}
+            onClick={() => setTab("heatmap")}
+          >
+            Violation Heatmap
+          </button>
+        </div>
+        {tab === "student" && <PerStudentLiveView />}
+        {tab === "events" && <EventStream />}
+        {tab === "heatmap" && <ViolationHeatmap />}
       </div>
     </div>
   );

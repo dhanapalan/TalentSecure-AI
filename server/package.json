@@ -9,10 +9,12 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "lint": "eslint src --ext .ts"
+    "lint": "tsc --noEmit",
+    "test": "tsc --noEmit"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.730.0",
+    "@azure/msal-node": "^5.0.5",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",

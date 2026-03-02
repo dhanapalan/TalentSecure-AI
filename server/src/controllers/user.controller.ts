@@ -18,11 +18,11 @@ export const listUsers = async (
         const { role, search } = req.query;
         let sql = `
             SELECT 
-                u.id, u.role, u.first_name, u.last_name, u.email, 
-                u.is_active, u.created_at, u.updated_at,
+                u.id, u.role, u.name, u.email, 
+                u.is_active, u.status, u.login_type, u.last_login_at, u.created_at, u.updated_at,
                 c.name as college_name
             FROM users u
-            LEFT JOIN campuses c ON c.id = u.college_id
+            LEFT JOIN colleges c ON c.id = u.college_id
             WHERE 1=1
         `;
         const params: any[] = [];
@@ -34,7 +34,7 @@ export const listUsers = async (
 
         if (search) {
             params.push(`%${search}%`);
-            sql += ` AND (u.first_name ILIKE $${params.length} OR u.last_name ILIKE $${params.length} OR u.email ILIKE $${params.length})`;
+            sql += ` AND (u.name ILIKE $${params.length} OR u.email ILIKE $${params.length})`;
         }
 
         sql += ` ORDER BY u.created_at DESC LIMIT 200`;
@@ -74,7 +74,7 @@ export const updateUserRole = async (
             `UPDATE users 
              SET role = $1, updated_at = NOW() 
              WHERE id = $2 
-             RETURNING id, role, email, first_name, last_name, is_active`,
+             RETURNING id, role, email, name, is_active, status, login_type`,
             [role, id]
         );
 
@@ -93,20 +93,47 @@ export const updateUserRole = async (
 };
 
 /**
- * Delete a user
+ * Update a user
  */
-export const deleteUser = async (
+export const updateUser = async (
     req: Request,
-    res: Response<ApiResponse>,
+    res: Response<ApiResponse<UserRow>>,
     next: NextFunction
 ) => {
     try {
         const { id } = req.params;
+        const { name, email, role, college_id } = req.body;
 
-        // Don't allow deleting self? (Optional, usually handled in middleware or client)
+        if (!name || !email || !role) {
+            throw new AppError("Name, email, and role are required", 400);
+        }
 
-        await query("DELETE FROM users WHERE id = $1", [id]);
-        res.json({ success: true, message: "User deleted successfully" });
+        const validRoles = [
+            "super_admin", "admin", "hr", "engineer", "cxo",
+            "college_admin", "college_staff", "student", "college"
+        ];
+        if (!validRoles.includes(role)) {
+            throw new AppError("Invalid role specified", 400);
+        }
+
+        const isCollegeRole = ["college_admin", "college_staff", "college", "student"].includes(role);
+        const finalCollegeId = isCollegeRole && college_id ? college_id : null;
+
+        const existing = await queryOne<UserRow>("SELECT id FROM users WHERE email = $1 AND id != $2", [email, id]);
+        if (existing) {
+            throw new AppError("Email already in use", 409);
+        }
+
+        const updatedUser = await queryOne<UserRow>(
+            `UPDATE users SET name = $1, email = $2, role = $3::user_role, college_id = $4, updated_at = NOW() WHERE id = $5 RETURNING id, name, email, role, is_active, status, login_type`,
+            [name, email, role, finalCollegeId, id]
+        );
+
+        if (!updatedUser) {
+            throw new AppError("User not found", 404);
+        }
+
+        res.json({ success: true, data: updatedUser, message: "User updated successfully" });
     } catch (err) {
         next(err);
     }
@@ -121,10 +148,10 @@ export const createUser = async (
     next: NextFunction
 ) => {
     try {
-        const { firstName, lastName, email, password, role } = req.body;
+        const { name, email, password, role, login_type, college_id } = req.body;
 
-        if (!firstName || !lastName || !email || !password || !role) {
-            throw new AppError("All fields are required", 400);
+        if (!name || !email || !password || !role) {
+            throw new AppError("Name, email, password, and role are required", 400);
         }
 
         const existing = await queryOne<UserRow>(
@@ -136,12 +163,17 @@ export const createUser = async (
         }
 
         const hashedPassword = await bcrypt.hash(password, 12);
+        const loginTypeVal = login_type || "Email_Password";
+
+
+        const isCollegeRole = ["college_admin", "college_staff", "college", "student"].includes(role);
+        const finalCollegeId = isCollegeRole && college_id ? college_id : null;
 
         const user = await queryOne<UserRow>(
-            `INSERT INTO users (first_name, last_name, email, password, role, is_active)
-             VALUES ($1, $2, $3, $4, $5::user_role, TRUE)
-             RETURNING id, first_name, last_name, email, role, is_active, created_at`,
-            [firstName, lastName, email, hashedPassword, role]
+            `INSERT INTO users (name, email, password, role, is_active, status, login_type, college_id)
+             VALUES ($1, $2, $3, $4::user_role, TRUE, 'Active', $5, $6)
+             RETURNING id, name, email, role, is_active, status, login_type, college_id, created_at`,
+            [name, email, hashedPassword, role, loginTypeVal, finalCollegeId]
         );
 
         if (!user) {
@@ -166,6 +198,154 @@ export const createUser = async (
         });
     } catch (err) {
         console.error("DEBUG: createUser error details:", err);
+        next(err);
+    }
+};
+
+/**
+ * Update a user's status (Activate/Deactivate/Lock)
+ */
+export const updateUserStatus = async (
+    req: Request,
+    res: Response<ApiResponse<UserRow>>,
+    next: NextFunction
+) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body; // e.g., 'Active', 'Inactive', 'Locked'
+
+        if (!status) {
+            throw new AppError("Status is required", 400);
+        }
+
+        const validStatuses = ["Active", "Inactive", "Locked"];
+        if (!validStatuses.includes(status)) {
+            throw new AppError("Invalid status specified", 400);
+        }
+
+        const updatedUser = await queryOne<UserRow>(
+            `UPDATE users 
+             SET status = $1, is_active = $2, updated_at = NOW() 
+             WHERE id = $3 
+             RETURNING id, role, email, name, is_active, status`,
+            [status, status === "Active", id]
+        );
+
+        if (!updatedUser) {
+            throw new AppError("User not found", 404);
+        }
+
+        // Audit Logging
+        await writeAuditLog({
+            actor_id: (req as any).user?.userId || "system",
+            actor_role: (req as any).user?.role || "unknown",
+            action: `USER_STATUS_CHANGED`,
+            target_type: "user",
+            target_id: updatedUser.id,
+            reason: `Status changed to ${status}`,
+        }).catch(err => console.error("Audit log failed", err));
+
+        res.json({
+            success: true,
+            data: updatedUser,
+            message: `User status updated to ${status}`
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+/**
+ * Admin forces a password reset or sends a reset link
+ * For this MVP, we just set a must_change_password flag & change the password to a temp one.
+ */
+export const resetPassword = async (
+    req: Request,
+    res: Response<ApiResponse>,
+    next: NextFunction
+) => {
+    try {
+        const { id } = req.params;
+        const tempPassword = "ChangeMe123!"; // Realistically: generating a random strong password or sending a reset link string via email
+        const hashedPassword = await bcrypt.hash(tempPassword, 12);
+
+        const updatedUser = await queryOne<UserRow>(
+            `UPDATE users 
+             SET password = $1, must_change_password = TRUE, updated_at = NOW() 
+             WHERE id = $2 
+             RETURNING id, email, name`,
+            [hashedPassword, id]
+        );
+
+        if (!updatedUser) {
+            throw new AppError("User not found", 404);
+        }
+
+        // Audit Logging
+        await writeAuditLog({
+            actor_id: (req as any).user?.userId || "system",
+            actor_role: (req as any).user?.role || "unknown",
+            action: "USER_PASSWORD_RESET",
+            target_type: "user",
+            target_id: updatedUser.id,
+            reason: `Admin forced password reset`,
+            metadata: { email: updatedUser.email }
+        }).catch(err => console.error("Audit log failed", err));
+
+        res.json({
+            success: true,
+            message: `Password reset to temporary password. User must change on next login.`
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+/**
+ * Admin updates a user's password to a specific value
+ */
+export const updatePassword = async (
+    req: Request,
+    res: Response<ApiResponse>,
+    next: NextFunction
+) => {
+    try {
+        const { id } = req.params;
+        const { password } = req.body;
+
+        if (!password || password.length < 6) {
+            throw new AppError('Password must be at least 6 characters', 400);
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 12);
+
+        const updatedUser = await queryOne<UserRow>(
+            `UPDATE users 
+             SET password = $1, updated_at = NOW() 
+             WHERE id = $2 
+             RETURNING id, email, name`,
+            [hashedPassword, id]
+        );
+
+        if (!updatedUser) {
+            throw new AppError('User not found', 404);
+        }
+
+        // Audit Logging
+        await writeAuditLog({
+            actor_id: (req as any).user?.userId || 'system',
+            actor_role: (req as any).user?.role || 'unknown',
+            action: 'USER_PASSWORD_RESET',
+            target_type: 'user',
+            target_id: updatedUser.id,
+            reason: 'Admin changed user password',
+            metadata: { email: updatedUser.email }
+        }).catch(err => console.error('Audit log failed', err));
+
+        res.json({
+            success: true,
+            message: 'Password updated successfully.'
+        });
+    } catch (err) {
         next(err);
     }
 };

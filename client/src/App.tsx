@@ -1,5 +1,13 @@
 import { Suspense, lazy } from "react";
-import { Routes, Route, Navigate, useLocation, useParams } from "react-router-dom";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useParams,
+} from "react-router";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "react-hot-toast";
 import { useAuthStore } from "./stores/authStore";
 import {
   ProtectedRoute,
@@ -7,10 +15,10 @@ import {
   getLandingPath,
 } from "./components/ProtectedRoute";
 
-// Layouts
+// ── Layouts ──────────────────────────────────────────────────────────────────
 import PublicLayout from "./layouts/PublicLayout";
 
-// Public pages
+// ── Public pages (eagerly loaded for fast initial paint) ─────────────────────
 import LandingPage from "./pages/public/LandingPage";
 import PricingPage from "./pages/public/PricingPage";
 import AboutPage from "./pages/public/AboutPage";
@@ -23,23 +31,33 @@ import PrivacyPage from "./pages/public/PrivacyPage";
 import TermsPage from "./pages/public/TermsPage";
 import NotFoundPage from "./pages/NotFoundPage";
 
-// Lazy-loaded non-landing routes
+// ── Lazy-loaded routes ────────────────────────────────────────────────────────
 const DashboardLayout = lazy(() => import("./layouts/DashboardLayout"));
 const AuthLayout = lazy(() => import("./layouts/AuthLayout"));
+
 const LoginPage = lazy(() => import("./pages/auth/LoginPage"));
-const RegisterPage = lazy(() => import("./pages/auth/RegisterPage"));
 const PasswordSetupPage = lazy(() => import("./pages/auth/PasswordSetupPage"));
+const MicrosoftCallback = lazy(() => import("./pages/auth/MicrosoftCallback"));
+
 const HRDashboardPage = lazy(() => import("./pages/hr/HRDashboardPage"));
 const EngineerPanelPage = lazy(() => import("./pages/engineer/EngineerPanelPage"));
 const CXOAnalyticsPage = lazy(() => import("./pages/cxo/CXOAnalyticsPage"));
 const CollegeDashboardPage = lazy(() => import("./pages/college/CollegeDashboardPage"));
+const CampusDrivesListPage = lazy(() => import("./pages/college/DrivesListPage"));
+const CampusDriveDetailPage = lazy(() => import("./pages/college/DriveDetailPage"));
+const UnderConstructionPage = lazy(() => import("./pages/college/UnderConstructionPage"));
 const StudentPortalPage = lazy(() => import("./pages/student/StudentPortalPage"));
-const CollegeManagement = lazy(() => import("./pages/hr/CollegeManagement"));
+const CampusListPage = lazy(() => import("./pages/hr/CampusListPage"));
+const CampusDetailPage = lazy(() => import("./pages/hr/CampusDetailPage"));
 const DashboardPage = lazy(() => import("./pages/dashboard/DashboardPage"));
-const StudentsPage = lazy(() => import("./pages/students/StudentsPage"));
-const StudentProfilePage = lazy(() => import("./pages/students/StudentProfilePage"));
-const StudentRegistrationPage = lazy(() => import("./pages/students/StudentRegistrationPage"));
+
+const StudentListPage = lazy(() => import("./pages/students/StudentListPage"));
+const StudentDetailPage = lazy(() => import("./pages/students/StudentDetailPage"));
+const BulkImportStudentsPage = lazy(() => import("./pages/students/BulkImportStudentsPage"));
+
 const AdministrativePanel = lazy(() => import("./pages/admin/AdministrativePanel"));
+const ChangePasswordPage = lazy(() => import("./pages/admin/ChangePasswordPage"));
+
 const AssessmentStudioPage = lazy(() => import("./pages/assessments/AssessmentStudioPage"));
 const AssessmentTakePage = lazy(() => import("./pages/assessments/AssessmentTakePage"));
 const ExamInterfacePage = lazy(() => import("./pages/assessments/ExamInterfacePage"));
@@ -47,295 +65,549 @@ const QuestionWizard = lazy(() => import("./pages/assessments/QuestionWizard"));
 const CodeEditor = lazy(() => import("./pages/assessments/CodeEditor"));
 const AssessmentBlueprintWizard = lazy(() => import("./pages/assessments/AssessmentBlueprintWizard"));
 const ExamQuestionsPage = lazy(() => import("./pages/assessments/ExamQuestionsPage"));
+
 const SegmentationPage = lazy(() => import("./pages/segmentation/SegmentationPage"));
 const ProctoringMonitorPage = lazy(() => import("./pages/proctoring/ProctoringMonitorPage"));
 const AnalyticsPage = lazy(() => import("./pages/analytics/AnalyticsPage"));
+
+const LiveMonitoringDashboard = lazy(() => import("./pages/admin/LiveMonitoringDashboard"));
+const StudentSessionDetail = lazy(() => import("./pages/admin/StudentSessionDetail"));
+
+const RuleDashboardPage = lazy(() => import("./pages/assessments/RuleDashboardPage"));
+const RuleWizardPage = lazy(() => import("./pages/assessments/RuleWizardPage"));
+const DrivesDashboardPage = lazy(() => import("./pages/drives/DrivesDashboardPage"));
+const DriveDetailPage = lazy(() => import("./pages/drives/DriveDetailPage"));
+
+const ExamInstructionsPage = lazy(() => import("./pages/student/ExamInstructionsPage"));
+const ExamPlayerPage = lazy(() => import("./pages/student/ExamPlayerPage"));
+
 const NotAuthorizedPage = lazy(() => import("./pages/NotAuthorizedPage"));
 const StudentOnboardingWizard = lazy(() => import("./components/StudentOnboardingWizard"));
 
-// ── Helper redirects ─────────────────────────────────────────────────────────
+// ── QueryClient ───────────────────────────────────────────────────────────────
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
+});
+
+// ── Helper components ─────────────────────────────────────────────────────────
+
 function RootRedirect() {
   const user = useAuthStore((s) => s.user);
-  return <Navigate to={getLandingPath(user)} replace />;
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
+  // If authenticated, redirect to the appropriate dashboard
+  if (isAuthenticated && user) {
+    return <Navigate to={getLandingPath(user)} replace />;
+  }
+
+  // Handle subdomains: redirect unauthenticated users to login
+  const hostname = window.location.hostname;
+  if (
+    hostname.startsWith("admin.") ||
+    hostname.startsWith("campus.") ||
+    hostname.startsWith("college.") ||
+    hostname.startsWith("student.")
+  ) {
+    return <Navigate to="/auth/login" replace />;
+  }
+
+  // Otherwise, show the public landing page
+  return <LandingPage />;
 }
 
-function LegacyStudentRegistrationRedirect() {
-  const location = useLocation();
-  return <Navigate to={`/student/register${location.search}`} replace />;
-}
+
 
 function LegacyStudentExamRedirect() {
   const { id } = useParams<{ id: string }>();
-  if (!id) {
-    return <Navigate to="/app/student-portal" replace />;
-  }
+  if (!id) return <Navigate to="/app/student-portal" replace />;
   return <Navigate to={`/student/exams/${id}/take`} replace />;
 }
 
 function RouteLoadingFallback() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-6 text-sm font-semibold text-slate-500">
-      Loading workspace...
+    <div className="flex min-h-screen items-center justify-center bg-slate-50">
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent" />
     </div>
   );
 }
 
-// ── App ──────────────────────────────────────────────────────────────────────
+// ── App ───────────────────────────────────────────────────────────────────────
+
 export default function App() {
   return (
-    <Suspense fallback={<RouteLoadingFallback />}>
-      <Routes>
-        {/* ── Public website ─────────────────────────────────────────── */}
-        <Route element={<PublicLayout />}>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/pricing" element={<PricingPage />} />
-          <Route path="/about" element={<AboutPage />} />
-          <Route path="/contact" element={<ContactPage />} />
-          <Route path="/lateral" element={<LateralPage />} />
-          <Route path="/lateral/contact" element={<LateralContactPage />} />
-          <Route path="/campus" element={<CampusPage />} />
-          <Route path="/campus/contact" element={<CampusContactPage />} />
-          <Route path="/privacy" element={<PrivacyPage />} />
-          <Route path="/terms" element={<TermsPage />} />
-        </Route>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <Suspense fallback={<RouteLoadingFallback />}>
+          <Routes>
+            {/* ── Public website ──────────────────────────────────────── */}
+            <Route element={<PublicLayout />}>
+              <Route path="/" element={<RootRedirect />} />
+              <Route path="/pricing" element={<PricingPage />} />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/contact" element={<ContactPage />} />
+              <Route path="/lateral" element={<LateralPage />} />
+              <Route path="/lateral/contact" element={<LateralContactPage />} />
+              <Route path="/campus" element={<CampusPage />} />
+              <Route path="/campus/contact" element={<CampusContactPage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
+              <Route path="/terms" element={<TermsPage />} />
+            </Route>
 
-        {/* ── Auth (public) ─────────────────────────────────────────── */}
-        <Route path="/auth" element={<AuthLayout />}>
-          <Route path="login" element={<LoginPage />} />
-          <Route path="register" element={<RegisterPage />} />
-          <Route path="setup-password" element={<PasswordSetupPage />} />
-        </Route>
+            {/* ── Subdomain handling ──────────────────────────────────── */}
+            {/* When already logged in and at root on college subdomain, RootRedirect handles to /app/college-dashboard based on role */}
 
-        {/* Student self-registration (public, needs camera) */}
-        <Route path="/student/register" element={<StudentRegistrationPage />} />
-        <Route path="/register-student" element={<LegacyStudentRegistrationRedirect />} />
+            {/* ── Auth ────────────────────────────────────────────────── */}
+            <Route path="/auth" element={<AuthLayout />}>
+              <Route path="login" element={<LoginPage />} />
+              <Route path="setup-password" element={<PasswordSetupPage />} />
+              <Route path="callback" element={<MicrosoftCallback />} />
+            </Route>
 
-        {/* Not-authorized (public, shown after role mismatch) */}
-        <Route path="/not-authorized" element={<NotAuthorizedPage />} />
+            {/* ── Not-authorized ──────────────────────────────────────── */}
+            <Route path="/not-authorized" element={<NotAuthorizedPage />} />
 
-        {/* ── Student onboarding (protected, student only) ──────────── */}
-        <Route
-          path="/student-onboarding"
-          element={
-            <ProtectedRoute>
-              <StudentOnboardingWizard />
-            </ProtectedRoute>
-          }
-        />
+            {/* ── Student onboarding (protected) ──────────────────────── */}
+            <Route
+              path="/student-onboarding"
+              element={
+                <ProtectedRoute>
+                  <StudentOnboardingWizard />
+                </ProtectedRoute>
+              }
+            />
 
-        {/* ── Exam interface (fullscreen, outside dashboard layout) ── */}
-        <Route
-          path="/student/exams/:id/take"
-          element={
-            <ProtectedRoute>
-              <RoleGuard allowed={["student"]}>
-                <ExamInterfacePage />
-              </RoleGuard>
-            </ProtectedRoute>
-          }
-        />
-        <Route path="/exams/:id/take" element={<LegacyStudentExamRedirect />} />
+            {/* ── Exam interface (full-screen, outside dashboard) ─────── */}
+            <Route
+              path="/student/exams/:id/take"
+              element={
+                <ProtectedRoute>
+                  <RoleGuard allowed={["student"]}>
+                    <ExamInterfacePage />
+                  </RoleGuard>
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/exams/:id/take" element={<LegacyStudentExamRedirect />} />
 
-        {/* ── Role-based dashboard routes (under /app) ──────────────── */}
-        <Route
-          path="/app"
-          element={
-            <ProtectedRoute>
-              <DashboardLayout />
-            </ProtectedRoute>
-          }
-        >
-        {/* /app → redirect to role-appropriate home */}
-        <Route index element={<RootRedirect />} />
+            {/* ── New Exam Player (drive-based, full-screen) ─────── */}
+            <Route
+              path="/app/student-portal/exam/:driveId/play"
+              element={
+                <ProtectedRoute>
+                  <RoleGuard allowed={["student"]}>
+                    <ExamPlayerPage />
+                  </RoleGuard>
+                </ProtectedRoute>
+              }
+            />
 
-        {/* HR Dashboard (hr, super_admin, cxo read-only) */}
-        <Route
-          path="hr-dashboard"
-          element={
-            <RoleGuard allowed={["hr", "super_admin", "cxo"]}>
-              <HRDashboardPage />
-            </RoleGuard>
-          }
-        />
+            {/* ── Protected dashboard routes (/app) ───────────────────── */}
+            <Route
+              path="/app"
+              element={
+                <ProtectedRoute>
+                  <DashboardLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<RootRedirect />} />
 
-        {/* Engineer Panel (engineer only) */}
-        <Route
-          path="engineer-panel"
-          element={
-            <RoleGuard allowed={["engineer"]}>
-              <EngineerPanelPage />
-            </RoleGuard>
-          }
-        />
+              {/* HR Dashboard */}
+              <Route
+                path="hr-dashboard"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "cxo"]}>
+                    <HRDashboardPage />
+                  </RoleGuard>
+                }
+              />
 
-        {/* CXO Analytics (cxo, super_admin) */}
-        <Route
-          path="cxo-analytics"
-          element={
-            <RoleGuard allowed={["cxo", "super_admin"]}>
-              <CXOAnalyticsPage />
-            </RoleGuard>
-          }
-        />
+              {/* Engineer Panel */}
+              <Route
+                path="engineer-panel"
+                element={
+                  <RoleGuard allowed={["engineer"]}>
+                    <EngineerPanelPage />
+                  </RoleGuard>
+                }
+              />
 
-        <Route
-          path="college-dashboard"
-          element={
-            <RoleGuard allowed={["college_admin", "college", "college_staff"]}>
-              <CollegeDashboardPage />
-            </RoleGuard>
-          }
-        />
+              {/* CXO Analytics */}
+              <Route
+                path="cxo-analytics"
+                element={
+                  <RoleGuard allowed={["cxo", "super_admin"]}>
+                    <CXOAnalyticsPage />
+                  </RoleGuard>
+                }
+              />
 
-        {/* Student Portal (student) */}
-        <Route
-          path="student-portal"
-          element={
-            <RoleGuard allowed={["student"]}>
-              <StudentPortalPage />
-            </RoleGuard>
-          }
-        />
+              {/* College Dashboard */}
+              <Route
+                path="college-dashboard"
+                element={
+                  <RoleGuard allowed={["college_admin", "college", "college_staff"]}>
+                    <CollegeDashboardPage />
+                  </RoleGuard>
+                }
+              />
+              {/* College Drives */}
+              <Route
+                path="college/drives"
+                element={
+                  <RoleGuard allowed={["college_admin", "college", "college_staff"]}>
+                    <CampusDrivesListPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="college/drives/:id"
+                element={
+                  <RoleGuard allowed={["college_admin", "college", "college_staff"]}>
+                    <CampusDriveDetailPage />
+                  </RoleGuard>
+                }
+              />
 
-        {/* ── Shared feature routes (role-restricted) ─────────────── */}
+              <Route
+                path="college/results"
+                element={
+                  <RoleGuard allowed={["college_admin", "college", "college_staff"]}>
+                    <UnderConstructionPage title="Results & Reports" />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="college/insights"
+                element={
+                  <RoleGuard allowed={["college_admin", "college", "college_staff"]}>
+                    <UnderConstructionPage title="Campus Insights" />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="college/communications"
+                element={
+                  <RoleGuard allowed={["college_admin", "college", "college_staff"]}>
+                    <UnderConstructionPage title="Communications" />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="college/settings"
+                element={
+                  <RoleGuard allowed={["college_admin", "college"]}>
+                    <UnderConstructionPage title="Campus Settings" />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="college/integrity"
+                element={
+                  <RoleGuard allowed={["college_admin", "college", "college_staff"]}>
+                    <UnderConstructionPage title="Integrity" />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="college/campus-admins"
+                element={
+                  <RoleGuard allowed={["college_admin", "college"]}>
+                    <UnderConstructionPage title="Campus Admins" />
+                  </RoleGuard>
+                }
+              />
 
-        {/* Legacy overview (admin view) */}
-        <Route
-          path="overview"
-          element={
-            <RoleGuard allowed={["super_admin", "hr", "cxo"]}>
-              <DashboardPage />
-            </RoleGuard>
-          }
-        />
+              {/* Student Portal */}
+              <Route
+                path="student-portal"
+                element={
+                  <RoleGuard allowed={["student"]}>
+                    <StudentPortalPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="student-portal/exam/:driveId/instructions"
+                element={
+                  <RoleGuard allowed={["student"]}>
+                    <ExamInstructionsPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="student"
+                element={
+                  <RoleGuard allowed={["student"]}>
+                    <StudentPortalPage />
+                  </RoleGuard>
+                }
+              />
 
-        {/* Student management — Admin, HR, CxO (read), college_admin */}
-        <Route
-          path="students"
-          element={
-            <RoleGuard allowed={["super_admin", "hr", "cxo", "college_admin"]}>
-              <StudentsPage />
-            </RoleGuard>
-          }
-        />
-        <Route
-          path="students/:id"
-          element={
-            <RoleGuard allowed={["super_admin", "hr", "cxo", "college_admin"]}>
-              <StudentProfilePage />
-            </RoleGuard>
-          }
-        />
+              {/* Admin overview */}
+              <Route
+                path="overview"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "cxo"]}>
+                    <DashboardPage />
+                  </RoleGuard>
+                }
+              />
 
-        {/* Unified Administration — Admin, HR, CxO */}
-        <Route
-          path="administration"
-          element={
-            <RoleGuard allowed={["super_admin", "admin", "hr", "cxo"]}>
-              <AdministrativePanel />
-            </RoleGuard>
-          }
-        />
+              {/* Monitoring */}
+              <Route
+                path="admin/monitoring"
+                element={
+                  <RoleGuard allowed={["college_admin", "super_admin"]}>
+                    <LiveMonitoringDashboard />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="admin/monitoring/live/:driveId"
+                element={
+                  <RoleGuard allowed={["college_admin", "super_admin"]}>
+                    <LiveMonitoringDashboard />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="admin/monitoring/session/:sessionId"
+                element={
+                  <RoleGuard allowed={["college_admin", "super_admin"]}>
+                    <StudentSessionDetail />
+                  </RoleGuard>
+                }
+              />
+              {/* Students */}
+              <Route
+                path="students"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "cxo", "college_admin"]}>
+                    <StudentListPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="students/new"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "cxo", "college_admin"]}>
+                    <StudentDetailPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="students/:id"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "cxo", "college_admin"]}>
+                    <StudentDetailPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="students/:id/edit"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "cxo", "college_admin"]}>
+                    <StudentDetailPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="students/bulk-import"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "cxo", "college_admin"]}>
+                    <BulkImportStudentsPage />
+                  </RoleGuard>
+                }
+              />
 
-        {/* Legacy redirects or individual paths if needed */}
-        <Route path="users" element={<Navigate to="/app/administration" replace />} />
-        <Route path="roles" element={<Navigate to="/app/administration" replace />} />
+              {/* Administration */}
+              <Route
+                path="administration"
+                element={
+                  <RoleGuard allowed={["super_admin", "admin", "hr", "cxo"]}>
+                    <AdministrativePanel />
+                  </RoleGuard>
+                }
+              />
+              <Route path="users" element={<Navigate to="/app/administration" replace />} />
+              <Route path="roles" element={<Navigate to="/app/administration" replace />} />
+              <Route
+                path="administration/users/:id/change-password"
+                element={
+                  <RoleGuard allowed={["super_admin", "admin"]}>
+                    <ChangePasswordPage />
+                  </RoleGuard>
+                }
+              />
 
-        {/* Assessments — Admin, HR, college_admin, engineer */}
-        <Route
-          path="assessments"
-          element={
-            <RoleGuard allowed={["super_admin", "hr", "college_admin", "engineer"]}>
-              <AssessmentStudioPage />
-            </RoleGuard>
-          }
-        />
-        <Route path="assessments/bank" element={<Navigate to="/app/assessments?tab=bank" replace />} />
-        <Route
-          path="assessments/wizard"
-          element={
-            <RoleGuard allowed={["super_admin", "hr", "college_admin"]}>
-              <QuestionWizard />
-            </RoleGuard>
-          }
-        />
-        <Route
-          path="assessments/blueprint"
-          element={
-            <RoleGuard allowed={["super_admin", "hr", "college_admin"]}>
-              <AssessmentBlueprintWizard />
-            </RoleGuard>
-          }
-        />
-        <Route
-          path="assessments/:id/questions"
-          element={
-            <RoleGuard allowed={["super_admin", "hr", "college_admin", "engineer"]}>
-              <ExamQuestionsPage />
-            </RoleGuard>
-          }
-        />
-        <Route
-          path="assessments/code-editor"
-          element={
-            <RoleGuard allowed={["super_admin", "hr", "college_admin", "engineer"]}>
-              <CodeEditor />
-            </RoleGuard>
-          }
-        />
-        <Route
-          path="assessments/:id/take"
-          element={
-            <RoleGuard allowed={["student"]}>
-              <AssessmentTakePage />
-            </RoleGuard>
-          }
-        />
+              {/* Assessments */}
+              <Route
+                path="assessments"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "engineer"]}>
+                    <AssessmentStudioPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="assessments/bank"
+                element={<Navigate to="/app/assessments?tab=bank" replace />}
+              />
+              <Route
+                path="assessments/wizard"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr"]}>
+                    <QuestionWizard />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="assessments/blueprint"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr"]}>
+                    <AssessmentBlueprintWizard />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="assessments/:id/questions"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "engineer"]}>
+                    <ExamQuestionsPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="assessments/code-editor"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "engineer"]}>
+                    <CodeEditor />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="assessments/:id/take"
+                element={
+                  <RoleGuard allowed={["student"]}>
+                    <AssessmentTakePage />
+                  </RoleGuard>
+                }
+              />
 
-        {/* Segmentation — Admin, HR */}
-        <Route
-          path="segmentation"
-          element={
-            <RoleGuard allowed={["super_admin", "hr"]}>
-              <SegmentationPage />
-            </RoleGuard>
-          }
-        />
+              {/* Assessment Rules */}
+              <Route
+                path="assessment-rules"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "engineer"]}>
+                    <RuleDashboardPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="assessment-rules/new"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "engineer"]}>
+                    <RuleWizardPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="assessment-rules/:id"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "engineer"]}>
+                    <RuleWizardPage />
+                  </RoleGuard>
+                }
+              />
 
-        {/* Campuses — Admin, HR */}
-        <Route
-          path="campuses"
-          element={
-            <RoleGuard allowed={["super_admin", "hr"]}>
-              <CollegeManagement />
-            </RoleGuard>
-          }
-        />
+              {/* Drives */}
+              <Route
+                path="drives"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "college_admin", "engineer"]}>
+                    <DrivesDashboardPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="drives/:id"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "college_admin", "engineer"]}>
+                    <DriveDetailPage />
+                  </RoleGuard>
+                }
+              />
 
-        {/* Proctoring — Admin, HR, Engineer, college_admin */}
-        <Route
-          path="proctoring"
-          element={
-            <RoleGuard allowed={["super_admin", "hr", "engineer", "college_admin"]}>
-              <ProctoringMonitorPage />
-            </RoleGuard>
-          }
-        />
+              {/* Segmentation */}
+              <Route
+                path="segmentation"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr"]}>
+                    <SegmentationPage />
+                  </RoleGuard>
+                }
+              />
 
-        {/* Analytics — Admin, HR, CxO, Engineer */}
-        <Route
-          path="analytics"
-          element={
-            <RoleGuard allowed={["super_admin", "hr", "cxo", "engineer"]}>
-              <AnalyticsPage />
-            </RoleGuard>
-          }
-        />
-        </Route>
+              {/* Campuses */}
+              <Route
+                path="campuses"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr"]}>
+                    <CampusListPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="campuses/:id"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr"]}>
+                    <CampusDetailPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="campuses/:id/edit"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr"]}>
+                    <CampusDetailPage />
+                  </RoleGuard>
+                }
+              />
 
-        {/* 404 fallback */}
-        <Route path="*" element={<NotFoundPage />} />
-      </Routes>
-    </Suspense>
+              {/* Proctoring */}
+              <Route
+                path="proctoring"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "engineer", "college_admin"]}>
+                    <ProctoringMonitorPage />
+                  </RoleGuard>
+                }
+              />
+
+              {/* Analytics */}
+              <Route
+                path="analytics"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "cxo", "engineer"]}>
+                    <AnalyticsPage />
+                  </RoleGuard>
+                }
+              />
+            </Route>
+
+            {/* 404 */}
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+        </Suspense>
+      </BrowserRouter>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: { borderRadius: "10px", fontSize: "13px" },
+        }}
+      />
+    </QueryClientProvider>
   );
 }

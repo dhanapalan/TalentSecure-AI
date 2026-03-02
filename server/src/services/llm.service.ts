@@ -403,7 +403,7 @@ export async function generateDynamicAssessment(
           { role: "user", content: userPrompt },
         ],
         temperature: 0.8,      // slightly higher for originality
-        max_tokens: 4096,      // Model's max output limit
+        max_tokens: 16384,     // enough for ~50 questions per batch
         response_format: { type: "json_object" },
       }),
     });

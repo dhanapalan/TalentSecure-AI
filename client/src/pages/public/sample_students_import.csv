@@ -1,0 +1,6 @@
+first_name,last_name,email,phone,date_of_birth,gender,roll_number,degree,major,graduation_year,current_semester,cgpa,tenth_percentage,twelfth_percentage,active_backlogs,college_name,city,state,technical_skills,programming_languages,placement_status
+Rahul,Sharma,rahul.sharma@college.edu,+91 98765 43210,2003-05-15,Male,2021CSE001,B.Tech,Computer Science,2025,6,8.5,92,88,0,Anna University,Chennai,Tamil Nadu,Python|Java|React,Python|Java|JavaScript,Open
+Priya,Kumar,priya.kumar@college.edu,+91 98765 43211,2003-08-22,Female,2021CSE002,B.Tech,Computer Science,2025,6,9.2,95,90,0,Anna University,Chennai,Tamil Nadu,Machine Learning|Python,Python|R|SQL,Open
+Arjun,Patel,arjun.patel@college.edu,+91 98765 43212,2003-03-10,Male,2021CSE003,B.Tech,Computer Science,2025,6,8.8,90,87,1,IIT Bombay,Mumbai,Maharashtra,Full Stack Development,JavaScript|Node.js|React,Open
+Sneha,Reddy,sneha.reddy@college.edu,+91 98765 43213,2003-11-05,Female,2021CSE004,B.Tech,Computer Science,2025,6,9.5,98,95,0,IIT Bombay,Mumbai,Maharashtra,Data Science|AI,Python|TensorFlow|PyTorch,Open
+Vikram,Singh,vikram.singh@college.edu,+91 98765 43214,2003-07-18,Male,2021CSE005,B.Tech,Information Technology,2025,6,8.0,85,82,0,NIT Trichy,Trichy,Tamil Nadu,Web Development|Cloud,JavaScript|AWS|Docker,Open

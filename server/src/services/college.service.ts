@@ -54,7 +54,7 @@ async function resolveCollegeForStaff(staffUserId: string): Promise<CollegeRow> 
      FROM users
      WHERE id = $1
        AND is_active = TRUE
-       AND role IN ('COLLEGE_STAFF', 'COLLEGE_ADMIN', 'COLLEGE')`,
+       AND role IN ('college_staff', 'college_admin', 'college')`,
     [staffUserId],
   );
   if (!staff) {
@@ -63,7 +63,7 @@ async function resolveCollegeForStaff(staffUserId: string): Promise<CollegeRow> 
 
   if (staff.college_id) {
     const college = await queryOne<{ id: string; college_code: string }>(
-      "SELECT id, college_code FROM campuses WHERE id = $1",
+      "SELECT id, college_code FROM colleges WHERE id = $1",
       [staff.college_id],
     );
     if (college) {
@@ -105,13 +105,16 @@ export async function bulkCreateStudents(input: BulkCreateStudentsInput) {
       const studentId = normalizeIdentifier(row.student_id);
       const phoneNumber = normalizePhone(row.phone_number);
       const name = row.name?.trim() || studentId;
+      const nameParts = name.split(/\s+/).filter(Boolean);
+      const firstName = nameParts[0] ?? studentId;
+      const lastName = nameParts.slice(1).join(" ") || null;
       const generatedEmail = `${slugify(studentId)}.${college.college_code.toLowerCase()}@students.nallastalent.ai`;
       const email = (row.email?.trim().toLowerCase() || generatedEmail).slice(
         0,
         255,
       );
 
-      // Check if student already exists via user_id linked to student_profiles
+      // Check if student already exists by email.
       const existingByEmail = await client.query<{ id: string }>(
         "SELECT id FROM users WHERE email = $1 LIMIT 1",
         [email],
@@ -123,15 +126,29 @@ export async function bulkCreateStudents(input: BulkCreateStudentsInput) {
         });
         continue;
       }
+      const existingByIdentifier = await client.query<{ user_id: string }>(
+        `SELECT user_id
+         FROM student_details
+         WHERE college_id = $1 AND student_identifier = $2
+         LIMIT 1`,
+        [college.id, studentId],
+      );
+      if (existingByIdentifier.rows.length > 0) {
+        skipped.push({
+          student_id: studentId,
+          reason: "student_id already exists for this college",
+        });
+        continue;
+      }
 
       const tempPassword = generateTemporaryPassword();
       const hashedPassword = await bcrypt.hash(tempPassword, 12);
 
       const createdUser = await client.query<{ id: string }>(
         `INSERT INTO users
-            (role, first_name, last_name, email, password, college_id, is_active)
+            (role, name, email, password, college_id, is_active, is_profile_complete, must_change_password)
          VALUES
-            ('STUDENT', $1, '', $2, $3, $4, TRUE)
+            ('student', $1, $2, $3, $4, TRUE, FALSE, TRUE)
          RETURNING id`,
         [name, email, hashedPassword, college.id],
       );
@@ -142,11 +159,11 @@ export async function bulkCreateStudents(input: BulkCreateStudentsInput) {
       }
 
       await client.query(
-        `INSERT INTO student_profiles
-            (user_id, campus_id, first_name, last_name, email, phone, university, degree, major, graduation_year, cgpa)
+        `INSERT INTO student_details
+            (user_id, college_id, first_name, last_name, student_identifier, phone_number)
          VALUES
-            ($1, $2, $3, '', $4, $5, $6, 'Undergraduate', 'Computer Science', 2025, 0.0)`,
-        [userId, college.id, name, email, phoneNumber, "Your University"],
+            ($1, $2, $3, $4, $5, $6)`,
+        [userId, college.id, firstName, lastName, studentId, phoneNumber],
       );
 
       created.push({

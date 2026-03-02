@@ -15,3 +15,5 @@ ai-engine/models/*.pkl
 uploads/
 *.tsbuildinfo
 .prisma/
+# Exclude dev-only credential update script
+prisma/bulk_update_student_college_credentials.ts

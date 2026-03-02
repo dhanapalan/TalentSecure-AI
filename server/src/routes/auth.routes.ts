@@ -26,4 +26,14 @@ router.get("/me", authenticate, authController.me);
  */
 router.post("/setup-password", authenticate, authController.setupPassword);
 
+/**
+ * GET /api/auth/microsoft/url — returns MS Login URL
+ */
+router.get("/microsoft/url", authController.microsoftLoginUrl);
+
+/**
+ * POST /api/auth/microsoft — exchange MS code for JWT
+ */
+router.post("/microsoft", authController.microsoftLogin);
+
 export default router;

@@ -14,14 +14,22 @@ import cheatingRoutes from "./routes/cheating.routes.js";
 import examRoutes from "./routes/exam.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
 import collegeRoutes from "./routes/college.routes.js";
+import collegeDashboardRoutes from "./routes/college.dashboard.routes.js";
 import questionBankRoutes from "./routes/questionBank.routes.js";
 import campusRoutes from "./routes/campus.routes.js";
+import campusStudentRoutes from "./routes/campus.students.routes.js";
+import campusDrivesRoutes from "./routes/campus.drives.routes.js";
 import hrRoutes from "./routes/hr.routes.js";
 import roleRoutes from "./routes/role.routes.js";
 import userRoutes from "./routes/user.routes.js";
 import auditLogRoutes from "./routes/auditLog.routes.js";
 import segmentationRoutes from "./routes/segmentation.routes.js";
 import analyticsRoutes from "./routes/analytics.routes.js";
+import assessmentRuleRoutes from "./routes/assessmentRule.routes.js";
+import driveRoutes from "./routes/drive.routes.js";
+import examSessionRoutes from "./routes/examSession.routes.js";
+import { proctoringRoutes } from "./routes/proctoring.routes.js";
+import notificationRoutes from "./routes/notification.routes.js";
 
 const app = express();
 
@@ -77,7 +85,10 @@ app.use("/api/cheating-logs", cheatingRoutes);
 app.use("/api/exams", examRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/colleges", collegeRoutes);
+app.use("/api/college/dashboard", collegeDashboardRoutes);
 app.use("/api/campuses", campusRoutes);
+app.use("/api/campus/students", campusStudentRoutes);
+app.use("/api/campus/drives", campusDrivesRoutes);
 app.use("/api/hr", hrRoutes);
 app.use("/api/roles", roleRoutes);
 app.use("/api/users", userRoutes);
@@ -85,6 +96,11 @@ app.use("/api/audit-logs", auditLogRoutes);
 app.use("/api/question-bank", questionBankRoutes);
 app.use("/api/segmentation", segmentationRoutes);
 app.use("/api/analytics", analyticsRoutes);
+app.use("/api/assessment-rules", assessmentRuleRoutes);
+app.use("/api/drives", driveRoutes);
+app.use("/api/exam-sessions", examSessionRoutes);
+app.use("/api/proctoring", proctoringRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // ── Error Handling ───────────────────────────────────────────────────────────
 app.use(notFoundHandler);

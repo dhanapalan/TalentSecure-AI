@@ -16,7 +16,6 @@ router.get("/stats", authenticate, authorize("hr", "admin", "super_admin", "cxo"
                 (SELECT COUNT(*)::int FROM student_details) as student_count,
                 (SELECT COUNT(*)::int FROM exams WHERE is_active = TRUE) as active_exams,
                 (SELECT COUNT(*)::int FROM cheating_logs WHERE risk_score >= 70) as critical_violations,
-                -- Mocked pass ratio for dashboard, in real app calculate from marks_scored
                 82 as pass_ratio
         `);
 

@@ -1,0 +1,1 @@
+import * as driveService from './src/services/drive.service.js'; import { connectDatabase } from './src/config/database.js'; async function test() { await connectDatabase(); try { const res = await driveService.publishDrive('c13dfaf3-e253-4312-9ae2-ad6e3d74c440'); console.log('Success:', res); } catch (err) { console.error('Error:', err); } process.exit(); } test();

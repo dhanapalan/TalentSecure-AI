@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
+import { pool } from "../config/database.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { ApiResponse } from "../types/index.js";
 import * as collegeService from "../services/college.service.js";
@@ -164,8 +165,6 @@ export const addStudents = async (
   }
 };
 
-import { pool } from "../config/database.js";
-
 export const getStudents = async (
   req: Request,
   res: Response<ApiResponse>,
@@ -179,10 +178,19 @@ export const getStudents = async (
 
     const { rows } = await pool.query(
       `SELECT 
-        u.id, u.first_name, u.last_name, u.email, sp.phone, sp.degree, sp.major, sp.graduation_year, sp.cgpa, u.is_active
+        u.id,
+        u.name,
+        u.email,
+        sd.student_identifier,
+        sd.phone_number,
+        sd.degree,
+        sd.specialization AS major,
+        sd.passing_year AS graduation_year,
+        sd.cgpa,
+        u.is_active
        FROM users u
-       JOIN student_profiles sp ON sp.user_id = u.id
-       WHERE u.college_id = $1 AND u.role = 'STUDENT'
+       LEFT JOIN student_details sd ON sd.user_id = u.id
+       WHERE u.college_id = $1 AND LOWER(u.role::text) = 'student'
        ORDER BY u.created_at DESC`,
       [collegeId],
     );
@@ -206,12 +214,13 @@ export const getAssignedExams = async (
 
     const { rows } = await pool.query(
       `SELECT 
-        a.*, r.title as role_title, r.company as role_company
-       FROM assessments a
-       JOIN assessment_campuses ac ON ac.assessment_id = a.id
-       JOIN roles r ON r.id = a.role_id
-       WHERE ac.campus_id = $1
-       ORDER BY a.scheduled_at DESC`,
+        e.*,
+        NULL::text AS role_title,
+        NULL::text AS role_company
+       FROM exams e
+       JOIN exam_colleges ec ON ec.exam_id = e.id
+       WHERE ec.college_id = $1
+       ORDER BY e.scheduled_time DESC`,
       [collegeId],
     );
 
@@ -234,19 +243,22 @@ export const getCollegeStats = async (
 
     // Total Students
     const studentsResult = await pool.query(
-      "SELECT COUNT(*)::int as count FROM users WHERE college_id = $1 AND role = 'STUDENT'",
+      "SELECT COUNT(*)::int as count FROM users WHERE college_id = $1 AND LOWER(role::text) = 'student'",
       [collegeId],
     );
 
     // Active Assessments
     const assessmentsResult = await pool.query(
-      "SELECT COUNT(*)::int as count FROM assessment_campuses WHERE campus_id = $1",
+      `SELECT COUNT(*)::int as count
+       FROM exam_colleges ec
+       JOIN exams e ON e.id = ec.exam_id
+       WHERE ec.college_id = $1 AND e.is_active = TRUE`,
       [collegeId],
     );
 
     // Average CGPA
     const cgpaResult = await pool.query(
-      "SELECT AVG(cgpa)::float as avg FROM student_profiles WHERE campus_id = $1",
+      "SELECT AVG(cgpa)::float as avg FROM student_details WHERE college_id = $1",
       [collegeId],
     );
 

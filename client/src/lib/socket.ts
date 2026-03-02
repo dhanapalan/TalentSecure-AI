@@ -23,3 +23,29 @@ export function disconnectProctoringSocket(): void {
 export function getProctoringSocket(): Socket | null {
   return proctoringSocket;
 }
+
+// ── General / Notifications Namespace ────────────────────────────────────────
+
+let generalSocket: Socket | null = null;
+
+export function connectGeneralSocket(): Socket {
+  if (generalSocket?.connected) return generalSocket;
+
+  generalSocket = io("/", {
+    transports: ["websocket"],
+    auth: {
+      token: localStorage.getItem("accessToken"),
+    },
+  });
+
+  return generalSocket;
+}
+
+export function disconnectGeneralSocket(): void {
+  generalSocket?.disconnect();
+  generalSocket = null;
+}
+
+export function getGeneralSocket(): Socket | null {
+  return generalSocket;
+}

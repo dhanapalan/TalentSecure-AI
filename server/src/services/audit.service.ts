@@ -97,7 +97,7 @@ export async function logPermissionDenied(
   req: { user?: { userId: string; email: string; role: string }; ip?: string; originalUrl?: string; method?: string },
 ): Promise<void> {
   await writeAuditLog({
-    actor_id: req.user?.userId || null,
+    actor_id: req.user?.userId || "anonymous",
     actor_role: req.user?.role || "unknown",
     actor_email: req.user?.email,
     action: "PERMISSION_DENIED",
@@ -125,7 +125,7 @@ export async function logLoginFailure(
   email: string, ip?: string, reason?: string,
 ): Promise<void> {
   await writeAuditLog({
-    actor_id: null,
+    actor_id: "anonymous",
     actor_role: "unknown",
     actor_email: email,
     action: "LOGIN_FAILURE",

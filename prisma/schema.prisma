@@ -22,6 +22,9 @@ model User {
   is_profile_complete                                 Boolean            @default(false)
   department                                          String?            @db.VarChar(150)
   must_change_password                                Boolean?           @default(false)
+  status                                              String             @default("Active") @db.VarChar(50)
+  login_type                                          String             @default("Email_Password") @db.VarChar(50)
+  last_login_at                                       DateTime?          @db.Timestamptz(6)
   admin_audit_logs_admin_audit_logs_admin_idTousers   admin_audit_logs[] @relation("admin_audit_logs_admin_idTousers")
   admin_audit_logs_admin_audit_logs_student_idTousers admin_audit_logs[] @relation("admin_audit_logs_student_idTousers")
   cheating_logs                                       cheating_logs[]
@@ -32,6 +35,8 @@ model User {
   marks_scored                                        marks_scored[]
   question_bank                                       question_bank[]
   student_details                                     student_details?
+  drive_pool_audit_logs                               drive_pool_audit_logs[]
+  approved_pools                                       drive_question_pool[]  @relation("pool_approver")
   colleges_users_college_idTocolleges                 colleges?          @relation("users_college_idTocolleges", fields: [collegeId], references: [id], onUpdate: NoAction)
 
   @@index([collegeId], map: "idx_users_college_id")
@@ -93,6 +98,25 @@ model colleges {
   tier                                 String?           @db.VarChar(20)
   country                              String?           @default("India") @db.VarChar(50)
   is_active                            Boolean           @default(true)
+  
+  // Enterprise fields added
+  agreement_start_date                 DateTime?         @db.Timestamptz(6)
+  agreement_end_date                   DateTime?         @db.Timestamptz(6)
+  sla                                  String?           @db.VarChar(255)
+  mou_url                              String?           @db.VarChar(500)
+  contract_status                      String?           @db.VarChar(50)
+  eligible_for_hiring                  Boolean           @default(false)
+  eligible_for_tier1                   Boolean           @default(false)
+  is_blacklisted                       Boolean           @default(false)
+  is_suspended                         Boolean           @default(false)
+  category                             String?           @db.VarChar(100)
+  institution_type                     String?           @db.VarChar(100)
+  region                               String?           @db.VarChar(100)
+  naac_grade                           String?           @db.VarChar(20)
+  nirf_rank                            Int?
+  last_activity_date                   DateTime?         @db.Timestamptz(6)
+  internal_notes                       String?
+
   users_colleges_created_byTousers     User?             @relation("colleges_created_byTousers", fields: [created_by], references: [id], onUpdate: NoAction)
   users_colleges_legacy_user_idTousers User?             @relation("colleges_legacy_user_idTousers", fields: [legacy_user_id], references: [id], onUpdate: NoAction)
   exam_colleges                        exam_colleges[]
@@ -275,6 +299,26 @@ model student_details {
   skills             String[]
   linkedin_url       String?   @db.VarChar(500)
   github_url         String?   @db.VarChar(500)
+
+  // Placement & Eligibility Tracking
+  eligible_for_hiring  Boolean   @default(true)
+  placement_status     String?   @default("Open") @db.VarChar(50) 
+  placed_company       String?   @db.VarChar(200)
+  placement_package    Decimal?  @db.Decimal(10, 2)
+  is_blacklisted       Boolean   @default(false)
+  is_suspended         Boolean   @default(false)
+  interview_status     String?   @db.VarChar(100)
+  is_shortlisted       Boolean   @default(false)
+  offer_released       Boolean   @default(false)
+  offer_accepted       Boolean   @default(false)
+  has_joined           Boolean   @default(false)
+
+  // Talent Intelligence & Segmentation
+  segmentation_tags    String[]  @default([])
+  avg_integrity_score  Decimal?  @db.Decimal(5, 2)
+  total_violations     Int       @default(0)
+  risk_category        String?   @db.VarChar(50)
+
   colleges           colleges  @relation(fields: [college_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   users              User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
@@ -345,4 +389,219 @@ enum violation_type {
   devtools_open
   external_display
   network_anomaly
+}
+
+// ── Assessment Rule Engine & Drives ─────────────────────────────────────────
+
+model assessment_rule_templates {
+  id                       String                     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name                     String                     @db.VarChar(255)
+  description              String?
+  target_role              String?                    @db.VarChar(100)
+  duration_minutes         Int                        @default(60)
+  total_questions          Int                        @default(30)
+  total_marks              Int                        @default(100)
+  negative_marking_enabled Boolean                    @default(false)
+  negative_marking_value   Decimal?                   @db.Decimal(4, 2)
+  sectional_cutoff         Json?
+  overall_cutoff           Decimal?                   @db.Decimal(5, 2)
+  skill_distribution       Json                       @default("{}")
+  difficulty_distribution  Json                       @default("{}")
+  proctoring_mode          String                     @default("moderate") @db.VarChar(20)
+  proctoring_config        Json?
+  pool_generation_config   Json?
+  targeting_config         Json?
+  status                   String                     @default("draft") @db.VarChar(30)
+  version                  Int                        @default(1)
+  created_by               String?                    @db.Uuid
+  created_at               DateTime                   @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime                   @default(now()) @db.Timestamptz(6)
+
+  rule_versions            assessment_rule_versions[]
+  drives                   assessment_drives[]
+
+  @@index([status], map: "idx_art_status")
+  @@index([created_by], map: "idx_art_created_by")
+}
+
+model assessment_rule_versions {
+  id              String                    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  rule_id         String                    @db.Uuid
+  version_number  Int
+  snapshot        Json
+  change_notes    String?
+  created_by      String?                   @db.Uuid
+  created_at      DateTime                  @default(now()) @db.Timestamptz(6)
+  is_locked       Boolean                   @default(false)
+
+  rule            assessment_rule_templates @relation(fields: [rule_id], references: [id], onDelete: Cascade)
+  drives          assessment_drives[]
+
+  @@unique([rule_id, version_number], map: "uq_rule_version")
+  @@index([rule_id], map: "idx_arv_rule_id")
+}
+
+model drive_question_pool {
+  id                      String                  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  drive_id                String                  @unique @db.Uuid
+  version                 Int                     @default(1)
+  total_generated         Int                     @default(0)
+  skill_distribution      Json?
+  difficulty_distribution Json?
+  generation_status       String                  @default("generating") @db.VarChar(30)
+  status                  String                  @default("pending") @db.VarChar(30)
+  validation_score        Decimal?                @db.Decimal(5, 2)
+  is_locked               Boolean                 @default(false)
+  approved_by             String?                 @db.Uuid
+  approved_at             DateTime?               @db.Timestamptz(6)
+  rejection_reason        String?
+  created_at              DateTime                @default(now()) @db.Timestamptz(6)
+
+  drive                   assessment_drives       @relation(fields: [drive_id], references: [id], onDelete: Cascade)
+  approver                User?                   @relation("pool_approver", fields: [approved_by], references: [id], onDelete: SetNull)
+  questions               drive_pool_questions[]
+  audit_logs              drive_pool_audit_logs[]
+
+  @@index([drive_id], map: "idx_dqp_drive")
+}
+
+model drive_pool_questions {
+  id              String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  drive_id        String               @db.Uuid
+  pool_id         String               @db.Uuid
+  question_text   String
+  options         Json?
+  correct_answer  String?
+  skill           String?              @db.VarChar(100)
+  difficulty      String?              @db.VarChar(20)
+  marks           Decimal              @default(1.00) @db.Decimal(5, 2)
+  ai_metadata     Json?
+  status          String               @default("pending") @db.VarChar(30)
+  quality_score   Decimal?             @db.Decimal(5, 2)
+  duplicate_similarity Decimal?        @db.Decimal(5, 2)
+  created_at      DateTime             @default(now()) @db.Timestamptz(6)
+
+  drive           assessment_drives    @relation(fields: [drive_id], references: [id], onDelete: Cascade)
+  pool            drive_question_pool  @relation(fields: [pool_id], references: [id], onDelete: Cascade)
+
+  @@index([drive_id, skill, difficulty], map: "idx_dpq_drive_skill_diff")
+  @@index([pool_id], map: "idx_dpq_pool")
+}
+
+model assessment_drives {
+  id               String                    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name             String                    @db.VarChar(255)
+  rule_id          String                    @db.Uuid
+  rule_version_id  String?                   @db.Uuid
+  pool_id          String?                   @db.Uuid
+  status           String                    @default("draft") @db.VarChar(30)
+  scheduled_start  DateTime?                 @db.Timestamptz(6)
+  scheduled_end    DateTime?                 @db.Timestamptz(6)
+  actual_start     DateTime?                 @db.Timestamptz(6)
+  actual_end       DateTime?                 @db.Timestamptz(6)
+  total_students   Int                       @default(0)
+  auto_publish     Boolean                   @default(false)
+  allow_mock       Boolean                   @default(false)
+  attempt_limit    Int                       @default(1)
+  duration_minutes Int?
+  shuffle_questions Boolean                  @default(false)
+  auto_submit      Boolean                   @default(true)
+  proctoring_mode  String                    @default("standard") @db.VarChar(30)
+  tab_switch_limit Int                       @default(3)
+  face_detection_required Boolean            @default(false)
+  rule_snapshot    Json?
+  created_by       String?                   @db.Uuid
+  created_at       DateTime                  @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime                  @default(now()) @db.Timestamptz(6)
+
+  rule             assessment_rule_templates @relation(fields: [rule_id], references: [id])
+  rule_version     assessment_rule_versions? @relation(fields: [rule_version_id], references: [id])
+  pool             drive_question_pool?
+  pool_questions   drive_pool_questions[]
+  assignments      drive_assignments[]
+  students         drive_students[]
+
+  @@index([status], map: "idx_ad_status")
+  @@index([rule_id], map: "idx_ad_rule")
+  @@index([scheduled_start], map: "idx_ad_scheduled")
+}
+
+model drive_assignments {
+  id         String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  drive_id   String            @db.Uuid
+  college_id String?           @db.Uuid
+  segment    String?           @db.VarChar(100)
+  created_at DateTime          @default(now()) @db.Timestamptz(6)
+
+  drive      assessment_drives @relation(fields: [drive_id], references: [id], onDelete: Cascade)
+
+  @@index([drive_id], map: "idx_da_drive")
+}
+
+model drive_students {
+  id                     String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  drive_id               String            @db.Uuid
+  student_id             String            @db.Uuid
+  paper_id               String            @unique @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  question_mapping       Json?
+  status                 String            @default("assigned") @db.VarChar(30)
+  integrity_score        Decimal?          @db.Decimal(5, 2)
+  score                  Decimal?          @db.Decimal(6, 2)
+  violations             Int               @default(0)
+  started_at             DateTime?         @db.Timestamptz(6)
+  completed_at           DateTime?         @db.Timestamptz(6)
+  created_at             DateTime          @default(now()) @db.Timestamptz(6)
+
+  // Exam session fields
+  saved_answers          Json?             @default("{}")
+  current_question_index Int               @default(0)
+  time_remaining_seconds Int?
+
+  drive                  assessment_drives @relation(fields: [drive_id], references: [id], onDelete: Cascade)
+
+  @@unique([drive_id, student_id], map: "uq_drive_student")
+  @@index([drive_id], map: "idx_ds_drive")
+  @@index([student_id], map: "idx_ds_student")
+}
+
+model exam_events {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  session_id  String   @db.Uuid
+  event_type  String   @db.VarChar(50)
+  metadata    Json?
+  timestamp   DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([session_id, timestamp])
+  @@index([event_type])
+}
+
+model exam_incidents {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  session_id  String   @db.Uuid
+  status      String   @default("pending") @db.VarChar(30) // pending, confirmed, false_positive, escalated
+  risk_level  String   @db.VarChar(20) // low, medium, high
+  score       Int      @default(100)
+  notes       String?
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([session_id])
+  @@index([status])
+}
+
+model drive_pool_audit_logs {
+  id                 String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  pool_id            String               @db.Uuid
+  action             String               @db.VarChar(50)
+  target_question_id String?              @db.Uuid
+  actor_id           String               @db.Uuid
+  before_snapshot    Json?
+  after_snapshot     Json?
+  created_at         DateTime             @default(now()) @db.Timestamptz(6)
+
+  pool               drive_question_pool  @relation(fields: [pool_id], references: [id], onDelete: Cascade)
+  actor              User                 @relation(fields: [actor_id], references: [id])
+
+  @@index([pool_id], map: "idx_dpal_pool")
+  @@index([actor_id], map: "idx_dpal_actor")
 }

@@ -61,14 +61,72 @@ export const list = async (
   next: NextFunction,
 ) => {
   try {
+    const page = parseInt(String(req.query.page)) || 1;
     const limit = parseInt(String(req.query.limit)) || 50;
-    const offset = parseInt(String(req.query.offset)) || 0;
+    const offset = (page - 1) * limit;
 
     const collegeId = req.user?.college_id;
     const isCentral = ["super_admin", "admin", "hr"].includes(req.user?.role || "");
 
-    const students = await studentService.listStudents(limit, offset, isCentral ? undefined : (collegeId || undefined));
-    res.json({ success: true, data: students });
+    const { data: students, total } = await studentService.listStudents(limit, offset, isCentral ? undefined : (collegeId || undefined));
+    res.json({
+      success: true,
+      data: students,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * GET /api/students/analytics
+ * Analytics summary for students
+ */
+export const getAnalytics = async (
+  req: Request,
+  res: Response<ApiResponse>,
+  next: NextFunction,
+) => {
+  try {
+    const collegeId = req.user?.college_id;
+    const isCentral = ["super_admin", "admin", "hr"].includes(req.user?.role || "");
+
+    const analytics = await studentService.getStudentAnalytics(isCentral ? undefined : (collegeId || undefined));
+    res.json({ success: true, data: analytics });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * GET /api/students/:id
+ * Get a specific student by ID
+ */
+export const getById = async (
+  req: Request,
+  res: Response<ApiResponse>,
+  next: NextFunction,
+) => {
+  try {
+    const { id } = req.params;
+    const student = await studentService.getStudentById(id as string);
+    if (!student) {
+      return res.status(404).json({ success: false, error: "Student not found" });
+    }
+
+    // Ensure central admins or college-specific staff can only view properly.
+    const isCentral = ["super_admin", "admin", "hr"].includes(req.user?.role || "");
+    if (!isCentral && req.user?.college_id && student.college_id !== req.user.college_id) {
+      return res.status(403).json({ success: false, error: "Not authorized to access this student" });
+    }
+
+    res.json({ success: true, data: student });
   } catch (err) {
     next(err);
   }
@@ -156,12 +214,15 @@ export const bulkRegister = async (
   next: NextFunction,
 ) => {
   try {
-    const { college_id, students } = req.body;
-    if (!college_id || !Array.isArray(students)) {
-      return res.status(400).json({ success: false, error: "college_id and students mapping are required" });
+    const { students } = req.body;
+    if (!Array.isArray(students)) {
+      return res.status(400).json({ success: false, error: "students mapping is required and must be an array" });
     }
 
-    const result = await studentService.bulkRegisterStudents(college_id, students);
+    const collegeId = req.user?.college_id;
+    const isCentral = ["super_admin", "admin", "hr"].includes(req.user?.role || "");
+
+    const result = await studentService.bulkRegisterStudents(isCentral ? undefined : (collegeId || undefined), students);
     res.status(201).json({
       success: true,
       data: result,

@@ -53,3 +53,43 @@ export const setupPassword = async (
     next(err);
   }
 };
+
+/**
+ * GET /api/auth/microsoft
+ * Return URL to redirect user for MS Login
+ */
+export const microsoftLoginUrl = async (
+  req: Request,
+  res: Response<ApiResponse>,
+  next: NextFunction,
+) => {
+  try {
+    // optional state could be generated here to prevent CSRF
+    const url = await authService.getMicrosoftAuthUrl("talentsecure-sso");
+    res.json({ success: true, data: { url } });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /api/auth/microsoft
+ * Exchange code for JWT
+ */
+export const microsoftLogin = async (
+  req: Request,
+  res: Response<ApiResponse>,
+  next: NextFunction,
+) => {
+  try {
+    const { code } = req.body;
+    if (!code) {
+      res.status(400).json({ success: false, message: "Authorization code is required" });
+      return;
+    }
+    const result = await authService.loginWithMicrosoft(code, req.ip);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+};

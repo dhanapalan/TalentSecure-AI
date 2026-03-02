@@ -6,6 +6,8 @@ import { connectRedis } from "./config/redis.js";
 import { ensureBucket } from "./config/storage.js";
 import { initSocketIO } from "./config/socket.js";
 import { ensureAuditTable } from "./services/audit.service.js";
+import { ensureNotificationTable } from "./services/notification.service.js";
+import { startDriveScheduler } from "./scheduler/driveScheduler.js";
 import http from "http";
 
 const server = http.createServer(app);
@@ -17,6 +19,9 @@ async function bootstrap(): Promise<void> {
 
     // 2. Ensure RBAC audit table exists
     await ensureAuditTable();
+
+    // 2b. Ensure Notifications table exists
+    await ensureNotificationTable();
 
     // 3. Connect Redis
     await connectRedis();
@@ -36,6 +41,9 @@ async function bootstrap(): Promise<void> {
       logger.info(`  Client URLs : ${env.CLIENT_URLS.join(", ")}`);
       logger.info(`  AI Engine   : ${env.AI_ENGINE_URL}`);
     });
+
+    // 7. Start drive scheduler (READY→LIVE and LIVE→COMPLETED auto-transitions)
+    startDriveScheduler();
   } catch (error) {
     logger.error("Failed to start server:", error);
     process.exit(1);

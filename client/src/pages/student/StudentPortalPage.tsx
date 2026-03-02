@@ -11,7 +11,10 @@ import {
   Trophy,
   User,
   ShieldCheck,
-  AlertCircle
+  AlertCircle,
+  Play,
+  RotateCcw,
+  Award,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -24,16 +27,17 @@ export default function StudentPortalPage() {
     queryFn: async () => {
       const { data } = await api.get("/auth/me");
       return data.data;
-    }
+    },
   });
 
-  const { data: exams, isLoading: loadingExams } = useQuery({
-    queryKey: ["student-exams"],
+  // Fetch drives assigned to this student
+  const { data: drives, isLoading: loadingDrives } = useQuery({
+    queryKey: ["student-drives"],
     queryFn: async () => {
-      const { data } = await api.get(`/students/${user?.id}/exams`);
+      const { data } = await api.get("/exam-sessions/my-drives");
       return data.data;
     },
-    enabled: !!user?.id
+    enabled: !!user?.id,
   });
 
   if (loadingProfile) {
@@ -77,6 +81,13 @@ export default function StudentPortalPage() {
     );
   }
 
+  // Categorize drives
+  const activeDrives = (drives || []).filter((d: any) =>
+    (d.session_status === "assigned" || d.session_status === "registered" || d.session_status === "in_progress") &&
+    (d.drive_status && (d.drive_status.toUpperCase() === "PUBLISHED" || d.drive_status.toUpperCase() === "ACTIVE" || d.drive_status.toUpperCase() === "COMPLETED" || d.drive_status.toUpperCase() === "SCHEDULED"))
+  );
+  const completedDrives = (drives || []).filter((d: any) => d.session_status === "completed");
+
   return (
     <div className="max-w-6xl mx-auto space-y-10 animate-in fade-in duration-700">
       {/* ── Welcome Header ── */}
@@ -87,10 +98,10 @@ export default function StudentPortalPage() {
             PROFILE VERIFIED
           </div>
           <h1 className="text-5xl font-black tracking-tighter">
-            Hello, {user?.name.split(' ')[0]}!
+            Hello, {user?.name.split(" ")[0]}!
           </h1>
           <p className="mt-4 text-gray-400 text-lg font-medium max-w-lg">
-            You have <span className="text-white font-bold">{exams?.length || 0} upcoming assessments</span> assigned to your campus profile.
+            You have <span className="text-white font-bold">{activeDrives.length} active assessment{activeDrives.length !== 1 ? "s" : ""}</span> assigned to your profile.
           </p>
         </div>
         <Trophy className="absolute -bottom-10 -right-10 h-64 w-64 text-white/5 rotate-12" />
@@ -99,59 +110,82 @@ export default function StudentPortalPage() {
       {/* ── Dashboard Content ── */}
       <div className="grid grid-cols-1 gap-10 lg:grid-cols-3">
 
-        {/* ── Upcoming Exams (Main) ── */}
+        {/* ── Active & Upcoming Assessments (Main) ── */}
         <div className="lg:col-span-2 space-y-6">
           <div className="flex items-center justify-between px-2">
             <h2 className="text-2xl font-black text-gray-900 tracking-tight">Active Assessments</h2>
-            <span className="text-sm font-bold text-gray-400 uppercase tracking-widest">Next 7 Days</span>
+            <span className="text-sm font-bold text-gray-400 uppercase tracking-widest">
+              {activeDrives.length} Pending
+            </span>
           </div>
 
           <div className="grid grid-cols-1 gap-6">
-            {loadingExams ? (
+            {loadingDrives ? (
               Array.from({ length: 2 }).map((_, i) => (
                 <div key={i} className="h-40 animate-pulse rounded-[2.5rem] bg-gray-100" />
               ))
-            ) : exams?.length ? (
-              exams.map((exam: any) => (
-                <div key={exam.id} className="group relative overflow-hidden rounded-[2.5rem] bg-white border border-gray-100 p-8 shadow-sm hover:shadow-2xl hover:shadow-indigo-100 transition-all hover:-translate-y-1">
+            ) : activeDrives.length > 0 ? (
+              activeDrives.map((drive: any) => (
+                <div key={drive.drive_id} className="group relative overflow-hidden rounded-[2.5rem] bg-white border border-gray-100 p-8 shadow-sm hover:shadow-2xl hover:shadow-indigo-100 transition-all hover:-translate-y-1">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-5">
                       <div className="h-14 w-14 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-lg transition-transform group-hover:scale-110">
                         <BookOpen className="h-7 w-7" />
                       </div>
                       <div>
-                        <h3 className="text-xl font-black text-gray-900">{exam.title}</h3>
+                        <h3 className="text-xl font-black text-gray-900">{drive.drive_name}</h3>
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">{exam.role_company}</span>
-                          <span className="h-1 w-1 rounded-full bg-gray-300" />
-                          <span className="text-xs font-bold text-indigo-500 uppercase tracking-widest">{exam.role_title}</span>
+                          <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">{drive.rule_name}</span>
                         </div>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-black text-emerald-600 uppercase tracking-widest">
-                        <div className="h-2 w-2 rounded-full bg-emerald-600 animate-pulse" />
-                        LIVE AT 10:00 AM
-                      </div>
+                      {drive.session_status === "in_progress" ? (
+                        <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-[10px] font-black text-amber-600 uppercase tracking-widest">
+                          <div className="h-2 w-2 rounded-full bg-amber-600 animate-pulse" />
+                          IN PROGRESS
+                        </div>
+                      ) : (
+                        <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-black text-emerald-600 uppercase tracking-widest">
+                          <div className="h-2 w-2 rounded-full bg-emerald-600" />
+                          {drive.session_status === "registered" ? "REGISTERED" : "ASSIGNED"}
+                        </div>
+                      )}
                     </div>
                   </div>
 
                   <div className="mt-8 flex items-center justify-between pt-8 border-t border-gray-50">
                     <div className="flex items-center gap-6">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-gray-400" />
-                        <span className="text-sm font-bold text-gray-700">{new Date(exam.scheduled_at).toLocaleDateString()}</span>
-                      </div>
+                      {drive.scheduled_start && (
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-gray-400" />
+                          <span className="text-sm font-bold text-gray-700">{new Date(drive.scheduled_start).toLocaleDateString()}</span>
+                        </div>
+                      )}
                       <div className="flex items-center gap-2">
                         <Clock className="h-4 w-4 text-gray-400" />
-                        <span className="text-sm font-bold text-gray-700">{exam.duration || 60} Mins</span>
+                        <span className="text-sm font-bold text-gray-700">{drive.duration_minutes} Mins</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <BookOpen className="h-4 w-4 text-gray-400" />
+                        <span className="text-sm font-bold text-gray-700">{drive.total_questions} Qs</span>
                       </div>
                     </div>
                     <Link
-                      to={`/student/exams/${exam.id}/take`}
+                      to={`/app/student-portal/exam/${drive.drive_id}/instructions`}
                       className="flex items-center gap-2 rounded-2xl bg-gray-900 px-8 py-3.5 text-sm font-black text-white hover:bg-black transition-all group/btn"
                     >
-                      LAUNCH EXAM
+                      {drive.session_status === "in_progress" ? (
+                        <>
+                          <RotateCcw className="h-4 w-4" />
+                          RESUME
+                        </>
+                      ) : (
+                        <>
+                          <Play className="h-4 w-4" />
+                          START EXAM
+                        </>
+                      )}
                       <ArrowRight className="h-4 w-4 transition-transform group-hover/btn:translate-x-1" />
                     </Link>
                   </div>
@@ -165,6 +199,36 @@ export default function StudentPortalPage() {
               </div>
             )}
           </div>
+
+          {/* Completed Assessments */}
+          {completedDrives.length > 0 && (
+            <div className="mt-10">
+              <h2 className="text-xl font-black text-gray-900 tracking-tight mb-4 px-2">Completed Assessments</h2>
+              <div className="space-y-4">
+                {completedDrives.map((drive: any) => (
+                  <div key={drive.drive_id} className="flex items-center justify-between p-6 bg-white rounded-2xl border border-gray-100 shadow-sm">
+                    <div className="flex items-center gap-4">
+                      <div className="h-10 w-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+                        <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-black text-gray-900">{drive.drive_name}</h4>
+                        <p className="text-xs text-gray-400 font-bold">
+                          Completed {drive.completed_at ? new Date(drive.completed_at).toLocaleDateString() : ""}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <p className="text-lg font-black text-indigo-600">{drive.score ?? "—"}</p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">/ {drive.total_marks}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── Sidebar (Profile & Prep) ── */}
@@ -198,16 +262,27 @@ export default function StudentPortalPage() {
           <div className="rounded-[2.5rem] bg-indigo-600 p-8 text-white shadow-xl shadow-indigo-100 overflow-hidden relative">
             <h4 className="text-lg font-black tracking-tight mb-6">Performance Index</h4>
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-indigo-100">Integrity Score</span>
-                <span className="text-lg font-black">98%</span>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-bold text-indigo-100">Exams Taken</span>
+                  <span className="text-lg font-black">{completedDrives.length}</span>
+                </div>
               </div>
-              <div className="h-2 w-full rounded-full bg-white/10">
-                <div className="h-full w-[98%] rounded-full bg-emerald-400" />
-              </div>
+              {completedDrives.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-bold text-indigo-100">Average Score</span>
+                    <span className="text-lg font-black">
+                      {Math.round(
+                        completedDrives.reduce((acc: number, d: any) => acc + (Number(d.score) || 0), 0) / completedDrives.length
+                      )}
+                    </span>
+                  </div>
+                </div>
+              )}
               <div className="flex items-center gap-2 text-xs font-bold text-indigo-100">
-                <CheckCircle2 className="h-4 w-4 bg-emerald-400 text-emerald-900 rounded-full" />
-                Clean Record Maintained
+                <Award className="h-4 w-4" />
+                {completedDrives.length > 0 ? "Keep performing well!" : "Complete your first exam"}
               </div>
             </div>
             <ShieldCheck className="absolute -bottom-8 -right-8 h-32 w-32 text-white/5" />

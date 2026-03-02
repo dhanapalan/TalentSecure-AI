@@ -10,6 +10,7 @@ export default defineConfig({
     },
   },
   server: {
+    host: true, // Listen on all network interfaces including external IP
     port: 5173,
     proxy: {
       "/api": {

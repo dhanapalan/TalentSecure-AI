@@ -10,6 +10,7 @@ export interface AuthUser {
   role: string;
   name: string;
   college_id?: string | null;
+  college_name?: string | null;
   department?: string | null;
   phone_number?: string | null;
   dob?: string | null;

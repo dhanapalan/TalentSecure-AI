@@ -60,6 +60,12 @@ export const env = {
   JUDGE0_API_URL: process.env.JUDGE0_API_URL || "http://localhost:2358",
   JUDGE0_API_KEY: process.env.JUDGE0_API_KEY || "",
 
+  // Microsoft SSO (Azure AD)
+  MSAL_CLIENT_ID: process.env.MSAL_CLIENT_ID || "",
+  MSAL_CLIENT_SECRET: process.env.MSAL_CLIENT_SECRET || "",
+  MSAL_TENANT_ID: process.env.MSAL_TENANT_ID || "common",
+  MSAL_REDIRECT_URI: process.env.MSAL_REDIRECT_URI || "http://localhost:5173/auth/callback",
+
   // Email Configuration
   SMTP_HOST: process.env.SMTP_HOST || "smtp.gmail.com",
   SMTP_PORT: parseInt(process.env.SMTP_PORT || "587", 10),

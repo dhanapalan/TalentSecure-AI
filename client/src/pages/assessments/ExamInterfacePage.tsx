@@ -1005,6 +1005,8 @@ export default function ExamInterfacePage() {
                 <select
                   id="adaptive-category"
                   defaultValue="algorithms"
+                  title="Select category"
+                  aria-label="Category"
                   className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                 >
                   {CATEGORY_OPTIONS.map((c) => (
@@ -1021,6 +1023,8 @@ export default function ExamInterfacePage() {
                 <select
                   id="adaptive-difficulty"
                   defaultValue="medium"
+                  title="Select starting difficulty"
+                  aria-label="Starting Difficulty"
                   className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                 >
                   {(["easy", "medium", "hard"] as Difficulty[]).map((d) => (
@@ -1485,7 +1489,7 @@ export default function ExamInterfacePage() {
                   ))}
                 </div>
 
-                <div className="overflow-y-auto p-3" style={{ height: "calc(100% - 37px)" }}>
+                <div className="overflow-y-auto p-3 custom-scroll-area">
                   {activeOutputTab === "output" && (
                     <>
                       {runOutput ? (
@@ -1565,9 +1569,9 @@ export default function ExamInterfacePage() {
                                   : validationReport.score >= 50
                                   ? "bg-yellow-500"
                                   : "bg-red-500"
-                              }`}
+                              } progress-bar-width`}
                               style={{
-                                width: `${validationReport.score}%`,
+                                ['--progress-bar-width' as any]: `${validationReport.score}%`
                               }}
                             />
                           </div>
@@ -1628,6 +1632,8 @@ export default function ExamInterfacePage() {
                     onChange={(e) =>
                       handleLangChange(codingQ.id, e.target.value)
                     }
+                    title="Select programming language"
+                    aria-label="Programming Language"
                     className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   >
                     {LANG_OPTIONS.map((l) => (

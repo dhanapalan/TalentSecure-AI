@@ -143,6 +143,28 @@ router.get(
 );
 
 /**
+ * GET /api/students/analytics
+ * Analytics summary for students (Admin/HR/CxO)
+ */
+router.get(
+  "/analytics",
+  authenticate,
+  authorize("super_admin", "admin", "hr", "cxo"),
+  studentController.getAnalytics
+);
+
+/**
+ * GET /api/students/:id
+ * Get student by ID
+ */
+router.get(
+  "/:id",
+  authenticate,
+  authorize("super_admin", "admin", "hr", "cxo", "college", "college_admin", "college_staff"),
+  studentController.getById
+);
+
+/**
  * PUT /api/students/:id
  * Update student / profile (HR/Admin)
  */

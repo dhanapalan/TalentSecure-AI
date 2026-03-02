@@ -141,7 +141,7 @@ export function getLandingPath(user: AuthUser | null): string {
 
   // Forced password change takes precedence
   if (user.must_change_password) {
-    return "/setup-password";
+    return "/auth/setup-password";
   }
 
   // Students must complete onboarding first
@@ -177,8 +177,8 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   // Password change gate
-  if (user?.must_change_password && location.pathname !== "/setup-password") {
-    return <Navigate to="/setup-password" replace />;
+  if (user?.must_change_password && location.pathname !== "/auth/setup-password") {
+    return <Navigate to="/auth/setup-password" replace />;
   }
 
   // Student onboarding gate

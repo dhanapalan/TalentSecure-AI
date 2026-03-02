@@ -53,6 +53,7 @@ export type AdminAuditAction =
   | "CAMPUS_DELETED"
   | "CAMPUS_ACTIVATED"
   | "CAMPUS_DEACTIVATED"
+  | "CAMPUS_ADMIN_ADDED"
   | "STUDENT_CREATED"
   | "STUDENT_UPDATED"
   | "STUDENT_DELETED"
@@ -71,7 +72,9 @@ export type AdminAuditAction =
   | "QUESTION_CREATED"
   | "QUESTION_UPDATED"
   | "QUESTION_DELETED"
-  | "STUDENTS_BULK_ADDED";
+  | "STUDENTS_BULK_ADDED"
+  | "USER_STATUS_CHANGED"
+  | "USER_PASSWORD_RESET";
 
 // ── Row Types ────────────────────────────────────────────────────────────────
 
@@ -90,6 +93,9 @@ export interface UserRow {
   is_profile_complete?: boolean;
   must_change_password?: boolean;
   is_active: boolean;
+  status: string;
+  login_type: string;
+  last_login_at?: Date | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -229,5 +235,11 @@ export interface ApiResponse<T = unknown> {
     limit: number;
     total: number;
     totalPages: number;
+  };
+  pagination?: {
+    total: number;
+    page: number;
+    limit: number;
+    pages: number;
   };
 }
