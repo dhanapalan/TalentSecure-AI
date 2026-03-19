@@ -6,7 +6,7 @@ interface LogoProps {
 }
 
 /**
- * Nallas Connect brand logo — an abstract "network graph" with N and C nodes,
+ * GradLogic brand logo — an abstract "network graph" with N and C nodes,
  * symbolising talent connecting. Renders as pure SVG so it scales to any size.
  */
 export default function Logo({ size = 36, className = "" }: LogoProps) {

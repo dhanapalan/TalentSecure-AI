@@ -67,3 +67,11 @@ export const createVersion = async (req: Request, res: Response<ApiResponse>, ne
         res.status(201).json({ success: true, data: version, message: "Version created" });
     } catch (err) { next(err); }
 };
+// POST /api/assessment-rules/:id/archive
+export const archive = async (req: Request, res: Response<ApiResponse>, next: NextFunction) => {
+    try {
+        const rule = await ruleService.archiveRule(req.params.id as string);
+        if (!rule) return res.status(404).json({ success: false, error: "Rule not found" });
+        res.json({ success: true, data: rule, message: "Rule archived" });
+    } catch (err) { next(err); }
+};

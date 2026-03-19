@@ -72,10 +72,17 @@ const updateCampusSchema = createCampusSchema.omit({
   adminName: true,
   adminEmail: true,
   adminPassword: true,
-}).extend({
+}).partial().extend({
   is_active: z.boolean().optional(),
 
   // Enterprise fields
+  tier: z.string().optional().nullable(),
+  category: z.string().optional().nullable(),
+  institution_type: z.string().optional().nullable(),
+  region: z.string().optional().nullable(),
+  naac_grade: z.string().optional().nullable(),
+  nirf_rank: z.number().int().optional().nullable(),
+
   agreement_start_date: z.string().datetime().optional().nullable(),
   agreement_end_date: z.string().datetime().optional().nullable(),
   sla: z.string().optional().nullable(),
@@ -120,9 +127,12 @@ router.get(
           (SELECT COUNT(DISTINCT cl.id) FROM cheating_logs cl JOIN student_details s ON s.user_id = cl.student_id WHERE s.college_id = c.id)::int as incident_count
         FROM colleges c
         LEFT JOIN student_details sd ON sd.college_id = c.id
+        WHERE c.is_active IS NOT FALSE
         GROUP BY c.id
         ORDER BY c.name ASC
       `);
+
+      console.log(`[DEBUG] GET /api/campuses found ${campuses.length} active campuses.`);
       res.json({ success: true, data: campuses });
     } catch (err) {
       next(err);

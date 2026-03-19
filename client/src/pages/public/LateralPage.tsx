@@ -287,7 +287,7 @@ function CTABanner() {
                         Ready to hire experienced talent faster?
                     </h2>
                     <p className="mx-auto mt-4 max-w-xl text-lg text-indigo-100">
-                        Submit your profile or book a demo to see how Nallas Connect transforms lateral recruitment.
+                        Submit your profile or book a demo to see how GradLogic transforms lateral recruitment.
                     </p>
                     <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
                         <Link

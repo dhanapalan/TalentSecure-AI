@@ -49,12 +49,13 @@ interface RuleFormData {
         auto_terminate_threshold: number;
         network_anomaly_tolerance: number;
     };
-    // Step 6 — Targeting
     targeting_config: {
         assign_to: string;
         attempt_limit: number;
         auto_publish_results: boolean;
         allow_mock: boolean;
+        min_cgpa: number;
+        min_percentage: number;
     };
     // Meta
     status: string;
@@ -104,6 +105,8 @@ const initialForm: RuleFormData = {
         attempt_limit: 1,
         auto_publish_results: false,
         allow_mock: true,
+        min_cgpa: 0,
+        min_percentage: 0,
     },
     status: "draft",
 };
@@ -531,6 +534,14 @@ function StepTargeting({ form, updateField }: { form: RuleFormData; updateField:
                         <span className="text-sm font-bold text-slate-700">Allow Mock Exam</span>
                     </label>
                 </div>
+                <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1.5">Minimum CGPA (0-10)</label>
+                    <input type="number" value={cfg.min_cgpa} onChange={(e) => updateCfg("min_cgpa", Number(e.target.value))} min={0} max={10} step={0.1} className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:ring-2 focus:ring-amber-500 outline-none" />
+                </div>
+                <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1.5">Minimum Percentage (0-100)</label>
+                    <input type="number" value={cfg.min_percentage} onChange={(e) => updateCfg("min_percentage", Number(e.target.value))} min={0} max={100} className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:ring-2 focus:ring-amber-500 outline-none" />
+                </div>
             </div>
         </div>
     );
@@ -554,6 +565,8 @@ function StepReview({ form, skillTotal, diffTotal }: { form: RuleFormData; skill
                         <p><span className="text-slate-400">Total Marks:</span> <span className="font-bold">{form.total_marks}</span></p>
                         <p><span className="text-slate-400">Cutoff:</span> <span className="font-bold">{form.overall_cutoff}%</span></p>
                         <p><span className="text-slate-400">Negative Marking:</span> <span className="font-bold">{form.negative_marking_enabled ? `Yes (−${form.negative_marking_value})` : "No"}</span></p>
+                        <p><span className="text-slate-400">Min CGPA:</span> <span className="font-bold">{form.targeting_config.min_cgpa || "—"}</span></p>
+                        <p><span className="text-slate-400">Min Percentage:</span> <span className="font-bold">{form.targeting_config.min_percentage || "—"}%</span></p>
                     </div>
                 </div>
 

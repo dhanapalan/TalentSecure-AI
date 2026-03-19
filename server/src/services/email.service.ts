@@ -3,13 +3,13 @@ import { env } from "../config/env.js";
 import { logger } from "../config/logger.js";
 
 const transporter = nodemailer.createTransport({
-    host: env.SMTP_HOST,
-    port: env.SMTP_PORT,
-    secure: env.SMTP_PORT === 465, // true for 465, false for other ports
-    auth: {
-        user: env.SMTP_USER,
-        pass: env.SMTP_PASS,
-    },
+  host: env.SMTP_HOST,
+  port: env.SMTP_PORT,
+  secure: env.SMTP_PORT === 465, // true for 465, false for other ports
+  auth: {
+    user: env.SMTP_USER,
+    pass: env.SMTP_PASS,
+  },
 });
 
 /**
@@ -17,63 +17,63 @@ const transporter = nodemailer.createTransport({
  * Falls back to logging in development if credentials are missing.
  */
 export async function sendEmail({
-    to,
-    subject,
-    text,
-    html,
+  to,
+  subject,
+  text,
+  html,
 }: {
-    to: string;
-    subject: string;
-    text: string;
-    html?: string;
+  to: string;
+  subject: string;
+  text: string;
+  html?: string;
 }) {
-    if (!env.SMTP_USER || !env.SMTP_PASS) {
-        logger.info("── SIMULATED EMAIL ──");
-        logger.info(`To:      ${to}`);
-        logger.info(`Subject: ${subject}`);
-        logger.info(`Body:    ${text}`);
-        if (html) logger.debug(`HTML:    Available`);
-        logger.info("─────────────────────");
-        return;
-    }
+  if (!env.SMTP_USER || !env.SMTP_PASS) {
+    logger.info("── SIMULATED EMAIL ──");
+    logger.info(`To:      ${to}`);
+    logger.info(`Subject: ${subject}`);
+    logger.info(`Body:    ${text}`);
+    if (html) logger.debug(`HTML:    Available`);
+    logger.info("─────────────────────");
+    return;
+  }
 
-    try {
-        const info = await transporter.sendMail({
-            from: env.EMAIL_FROM,
-            to,
-            subject,
-            text,
-            html,
-        });
-        logger.info(`Email sent: ${info.messageId}`);
-        return info;
-    } catch (error) {
-        logger.error("Failed to send email:", error);
-        throw error;
-    }
+  try {
+    const info = await transporter.sendMail({
+      from: env.EMAIL_FROM,
+      to,
+      subject,
+      text,
+      html,
+    });
+    logger.info(`Email sent: ${info.messageId}`);
+    return info;
+  } catch (error) {
+    logger.error("Failed to send email:", error);
+    throw error;
+  }
 }
 
 /**
  * Send a welcome email to a new campus admin.
  */
 export async function sendCampusAdminInvitation({
-    adminName,
-    adminEmail,
-    campusName,
-    temporaryPassword,
+  adminName,
+  adminEmail,
+  campusName,
+  temporaryPassword,
 }: {
-    adminName: string;
-    adminEmail: string;
-    campusName: string;
-    temporaryPassword: string;
+  adminName: string;
+  adminEmail: string;
+  campusName: string;
+  temporaryPassword: string;
 }) {
-    const loginUrl = `${env.CLIENT_URL}/login`;
+  const loginUrl = `${env.CLIENT_URL}/login`;
 
-    const subject = `Welcome to Nallas TalentSecure — ${campusName}`;
-    const text = `
+  const subject = `Welcome to GradLogic — ${campusName}`;
+  const text = `
     Hi ${adminName},
 
-    Welcome to Nallas TalentSecure! You have been appointed as the Campus Admin for ${campusName}.
+    Welcome to GradLogic! You have been appointed as the Campus Admin for ${campusName}.
 
     Your login credentials:
     Email: ${adminEmail}
@@ -84,12 +84,12 @@ export async function sendCampusAdminInvitation({
     For security reasons, you will be required to change your password upon your first login.
 
     Best regards,
-    The Nallas Team
+    The GradLogic Team
   `.trim();
 
-    const html = `
+  const html = `
     <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
-      <h2 style="color: #4f46e5;">Welcome to Nallas TalentSecure</h2>
+      <h2 style="color: #4f46e5;">Welcome to GradLogic</h2>
       <p>Hi <strong>${adminName}</strong>,</p>
       <p>You have been appointed as the Campus Admin for <strong>${campusName}</strong>.</p>
       
@@ -111,5 +111,5 @@ export async function sendCampusAdminInvitation({
     </div>
   `;
 
-    return sendEmail({ to: adminEmail, subject, text, html });
+  return sendEmail({ to: adminEmail, subject, text, html });
 }

@@ -57,6 +57,12 @@ const navigation: NavItem[] = [
     icon: HomeIcon,
     roles: ["student"],
   },
+  {
+    name: "Exams",
+    href: "/app/student-portal?tab=exams",
+    icon: AcademicCapIcon,
+    roles: ["student"],
+  },
 
   // College / Campus Portal navigation
   {
@@ -186,14 +192,13 @@ export default function DashboardLayout() {
         <div className="flex h-20 flex-shrink-0 items-center gap-3 px-6 border-b border-slate-100">
           <Logo size={28} />
           <div className="min-w-0 flex-1">
-            <span className="block text-xl font-black tracking-tight text-slate-900">Nallas Connect</span>
+            <span className="block text-xl font-black tracking-tight text-slate-900">GradLogic</span>
             {user?.college_name && (
               <span className="block truncate text-[10px] font-bold uppercase tracking-widest text-indigo-500">
                 {user.college_name}
               </span>
             )}
           </div>
-          <NotificationBell />
         </div>
 
         {/* Nav Links */}
@@ -261,8 +266,16 @@ export default function DashboardLayout() {
       </aside>
 
       {/* Main content */}
-      <main className="ml-[260px] flex-1">
-        <Outlet />
+      <main className="ml-[260px] flex-1 flex flex-col min-h-screen">
+        {/* Top Header */}
+        <header className="sticky top-0 z-20 flex h-20 items-center justify-end px-8 bg-white/80 backdrop-blur-md border-b border-slate-200">
+          <NotificationBell />
+        </header>
+
+        {/* Page Content */}
+        <div className="flex-1">
+          <Outlet />
+        </div>
       </main>
     </div>
   );

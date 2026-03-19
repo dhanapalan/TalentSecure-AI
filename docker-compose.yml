@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: secret
       POSTGRES_DB: talentsecure_db
     ports:
-      - "5432:5432"
+      - "${TS_POSTGRES_PORT:-5433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./docker/init-db:/docker-entrypoint-initdb.d  # Auto-run schema on first start
@@ -23,7 +23,7 @@ services:
     image: redis:7-alpine
     container_name: talentsecure-redis
     ports:
-      - "6379:6379"
+      - "${TS_REDIS_PORT:-6380}:6379"
     volumes:
       - redisdata:/data
     healthcheck:
@@ -49,8 +49,8 @@ services:
   # ── API Server (Node.js / Express) ─────────────────────────────────────────
   api:
     build:
-      context: ./server
-      dockerfile: ../docker/Dockerfile.server
+      context: .
+      dockerfile: docker/Dockerfile.server
     container_name: talentsecure-api
     env_file: .env
     environment:
@@ -58,6 +58,7 @@ services:
       REDIS_URL: redis://redis:6379
       S3_ENDPOINT: http://minio:9000
       CLIENT_URL: http://localhost:3000
+      DISABLE_RATE_LIMIT: ${DISABLE_RATE_LIMIT:-true}
     ports:
       - "5050:5050"
     depends_on:

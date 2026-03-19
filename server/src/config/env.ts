@@ -10,10 +10,14 @@ const defaultAdminClientUrl =
   process.env.ADMIN_CLIENT_URL || "http://admin.localhost:5173";
 const defaultCollegeClientUrl =
   process.env.COLLEGE_CLIENT_URL || "http://college.localhost:5173";
+const defaultStudentClientUrl =
+  process.env.STUDENT_CLIENT_URL || "http://student.localhost:5173";
+
 const clientUrlCandidates = [
   defaultClientUrl,
   defaultAdminClientUrl,
   defaultCollegeClientUrl,
+  defaultStudentClientUrl,
   ...(process.env.CLIENT_URLS ? process.env.CLIENT_URLS.split(",") : []),
 ]
   .map((v) => (v || "").trim())
@@ -41,6 +45,9 @@ export const env = {
   // JWT
   JWT_SECRET: process.env.JWT_SECRET || "dev-jwt-secret-talentsecure-2026",
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "7d",
+
+  // API Controls
+  DISABLE_RATE_LIMIT: process.env.DISABLE_RATE_LIMIT === "true",
 
   // MinIO / S3
   S3_ENDPOINT: process.env.S3_ENDPOINT || "http://localhost:9000",
@@ -71,5 +78,5 @@ export const env = {
   SMTP_PORT: parseInt(process.env.SMTP_PORT || "587", 10),
   SMTP_USER: process.env.SMTP_USER || "",
   SMTP_PASS: process.env.SMTP_PASS || "",
-  EMAIL_FROM: process.env.EMAIL_FROM || "Nallas TalentSecure <noreply@nallas.com>",
+  EMAIL_FROM: process.env.EMAIL_FROM || "GradLogic <noreply@nallas.com>",
 } as const;

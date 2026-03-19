@@ -80,6 +80,8 @@ const DriveDetailPage = lazy(() => import("./pages/drives/DriveDetailPage"));
 
 const ExamInstructionsPage = lazy(() => import("./pages/student/ExamInstructionsPage"));
 const ExamPlayerPage = lazy(() => import("./pages/student/ExamPlayerPage"));
+const MockExamPlayer = lazy(() => import("./pages/student/MockExamPlayer"));
+const StudentProfile = lazy(() => import("./pages/student/StudentProfile"));
 
 const NotAuthorizedPage = lazy(() => import("./pages/NotAuthorizedPage"));
 const StudentOnboardingWizard = lazy(() => import("./components/StudentOnboardingWizard"));
@@ -104,9 +106,9 @@ function RootRedirect() {
   const hostname = window.location.hostname;
   if (
     hostname.startsWith("admin.") ||
-    hostname.startsWith("campus.") ||
     hostname.startsWith("college.") ||
-    hostname.startsWith("student.")
+    hostname.startsWith("student.") ||
+    hostname.startsWith("campus.") // Deprecated, but catch just in case
   ) {
     return <Navigate to="/auth/login" replace />;
   }
@@ -196,6 +198,17 @@ export default function App() {
                 <ProtectedRoute>
                   <RoleGuard allowed={["student"]}>
                     <ExamPlayerPage />
+                  </RoleGuard>
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/app/student-portal/mock/:mockId"
+              element={
+                <ProtectedRoute>
+                  <RoleGuard allowed={["student"]}>
+                    <MockExamPlayer />
                   </RoleGuard>
                 </ProtectedRoute>
               }
@@ -340,6 +353,14 @@ export default function App() {
                 element={
                   <RoleGuard allowed={["student"]}>
                     <StudentPortalPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="student-portal/profile"
+                element={
+                  <RoleGuard allowed={["student"]}>
+                    <StudentProfile />
                   </RoleGuard>
                 }
               />

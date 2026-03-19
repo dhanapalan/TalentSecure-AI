@@ -18,7 +18,7 @@ export default function LandingPage() {
             name: "Campus Portal",
             description: "Manage college placements, track student performance, and coordinate drives.",
             icon: GraduationCap,
-            url: "http://campus.localhost:5173/",
+            url: "http://college.localhost:5173/",
             color: "text-emerald-600",
             bg: "bg-emerald-50",
             border: "border-emerald-100",
@@ -60,8 +60,8 @@ export default function LandingPage() {
             <div className="relative z-10 w-full max-w-6xl px-6 py-12">
                 <div className="text-center mb-16">
                     <div className="inline-flex items-center justify-center px-4 py-2 bg-white rounded-full shadow-sm border border-slate-200 mb-8">
-                        <img src="/nallas-logo.png" alt="Nallas Connect" className="h-6" onError={(e) => e.currentTarget.style.display = 'none'} />
-                        <span className="text-lg font-bold text-slate-800 tracking-tight ml-2">Nallas Connect</span>
+                        <img src="/nallas-logo.png" alt="GradLogic" className="h-6" onError={(e) => e.currentTarget.style.display = 'none'} />
+                        <span className="text-lg font-bold text-slate-800 tracking-tight ml-2">GradLogic</span>
                     </div>
 
                     <h1 className="text-4xl md:text-6xl font-extrabold text-slate-900 tracking-tight mb-6">
@@ -105,7 +105,7 @@ export default function LandingPage() {
 
                 <div className="mt-20 text-center">
                     <p className="text-sm text-slate-500 font-medium">
-                        &copy; {new Date().getFullYear()} Nallas Corporation. All rights reserved.
+                        &copy; {new Date().getFullYear()} GradLogic. All rights reserved.
                     </p>
                 </div>
             </div>

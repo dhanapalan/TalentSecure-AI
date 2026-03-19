@@ -17,6 +17,13 @@ const STATUS_STYLES: Record<string, { bg: string; text: string }> = {
     completed: { bg: "bg-emerald-100", text: "text-emerald-700" },
 };
 
+const ELIGIBILITY_STYLES: Record<string, { bg: string; text: string }> = {
+    eligible: { bg: "bg-emerald-50", text: "text-emerald-700" },
+    partial: { bg: "bg-amber-50", text: "text-amber-700" },
+    missing: { bg: "bg-red-50", text: "text-red-700" },
+    ineligible: { bg: "bg-slate-100", text: "text-slate-500" },
+};
+
 export default function StudentsTab({ drive }: { drive: any }) {
     const queryClient = useQueryClient();
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -502,6 +509,7 @@ export default function StudentsTab({ drive }: { drive: any }) {
                                 <th className="p-4 text-xs font-bold text-slate-500 uppercase">Student</th>
                                 <th className="p-4 text-xs font-bold text-slate-500 uppercase w-28">Roll No</th>
                                 <th className="p-4 text-xs font-bold text-slate-500 uppercase w-36">Campus</th>
+                                <th className="p-4 text-xs font-bold text-slate-500 uppercase w-32 text-center">Eligibility</th>
                                 <th className="p-4 text-xs font-bold text-slate-500 uppercase w-28 text-center">Status</th>
                                 <th className="p-4 text-xs font-bold text-slate-500 uppercase w-20 text-center">Score</th>
                                 <th className="p-4 text-xs font-bold text-slate-500 uppercase w-20 text-center">Violations</th>
@@ -520,7 +528,12 @@ export default function StudentsTab({ drive }: { drive: any }) {
                                             <p className="text-xs text-slate-400">{s.email}</p>
                                         </td>
                                         <td className="p-4 text-sm text-slate-600">{s.roll_number || "—"}</td>
-                                        <td className="p-4 text-sm text-slate-600 truncate max-w-[140px]">{s.college_name || "—"}</td>
+                                        <td className="p-4 text-sm text-slate-600 truncate max-w-[140px] font-bold">{s.college_name || "—"}</td>
+                                        <td className="p-4 text-center">
+                                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black tracking-wider uppercase ${ELIGIBILITY_STYLES[s.eligibility_status]?.bg || "bg-emerald-50"} ${ELIGIBILITY_STYLES[s.eligibility_status]?.text || "text-emerald-700"} border border-current/10`}>
+                                                {s.eligibility_status || 'eligible'}
+                                            </span>
+                                        </td>
                                         <td className="p-4 text-center">
                                             <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${st.bg} ${st.text} capitalize`}>
                                                 {s.status === 'completed' && <CheckCircle className="h-3 w-3" />}

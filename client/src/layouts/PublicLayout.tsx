@@ -42,7 +42,7 @@ export default function PublicLayout({ children }: { children?: ReactNode }) {
                     <Link to="/" className="flex items-center gap-2.5 group">
                         <Logo size={36} className="group-hover:scale-105 transition-transform" />
                         <span className={`text-lg font-bold tracking-tight transition-colors ${useLightHeader ? "text-white" : "text-slate-900"}`}>
-                            Nallas <span className="text-indigo-500">Connect</span>
+                            Grad<span className="text-indigo-500">Logic</span>
                         </span>
                     </Link>
 
@@ -140,7 +140,7 @@ export default function PublicLayout({ children }: { children?: ReactNode }) {
                         <div className="lg:col-span-1">
                             <div className="flex items-center gap-2.5">
                                 <Logo size={36} />
-                                <span className="text-lg font-bold">Nallas <span className="text-indigo-400">Connect</span></span>
+                                <span className="text-lg font-bold">Grad<span className="text-indigo-400">Logic</span></span>
                             </div>
                             <p className="mt-4 max-w-xs text-sm leading-relaxed text-slate-400">
                                 AI-powered hiring platform for lateral recruitment and campus hiring — connecting top talent with the right opportunities.
@@ -200,7 +200,7 @@ export default function PublicLayout({ children }: { children?: ReactNode }) {
                     </div>
 
                     <div className="mt-12 border-t border-white/10 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-                        <p className="text-xs text-slate-500">© 2026 Nallas Technologies Pvt. Ltd. All rights reserved.</p>
+                        <p className="text-xs text-slate-500">© 2026 GradLogic Technologies Pvt. Ltd. All rights reserved.</p>
                         <div className="flex gap-6">
                             <Link to="/privacy" className="text-xs text-slate-500 hover:text-slate-300 transition-colors">Privacy Policy</Link>
                             <Link to="/terms" className="text-xs text-slate-500 hover:text-slate-300 transition-colors">Terms of Service</Link>

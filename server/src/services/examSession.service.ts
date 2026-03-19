@@ -120,12 +120,30 @@ export async function startSession(driveId: string, studentId: string): Promise<
 
     if (!ds) throw new AppError("You are not assigned to this drive", 403);
     if (ds.status === "completed") throw new AppError("This exam has already been completed", 409);
+
+    // Eligibility Checks
+    if (ds.eligibility_status === "ineligible") {
+        throw new AppError("You do not meet the minimum eligibility criteria (CGPA/Percentage) for this drive.", 403);
+    }
+    if (ds.eligibility_status === "missing") {
+        throw new AppError("Your profile is incomplete. Please ensure your CGPA and Percentage are updated in your profile before starting the exam.", 403);
+    }
+
     if (ds.drive_status !== "active" && ds.drive_status !== "scheduled") {
         throw new AppError("This drive is not currently active", 400);
     }
 
     // 2. If already in_progress, this is a resume
     if (ds.status === "in_progress" && ds.question_mapping) {
+        // Concurrent login heartbeat lock check
+        if (ds.last_heartbeat) {
+            const timeSinceLastHeartbeat = Date.now() - new Date(ds.last_heartbeat).getTime();
+            // Since frontend autosaves every 5s, <15s means another browser is actively on the screen
+            if (timeSinceLastHeartbeat < 15000) {
+                throw new AppError("An active session is currently running on another device or tab. Please close it before continuing.", 403);
+            }
+        }
+
         // Recalculate time remaining from server side
         const elapsedSeconds = ds.started_at
             ? Math.floor((Date.now() - new Date(ds.started_at).getTime()) / 1000)
@@ -332,7 +350,8 @@ export async function saveAnswer(
         `UPDATE drive_students
          SET saved_answers = $1,
              current_question_index = $2,
-             time_remaining_seconds = $3
+             time_remaining_seconds = $3,
+             last_heartbeat = NOW()
          WHERE drive_id = $4
            AND student_id = $5
            AND status = 'in_progress'

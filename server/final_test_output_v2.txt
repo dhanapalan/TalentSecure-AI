@@ -1,0 +1,82 @@
+≡ƒÜÇ Starting Drive Enforcement Tests...
+
+≡ƒº¬ Test 1: Max Applicant Enforcement
+Γ£à Drive created: b769d66d-b250-4eb2-a85d-6164f2a78ccf (Status: DRAFT, Limit: 1)
+Adding first student...
+2026-03-03 16:41:15 [[32minfo[39m]: Pool generation batch 1: generating 30 questions (0/30 done) {"service":"talentsecure-api","driveId":"b769d66d-b250-4eb2-a85d-6164f2a78ccf"}
+2026-03-03 16:41:15 [[32minfo[39m]: Calling OpenAI for dynamic assessment generation {"service":"talentsecure-api","weights":[{"category":"JavaScript","percentage":40},{"category":"TypeScript","percentage":30},{"category":"Logic","percentage":30}],"totalQuestions":30,"model":"gpt-4o-mini"}
+Γ£à First student added successfully.
+Adding second student (should fail)...
+Γ£à SUCCESS: Caught expected 409 error: Drive capacity reached. Limit: 1, Current: 1, Trying to add: 1
+
+≡ƒº¬ Test 2: Registration Window Validation (Future Start)
+Γ£à Drive created: 95c8d741-79b6-49e7-a1ef-da61880c0e87 (Starts in future: 3/3/2027, 4:41:15 pm)
+Attempting to add student to future drive...
+Γ£à SUCCESS: Caught expected 403 error: Registration hasn't started yet. Scheduled to start at 3/3/2027, 4:41:15 pm
+
+≡ƒº¬ Test 3: Registration Window Validation (Past End)
+Γ£à Drive created: b961642b-a85c-4a49-a7f8-5a15b9cea99c (Ended in past: 3/3/2025, 4:41:15 pm)
+Attempting to add student to past drive...
+2026-03-03 16:41:15 [[32minfo[39m]: Pool generation batch 1: generating 30 questions (0/30 done) {"service":"talentsecure-api","driveId":"95c8d741-79b6-49e7-a1ef-da61880c0e87"}
+2026-03-03 16:41:15 [[32minfo[39m]: Calling OpenAI for dynamic assessment generation {"service":"talentsecure-api","weights":[{"category":"JavaScript","percentage":40},{"category":"TypeScript","percentage":30},{"category":"Logic","percentage":30}],"totalQuestions":30,"model":"gpt-4o-mini"}
+2026-03-03 16:41:15 [[32minfo[39m]: Pool generation batch 1: generating 30 questions (0/30 done) {"service":"talentsecure-api","driveId":"b961642b-a85c-4a49-a7f8-5a15b9cea99c"}
+2026-03-03 16:41:15 [[32minfo[39m]: Calling OpenAI for dynamic assessment generation {"service":"talentsecure-api","weights":[{"category":"JavaScript","percentage":40},{"category":"TypeScript","percentage":30},{"category":"Logic","percentage":30}],"totalQuestions":30,"model":"gpt-4o-mini"}
+Γ£à SUCCESS: Caught expected 403 error: Registration window closed at 3/3/2025, 4:41:15 pm
+
+≡ƒÄè All Drive Enforcement Tests Completed!
+2026-03-03 16:42:02 [[32minfo[39m]: Dynamic assessment generated successfully {"service":"talentsecure-api","totalQuestions":16,"categories":[{"category":"JavaScript","count":3,"percentage":40},{"category":"TypeScript","count":4,"percentage":30},{"category":"Logic","count":9,"percentage":30}]}
+2026-03-03 16:42:02 [[31merror[39m]: Pool generation batch 1 failed {"service":"talentsecure-api","driveId":"b769d66d-b250-4eb2-a85d-6164f2a78ccf","error":"Cannot use a pool after calling end on the pool"}
+2026-03-03 16:42:05 [[32minfo[39m]: Pool generation batch 2: generating 30 questions (0/30 done) {"service":"talentsecure-api","driveId":"b769d66d-b250-4eb2-a85d-6164f2a78ccf"}
+2026-03-03 16:42:05 [[32minfo[39m]: Calling OpenAI for dynamic assessment generation {"service":"talentsecure-api","weights":[{"category":"JavaScript","percentage":40},{"category":"TypeScript","percentage":30},{"category":"Logic","percentage":30}],"totalQuestions":30,"model":"gpt-4o-mini"}
+2026-03-03 16:42:14 [[32minfo[39m]: Dynamic assessment generated successfully {"service":"talentsecure-api","totalQuestions":18,"categories":[{"category":"JavaScript","count":4,"percentage":40},{"category":"TypeScript","count":5,"percentage":30},{"category":"Logic","count":9,"percentage":30}]}
+2026-03-03 16:42:14 [[31merror[39m]: Pool generation batch 1 failed {"service":"talentsecure-api","driveId":"b961642b-a85c-4a49-a7f8-5a15b9cea99c","error":"Cannot use a pool after calling end on the pool"}
+2026-03-03 16:42:17 [[32minfo[39m]: Pool generation batch 2: generating 30 questions (0/30 done) {"service":"talentsecure-api","driveId":"b961642b-a85c-4a49-a7f8-5a15b9cea99c"}
+2026-03-03 16:42:17 [[32minfo[39m]: Calling OpenAI for dynamic assessment generation {"service":"talentsecure-api","weights":[{"category":"JavaScript","percentage":40},{"category":"TypeScript","percentage":30},{"category":"Logic","percentage":30}],"totalQuestions":30,"model":"gpt-4o-mini"}
+2026-03-03 16:42:22 [[32minfo[39m]: Dynamic assessment generated successfully {"service":"talentsecure-api","totalQuestions":19,"categories":[{"category":"JavaScript","count":5,"percentage":40},{"category":"TypeScript","count":5,"percentage":30},{"category":"Logic","count":9,"percentage":30}]}
+2026-03-03 16:42:22 [[31merror[39m]: Pool generation batch 1 failed {"service":"talentsecure-api","driveId":"95c8d741-79b6-49e7-a1ef-da61880c0e87","error":"Cannot use a pool after calling end on the pool"}
+2026-03-03 16:42:25 [[32minfo[39m]: Pool generation batch 2: generating 30 questions (0/30 done) {"service":"talentsecure-api","driveId":"95c8d741-79b6-49e7-a1ef-da61880c0e87"}
+2026-03-03 16:42:25 [[32minfo[39m]: Calling OpenAI for dynamic assessment generation {"service":"talentsecure-api","weights":[{"category":"JavaScript","percentage":40},{"category":"TypeScript","percentage":30},{"category":"Logic","percentage":30}],"totalQuestions":30,"model":"gpt-4o-mini"}
+2026-03-03 16:42:57 [[32minfo[39m]: Dynamic assessment generated successfully {"service":"talentsecure-api","totalQuestions":17,"categories":[{"category":"JavaScript","count":5,"percentage":40},{"category":"TypeScript","count":4,"percentage":30},{"category":"Logic","count":8,"percentage":30}]}
+2026-03-03 16:42:57 [[31merror[39m]: Pool generation batch 2 failed {"service":"talentsecure-api","driveId":"b961642b-a85c-4a49-a7f8-5a15b9cea99c","error":"Cannot use a pool after calling end on the pool"}
+2026-03-03 16:42:59 [[32minfo[39m]: Dynamic assessment generated successfully {"service":"talentsecure-api","totalQuestions":17,"categories":[{"category":"JavaScript","count":5,"percentage":40},{"category":"TypeScript","count":4,"percentage":30},{"category":"Logic","count":8,"percentage":30}]}
+2026-03-03 16:42:59 [[31merror[39m]: Pool generation batch 2 failed {"service":"talentsecure-api","driveId":"b769d66d-b250-4eb2-a85d-6164f2a78ccf","error":"Cannot use a pool after calling end on the pool"}
+2026-03-03 16:43:00 [[32minfo[39m]: Pool generation batch 3: generating 30 questions (0/30 done) {"service":"talentsecure-api","driveId":"b961642b-a85c-4a49-a7f8-5a15b9cea99c"}
+2026-03-03 16:43:00 [[32minfo[39m]: Calling OpenAI for dynamic assessment generation {"service":"talentsecure-api","weights":[{"category":"JavaScript","percentage":40},{"category":"TypeScript","percentage":30},{"category":"Logic","percentage":30}],"totalQuestions":30,"model":"gpt-4o-mini"}
+2026-03-03 16:43:02 [[32minfo[39m]: Pool generation batch 3: generating 30 questions (0/30 done) {"service":"talentsecure-api","driveId":"b769d66d-b250-4eb2-a85d-6164f2a78ccf"}
+2026-03-03 16:43:02 [[32minfo[39m]: Calling OpenAI for dynamic assessment generation {"service":"talentsecure-api","weights":[{"category":"JavaScript","percentage":40},{"category":"TypeScript","percentage":30},{"category":"Logic","percentage":30}],"totalQuestions":30,"model":"gpt-4o-mini"}
+2026-03-03 16:43:02 [[32minfo[39m]: Dynamic assessment generated successfully {"service":"talentsecure-api","totalQuestions":15,"categories":[{"category":"JavaScript","count":3,"percentage":40},{"category":"TypeScript","count":4,"percentage":30},{"category":"Logic","count":8,"percentage":30}]}
+2026-03-03 16:43:02 [[31merror[39m]: Pool generation batch 2 failed {"service":"talentsecure-api","driveId":"95c8d741-79b6-49e7-a1ef-da61880c0e87","error":"Cannot use a pool after calling end on the pool"}
+2026-03-03 16:43:05 [[32minfo[39m]: Pool generation batch 3: generating 30 questions (0/30 done) {"service":"talentsecure-api","driveId":"95c8d741-79b6-49e7-a1ef-da61880c0e87"}
+2026-03-03 16:43:05 [[32minfo[39m]: Calling OpenAI for dynamic assessment generation {"service":"talentsecure-api","weights":[{"category":"JavaScript","percentage":40},{"category":"TypeScript","percentage":30},{"category":"Logic","percentage":30}],"totalQuestions":30,"model":"gpt-4o-mini"}
+2026-03-03 16:43:47 [[32minfo[39m]: Dynamic assessment generated successfully {"service":"talentsecure-api","totalQuestions":16,"categories":[{"category":"JavaScript","count":4,"percentage":40},{"category":"TypeScript","count":4,"percentage":30},{"category":"Logic","count":8,"percentage":30}]}
+2026-03-03 16:43:47 [[31merror[39m]: Pool generation batch 3 failed {"service":"talentsecure-api","driveId":"b961642b-a85c-4a49-a7f8-5a15b9cea99c","error":"Cannot use a pool after calling end on the pool"}
+2026-03-03 16:43:48 [[32minfo[39m]: Dynamic assessment generated successfully {"service":"talentsecure-api","totalQuestions":18,"categories":[{"category":"JavaScript","count":4,"percentage":40},{"category":"TypeScript","count":5,"percentage":30},{"category":"Logic","count":9,"percentage":30}]}
+2026-03-03 16:43:48 [[31merror[39m]: Pool generation batch 3 failed {"service":"talentsecure-api","driveId":"b769d66d-b250-4eb2-a85d-6164f2a78ccf","error":"Cannot use a pool after calling end on the pool"}
+2026-03-03 16:43:50 [[32minfo[39m]: Pool generation batch 4: generating 30 questions (0/30 done) {"service":"talentsecure-api","driveId":"b961642b-a85c-4a49-a7f8-5a15b9cea99c"}
+2026-03-03 16:43:50 [[32minfo[39m]: Calling OpenAI for dynamic assessment generation {"service":"talentsecure-api","weights":[{"category":"JavaScript","percentage":40},{"category":"TypeScript","percentage":30},{"category":"Logic","percentage":30}],"totalQuestions":30,"model":"gpt-4o-mini"}
+2026-03-03 16:43:51 [[32minfo[39m]: Pool generation batch 4: generating 30 questions (0/30 done) {"service":"talentsecure-api","driveId":"b769d66d-b250-4eb2-a85d-6164f2a78ccf"}
+2026-03-03 16:43:51 [[32minfo[39m]: Calling OpenAI for dynamic assessment generation {"service":"talentsecure-api","weights":[{"category":"JavaScript","percentage":40},{"category":"TypeScript","percentage":30},{"category":"Logic","percentage":30}],"totalQuestions":30,"model":"gpt-4o-mini"}
+2026-03-03 16:44:19 [[32minfo[39m]: Dynamic assessment generated successfully {"service":"talentsecure-api","totalQuestions":18,"categories":[{"category":"JavaScript","count":5,"percentage":40},{"category":"TypeScript","count":5,"percentage":30},{"category":"Logic","count":8,"percentage":30}]}
+2026-03-03 16:44:19 [[31merror[39m]: Pool generation batch 3 failed {"service":"talentsecure-api","driveId":"95c8d741-79b6-49e7-a1ef-da61880c0e87","error":"Cannot use a pool after calling end on the pool"}
+2026-03-03 16:44:22 [[32minfo[39m]: Pool generation batch 4: generating 30 questions (0/30 done) {"service":"talentsecure-api","driveId":"95c8d741-79b6-49e7-a1ef-da61880c0e87"}
+2026-03-03 16:44:22 [[32minfo[39m]: Calling OpenAI for dynamic assessment generation {"service":"talentsecure-api","weights":[{"category":"JavaScript","percentage":40},{"category":"TypeScript","percentage":30},{"category":"Logic","percentage":30}],"totalQuestions":30,"model":"gpt-4o-mini"}
+2026-03-03 16:44:35 [[32minfo[39m]: Dynamic assessment generated successfully {"service":"talentsecure-api","totalQuestions":15,"categories":[{"category":"JavaScript","count":3,"percentage":40},{"category":"TypeScript","count":4,"percentage":30},{"category":"Logic","count":8,"percentage":30}]}
+2026-03-03 16:44:35 [[31merror[39m]: Pool generation batch 4 failed {"service":"talentsecure-api","driveId":"b769d66d-b250-4eb2-a85d-6164f2a78ccf","error":"Cannot use a pool after calling end on the pool"}
+2026-03-03 16:44:38 [[32minfo[39m]: Pool generation batch 5: generating 30 questions (0/30 done) {"service":"talentsecure-api","driveId":"b769d66d-b250-4eb2-a85d-6164f2a78ccf"}
+2026-03-03 16:44:38 [[32minfo[39m]: Calling OpenAI for dynamic assessment generation {"service":"talentsecure-api","weights":[{"category":"JavaScript","percentage":40},{"category":"TypeScript","percentage":30},{"category":"Logic","percentage":30}],"totalQuestions":30,"model":"gpt-4o-mini"}
+2026-03-03 16:44:51 [[32minfo[39m]: Dynamic assessment generated successfully {"service":"talentsecure-api","totalQuestions":20,"categories":[{"category":"JavaScript","count":5,"percentage":40},{"category":"TypeScript","count":5,"percentage":30},{"category":"Logic","count":10,"percentage":30}]}
+2026-03-03 16:44:51 [[31merror[39m]: Pool generation batch 4 failed {"service":"talentsecure-api","driveId":"b961642b-a85c-4a49-a7f8-5a15b9cea99c","error":"Cannot use a pool after calling end on the pool"}
+2026-03-03 16:44:54 [[32minfo[39m]: Pool generation batch 5: generating 30 questions (0/30 done) {"service":"talentsecure-api","driveId":"b961642b-a85c-4a49-a7f8-5a15b9cea99c"}
+2026-03-03 16:44:54 [[32minfo[39m]: Calling OpenAI for dynamic assessment generation {"service":"talentsecure-api","weights":[{"category":"JavaScript","percentage":40},{"category":"TypeScript","percentage":30},{"category":"Logic","percentage":30}],"totalQuestions":30,"model":"gpt-4o-mini"}
+2026-03-03 16:45:09 [[32minfo[39m]: Dynamic assessment generated successfully {"service":"talentsecure-api","totalQuestions":15,"categories":[{"category":"JavaScript","count":4,"percentage":40},{"category":"TypeScript","count":3,"percentage":30},{"category":"Logic","count":8,"percentage":30}]}
+2026-03-03 16:45:09 [[31merror[39m]: Pool generation batch 4 failed {"service":"talentsecure-api","driveId":"95c8d741-79b6-49e7-a1ef-da61880c0e87","error":"Cannot use a pool after calling end on the pool"}
+2026-03-03 16:45:12 [[32minfo[39m]: Pool generation batch 5: generating 30 questions (0/30 done) {"service":"talentsecure-api","driveId":"95c8d741-79b6-49e7-a1ef-da61880c0e87"}
+2026-03-03 16:45:12 [[32minfo[39m]: Calling OpenAI for dynamic assessment generation {"service":"talentsecure-api","weights":[{"category":"JavaScript","percentage":40},{"category":"TypeScript","percentage":30},{"category":"Logic","percentage":30}],"totalQuestions":30,"model":"gpt-4o-mini"}
+2026-03-03 16:45:28 [[32minfo[39m]: Dynamic assessment generated successfully {"service":"talentsecure-api","totalQuestions":18,"categories":[{"category":"JavaScript","count":5,"percentage":40},{"category":"TypeScript","count":5,"percentage":30},{"category":"Logic","count":8,"percentage":30}]}
+2026-03-03 16:45:28 [[31merror[39m]: Pool generation batch 5 failed {"service":"talentsecure-api","driveId":"b769d66d-b250-4eb2-a85d-6164f2a78ccf","error":"Cannot use a pool after calling end on the pool"}
+2026-03-03 16:45:31 [[32minfo[39m]: Pool generation batch 6: generating 30 questions (0/30 done) {"service":"talentsecure-api","driveId":"b769d66d-b250-4eb2-a85d-6164f2a78ccf"}
+2026-03-03 16:45:31 [[32minfo[39m]: Calling OpenAI for dynamic assessment generation {"service":"talentsecure-api","weights":[{"category":"JavaScript","percentage":40},{"category":"TypeScript","percentage":30},{"category":"Logic","percentage":30}],"totalQuestions":30,"model":"gpt-4o-mini"}
+2026-03-03 16:45:43 [[32minfo[39m]: Dynamic assessment generated successfully {"service":"talentsecure-api","totalQuestions":18,"categories":[{"category":"JavaScript","count":5,"percentage":40},{"category":"TypeScript","count":4,"percentage":30},{"category":"Logic","count":9,"percentage":30}]}
+2026-03-03 16:45:43 [[31merror[39m]: Pool generation batch 5 failed {"service":"talentsecure-api","driveId":"b961642b-a85c-4a49-a7f8-5a15b9cea99c","error":"Cannot use a pool after calling end on the pool"}
+2026-03-03 16:45:46 [[32minfo[39m]: Pool generation batch 6: generating 30 questions (0/30 done) {"service":"talentsecure-api","driveId":"b961642b-a85c-4a49-a7f8-5a15b9cea99c"}
+2026-03-03 16:45:46 [[32minfo[39m]: Calling OpenAI for dynamic assessment generation {"service":"talentsecure-api","weights":[{"category":"JavaScript","percentage":40},{"category":"TypeScript","percentage":30},{"category":"Logic","percentage":30}],"totalQuestions":30,"model":"gpt-4o-mini"}

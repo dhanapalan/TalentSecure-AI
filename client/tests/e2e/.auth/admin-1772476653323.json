@@ -1,0 +1,18 @@
+{
+  "cookies": [],
+  "origins": [
+    {
+      "origin": "http://localhost:5173",
+      "localStorage": [
+        {
+          "name": "accessToken",
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI5ZTcwNGQxYy00ZmQxLTRiOGQtYWU0YS00YTlmNmE3ZTZmOWQiLCJlbWFpbCI6ImFkbWluQG5hbGxhc3RhbGVudC5haSIsInJvbGUiOiJzdXBlcl9hZG1pbiIsImNvbGxlZ2VfaWQiOm51bGwsImlhdCI6MTc3MjQ3NjY1OCwiZXhwIjoxNzczMDgxNDU4fQ.8OUN5TboXzBmIc1e2-p52dAWqlASFZUC-fvXFA1s9aI"
+        },
+        {
+          "name": "user",
+          "value": "{\"id\":\"9e704d1c-4fd1-4b8d-ae4a-4a9f6a7e6f9d\",\"role\":\"super_admin\",\"name\":\"Admin User\",\"email\":\"admin@nallastalent.ai\",\"college_id\":null,\"college_name\":null,\"department\":null,\"phone_number\":null,\"is_profile_complete\":true,\"must_change_password\":false}"
+        }
+      ]
+    }
+  ]
+}

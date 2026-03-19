@@ -217,10 +217,25 @@ export default function DrivesListPage() {
                                             </div>
                                         </td>
                                         <td className="px-6 py-5 text-center">
-                                            <p className="text-sm font-bold text-slate-700">{new Date(drive.scheduled_start).toLocaleDateString()}</p>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
-                                                {new Date(drive.scheduled_start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                            </p>
+                                            <div className="flex flex-col items-center">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <div className="flex flex-col items-end">
+                                                        <p className="text-[11px] font-bold text-slate-700">{new Date(drive.scheduled_start).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</p>
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">
+                                                            {new Date(drive.scheduled_start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                        </p>
+                                                    </div>
+                                                    <span className="text-slate-300 text-xs">→</span>
+                                                    <div className="flex flex-col items-start text-left">
+                                                        <p className="text-[11px] font-bold text-slate-700">
+                                                            {drive.scheduled_end ? new Date(drive.scheduled_end).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : "Unlimited"}
+                                                        </p>
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">
+                                                            {drive.scheduled_end ? new Date(drive.scheduled_end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "—"}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </td>
                                         <td className="px-6 py-5">
                                             <div className="flex flex-col items-center">

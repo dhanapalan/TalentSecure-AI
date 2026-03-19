@@ -270,13 +270,14 @@ export default function ExamPlayerPage() {
     }
 
     if (error || !session || questions.length === 0) {
+        const errorMessage = (error as any)?.response?.data?.message || "Could not load exam session.";
         return (
             <div className="flex h-screen items-center justify-center bg-gray-50">
-                <div className="text-center">
-                    <XCircle className="h-16 w-16 text-red-400 mx-auto mb-4" />
-                    <h2 className="text-2xl font-black text-gray-900">Session Error</h2>
-                    <p className="text-gray-500 mt-2">Could not load exam session.</p>
-                    <button onClick={() => navigate("/app/student-portal")} className="mt-6 px-6 py-3 bg-gray-900 text-white rounded-2xl font-black hover:bg-black transition-all">
+                <div className="text-center px-6">
+                    <XCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+                    <h2 className="text-2xl font-black text-gray-900">Access Denied</h2>
+                    <p className="text-gray-500 mt-2 max-w-sm mx-auto">{errorMessage}</p>
+                    <button onClick={() => navigate("/app/student-portal")} className="mt-8 px-8 py-3 bg-gray-900 text-white rounded-2xl font-black hover:bg-black shadow-lg shadow-gray-200 transition-all">
                         Back to Portal
                     </button>
                 </div>
@@ -337,7 +338,7 @@ export default function ExamPlayerPage() {
             {/* ── Question Navigation Sidebar ── */}
             <div className="w-[280px] bg-white border-r border-gray-200 flex flex-col z-10 relative">
                 {/* Header */}
-                <div className="p-6 border-b border-gray-100">
+                <div className="p-4 border-b border-gray-100 flex-shrink-0">
                     <h2 className="font-black text-gray-900 text-sm truncate">{session.drive_name}</h2>
                     <p className="text-xs text-gray-400 font-bold mt-1">{questions.length} Questions</p>
                 </div>
@@ -429,9 +430,9 @@ export default function ExamPlayerPage() {
             </div>
 
             {/* ── Main Content ── */}
-            <div className="flex-1 flex flex-col">
+            <div className="flex-1 flex flex-col min-w-0">
                 {/* Top Bar: Timer + Submit */}
-                <div className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-8">
+                <div className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-6 flex-shrink-0">
                     <div className="flex items-center gap-3">
                         <span className="text-sm font-bold text-gray-400">Question {currentIndex + 1} of {questions.length}</span>
                         <span className={`text-xs font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${currentQuestion?.difficulty_level === "easy" ? "bg-emerald-50 text-emerald-600" :
@@ -467,7 +468,7 @@ export default function ExamPlayerPage() {
                 </div>
 
                 {/* Question Area */}
-                <div className="flex-1 overflow-y-auto p-8 relative">
+                <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 relative flex flex-col bg-white">
 
                     {/* Violation Alert Toast */}
                     {violationAlert && (
@@ -479,13 +480,13 @@ export default function ExamPlayerPage() {
                         </div>
                     )}
 
-                    <div className="max-w-3xl mx-auto mt-4">
+                    <div className="max-w-4xl mx-auto w-full flex-1 flex flex-col">
                         {currentQuestion && (
                             <>
                                 {/* Question Text */}
-                                <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 mb-6">
-                                    <div className="flex items-center gap-2 mb-4">
-                                        <span className="text-xs font-black text-indigo-600 uppercase tracking-widest bg-indigo-50 px-3 py-1 rounded-full">
+                                <div className="bg-gray-50/50 rounded-2xl p-6 border border-gray-100 mb-6 flex-shrink-0">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest bg-indigo-50 px-2.5 py-1 rounded-md">
                                             {currentQuestion.category.replace("_", " ")}
                                         </span>
                                     </div>
@@ -494,41 +495,43 @@ export default function ExamPlayerPage() {
                                     </p>
                                 </div>
 
-                                {/* Options */}
-                                <div className="space-y-3 mb-8">
-                                    {(currentQuestion.options || []).map((opt: any, i: number) => {
-                                        const label = opt.label || String.fromCharCode(65 + i);
-                                        const text = opt.text || opt;
-                                        const isSelected = questionAnswer.selected.includes(label);
+                                {/* Options Wrapper */}
+                                <div className="flex-1 min-h-0 overflow-y-auto pr-2 mb-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        {(currentQuestion.options || []).map((opt: any, i: number) => {
+                                            const label = opt.label || String.fromCharCode(65 + i);
+                                            const text = opt.text || opt;
+                                            const isSelected = questionAnswer.selected.includes(label);
 
-                                        return (
-                                            <button
-                                                key={label}
-                                                onClick={() => handleSelectOption(currentQuestion.id, label, isMultiSelect)}
-                                                className={`w-full flex items-center gap-4 p-5 rounded-2xl border-2 text-left transition-all ${isSelected
-                                                    ? "border-indigo-500 bg-indigo-50 shadow-sm"
-                                                    : "border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
-                                                    }`}
-                                            >
-                                                <div className={`h-10 w-10 rounded-xl flex items-center justify-center text-sm font-black flex-shrink-0 transition-all ${isSelected
-                                                    ? "bg-indigo-600 text-white"
-                                                    : "bg-gray-100 text-gray-500"
-                                                    }`}>
-                                                    {label}
-                                                </div>
-                                                <span className={`text-sm font-medium ${isSelected ? "text-indigo-900" : "text-gray-700"}`}>
-                                                    {text}
-                                                </span>
-                                                {isSelected && (
-                                                    <CheckCircle2 className="h-5 w-5 text-indigo-600 ml-auto flex-shrink-0" />
-                                                )}
-                                            </button>
-                                        );
-                                    })}
+                                            return (
+                                                <button
+                                                    key={label}
+                                                    onClick={() => handleSelectOption(currentQuestion.id, label, isMultiSelect)}
+                                                    className={`w-full flex items-center gap-4 p-5 rounded-2xl border-2 text-left transition-all ${isSelected
+                                                        ? "border-indigo-500 bg-indigo-50 shadow-sm"
+                                                        : "border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
+                                                        }`}
+                                                >
+                                                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center text-sm font-black flex-shrink-0 transition-all ${isSelected
+                                                        ? "bg-indigo-600 text-white"
+                                                        : "bg-gray-100 text-gray-500"
+                                                        }`}>
+                                                        {label}
+                                                    </div>
+                                                    <span className={`text-sm font-medium ${isSelected ? "text-indigo-900" : "text-gray-700"}`}>
+                                                        {text}
+                                                    </span>
+                                                    {isSelected && (
+                                                        <CheckCircle2 className="h-5 w-5 text-indigo-600 ml-auto flex-shrink-0" />
+                                                    )}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
 
                                 {/* Action Bar */}
-                                <div className="flex items-center justify-between">
+                                <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-100 flex-shrink-0">
                                     <div className="flex items-center gap-3">
                                         <button
                                             onClick={() => handleToggleFlag(currentQuestion.id)}

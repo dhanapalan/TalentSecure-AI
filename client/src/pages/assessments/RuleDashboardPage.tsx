@@ -91,6 +91,17 @@ export default function RuleDashboardPage() {
         navigate(`/app/drives?from_rule=${ruleId}`);
     };
 
+    const handleArchive = async (id: string) => {
+        if (!confirm("Are you sure you want to archive this rule? It will no longer be available for new drives.")) return;
+        try {
+            await api.post(`/assessment-rules/${id}/archive`);
+            toast.success("Rule archived");
+            refetch();
+        } catch {
+            toast.error("Archive failed");
+        }
+    };
+
     // Stats
     const totalRules = rules.length;
     const activeRules = rules.filter((r: Rule) => r.status === "active_template").length;
@@ -260,6 +271,15 @@ export default function RuleDashboardPage() {
                                                     >
                                                         <RocketIcon className="h-4 w-4" />
                                                     </button>
+                                                    {rule.status !== "archived" && (
+                                                        <button
+                                                            onClick={() => handleArchive(rule.id)}
+                                                            className="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                                                            title="Archive"
+                                                        >
+                                                            <Archive className="h-4 w-4" />
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>

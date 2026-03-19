@@ -1,25 +1,51 @@
+import { useState } from "react";
 import { useAuthStore } from "../../stores/authStore";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import api from "../../lib/api";
 import {
   Calendar,
   Clock,
   CheckCircle2,
-  Check,
   ArrowRight,
   BookOpen,
   Trophy,
   User,
   ShieldCheck,
-  AlertCircle,
   Play,
   RotateCcw,
   Award,
+  Gamepad2,
+  X,
+  AlertTriangle,
+  FileText,
+  LayoutDashboard,
+  GraduationCap,
+  Zap,
+  TrendingUp,
+  Target,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useEffect, useRef } from "react";
+
+type PortalTab = "dashboard" | "exams";
 
 export default function StudentPortalPage() {
   const user = useAuthStore((s) => s.user);
+  const [instructionDrive, setInstructionDrive] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<PortalTab>("dashboard");
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const mockZoneRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (searchParams.get("tab") === "mock") {
+      setActiveTab("exams");
+      setTimeout(() => mockZoneRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    }
+    if (searchParams.get("tab") === "exams") {
+      setActiveTab("exams");
+    }
+  }, [searchParams]);
 
   // Queries
   const { data: profile, isLoading: loadingProfile } = useQuery({
@@ -30,7 +56,6 @@ export default function StudentPortalPage() {
     },
   });
 
-  // Fetch drives assigned to this student
   const { data: drives, isLoading: loadingDrives } = useQuery({
     queryKey: ["student-drives"],
     queryFn: async () => {
@@ -43,37 +68,37 @@ export default function StudentPortalPage() {
   if (loadingProfile) {
     return (
       <div className="flex h-96 items-center justify-center">
-        <div className="h-12 w-12 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent" />
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent" />
       </div>
     );
   }
 
-  // Determine view: if profile not complete, show onboarding
   const isProfileComplete = profile?.is_profile_complete;
 
   if (!isProfileComplete) {
     return (
       <div className="max-w-3xl mx-auto py-12 px-4 animate-in fade-in slide-in-from-bottom-8 duration-700">
-        <div className="bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-gray-100">
-          <div className="bg-gray-900 p-10 text-white text-center">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-2xl bg-indigo-500 flex items-center justify-center">
-                <ShieldCheck className="h-6 w-6" />
+        <div className="bg-white/70 backdrop-blur-xl rounded-[2rem] shadow-xl overflow-hidden border border-white/50">
+          <div className="bg-gradient-to-br from-indigo-900 via-indigo-950 to-slate-900 p-10 text-white text-center rounded-b-[2rem] relative overflow-hidden">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(100,100,250,0.1),transparent_50%)]" />
+            <div className="flex flex-col items-center gap-4 relative z-10">
+              <div className="h-16 w-16 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/10 shadow-inner">
+                <ShieldCheck className="h-8 w-8 text-indigo-300" />
               </div>
               <div>
-                <h1 className="text-3xl font-black tracking-tight">Complete Your Profile</h1>
-                <p className="text-gray-400 font-medium">
-                  Personal, contact, academic, and resume details are required before assessments.
+                <h1 className="text-3xl font-bold tracking-tight text-white mb-2">Almost There!</h1>
+                <p className="text-indigo-200/80 font-medium max-w-md mx-auto leading-relaxed">
+                  Before you can access your assessments, we need a few more details to complete your profile structure.
                 </p>
               </div>
             </div>
           </div>
-          <div className="p-10">
+          <div className="p-10 text-center">
             <Link
               to="/student-onboarding"
-              className="inline-flex w-full items-center justify-center rounded-2xl bg-indigo-600 py-4 text-sm font-black text-white shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-indigo-600/20 hover:bg-indigo-500 hover:shadow-indigo-500/30 hover:-translate-y-0.5 transition-all w-full max-w-sm"
             >
-              Go To Onboarding Form
+              Complete My Profile <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
         </div>
@@ -81,214 +106,502 @@ export default function StudentPortalPage() {
     );
   }
 
-  // Categorize drives
-  const activeDrives = (drives || []).filter((d: any) =>
-    (d.session_status === "assigned" || d.session_status === "registered" || d.session_status === "in_progress") &&
-    (d.drive_status && (d.drive_status.toUpperCase() === "PUBLISHED" || d.drive_status.toUpperCase() === "ACTIVE" || d.drive_status.toUpperCase() === "COMPLETED" || d.drive_status.toUpperCase() === "SCHEDULED"))
-  );
+  const now = new Date();
+  const activeDrives = (drives || []).filter((d: any) => {
+    const isStatusActive = (d.session_status === "assigned" || d.session_status === "registered" || d.session_status === "in_progress") &&
+      (d.drive_status && ["PUBLISHED", "ACTIVE", "COMPLETED", "SCHEDULED"].includes(d.drive_status.toUpperCase()));
+    const isNotExpired = !d.scheduled_end || new Date(d.scheduled_end) > now;
+    return isStatusActive && isNotExpired;
+  });
   const completedDrives = (drives || []).filter((d: any) => d.session_status === "completed");
 
+  const mockExams = [
+    { id: "mock-1", name: "General Aptitude Mock", duration: 30, questions: 20, difficulty: "Medium", description: "Test your logical reasoning & quantitative skills" },
+    { id: "mock-2", name: "Technical Foundation Practice", duration: 45, questions: 30, difficulty: "Hard", description: "Master core CS fundamentals & problem solving" },
+  ];
+
+  const avgScore = completedDrives.length > 0
+    ? Math.round(completedDrives.reduce((acc: number, d: any) => acc + (Number(d.score) || 0), 0) / completedDrives.length)
+    : 0;
+
+  const tabs: { id: PortalTab; label: string; icon: any }[] = [
+    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { id: "exams", label: "Exams", icon: GraduationCap },
+  ];
+
   return (
-    <div className="max-w-6xl mx-auto space-y-10 animate-in fade-in duration-700">
-      {/* ── Welcome Header ── */}
-      <div className="relative overflow-hidden rounded-[3rem] bg-gray-900 p-12 text-white shadow-2xl">
-        <div className="relative z-10">
-          <div className="inline-flex items-center gap-2 rounded-full bg-indigo-500/20 px-4 py-1.5 text-[10px] font-black uppercase tracking-widest text-indigo-400 border border-indigo-500/30 mb-6">
-            <Check className="h-3 w-3" />
-            PROFILE VERIFIED
+    <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-500 pb-20 px-2">
+      <InstructionsModal
+        driveId={instructionDrive}
+        onClose={() => setInstructionDrive(null)}
+        drives={drives}
+        navigate={navigate}
+      />
+
+      {/* ── Compact Welcome Bar ── */}
+      <div className="flex items-center justify-between bg-white rounded-2xl px-6 py-4 border border-slate-100 shadow-sm">
+        <div className="flex items-center gap-4">
+          <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
+            <span className="text-lg font-black">{user?.name?.[0]?.toUpperCase()}</span>
           </div>
-          <h1 className="text-5xl font-black tracking-tighter">
-            Hello, {user?.name.split(" ")[0]}!
-          </h1>
-          <p className="mt-4 text-gray-400 text-lg font-medium max-w-lg">
-            You have <span className="text-white font-bold">{activeDrives.length} active assessment{activeDrives.length !== 1 ? "s" : ""}</span> assigned to your profile.
-          </p>
+          <div>
+            <h1 className="text-lg font-black text-slate-900 tracking-tight leading-tight">
+              Welcome, <span className="text-indigo-600">{user?.name?.split(" ")[0]}</span>
+            </h1>
+            <p className="text-xs text-slate-400 font-medium mt-0.5">
+              {activeDrives.length > 0
+                ? <>{activeDrives.length} active exam{activeDrives.length !== 1 ? "s" : ""} · {completedDrives.length} completed</>
+                : <>No active exams · {completedDrives.length} completed</>
+              }
+            </p>
+          </div>
         </div>
-        <Trophy className="absolute -bottom-10 -right-10 h-64 w-64 text-white/5 rotate-12" />
+        <Link
+          to="/app/student-portal/profile"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-50 hover:bg-indigo-50 text-sm font-bold text-slate-600 hover:text-indigo-600 border border-slate-100 hover:border-indigo-100 transition-all group"
+        >
+          <User className="h-4 w-4" />
+          Profile
+          <ArrowRight className="h-3 w-3 opacity-0 -ml-1 group-hover:opacity-100 group-hover:ml-0 transition-all" />
+        </Link>
       </div>
 
-      {/* ── Dashboard Content ── */}
-      <div className="grid grid-cols-1 gap-10 lg:grid-cols-3">
+      {/* ── Tab Switcher ── */}
+      <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl w-fit">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === tab.id
+                ? "bg-white text-slate-900 shadow-sm"
+                : "text-slate-400 hover:text-slate-600"
+              }`}
+          >
+            <tab.icon className={`h-4 w-4 ${activeTab === tab.id ? "text-indigo-500" : ""}`} />
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-        {/* ── Active & Upcoming Assessments (Main) ── */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="flex items-center justify-between px-2">
-            <h2 className="text-2xl font-black text-gray-900 tracking-tight">Active Assessments</h2>
-            <span className="text-sm font-bold text-gray-400 uppercase tracking-widest">
-              {activeDrives.length} Pending
-            </span>
+      {/* ── Tab Content ── */}
+      {activeTab === "dashboard" && (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {/* Stats Row */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { label: "Active Exams", value: activeDrives.length, icon: Zap, color: "indigo", bg: "bg-indigo-50", border: "border-indigo-100" },
+              { label: "Completed", value: completedDrives.length, icon: CheckCircle2, color: "emerald", bg: "bg-emerald-50", border: "border-emerald-100" },
+              { label: "Avg Score", value: avgScore || "—", icon: TrendingUp, color: "amber", bg: "bg-amber-50", border: "border-amber-100" },
+              { label: "Mock Tests", value: mockExams.length, icon: Target, color: "violet", bg: "bg-violet-50", border: "border-violet-100" },
+            ].map((stat) => (
+              <div key={stat.label} className={`${stat.bg} ${stat.border} border rounded-2xl p-5 group hover:shadow-md transition-all`}>
+                <div className="flex items-center justify-between mb-3">
+                  <stat.icon className={`h-5 w-5 text-${stat.color}-500`} />
+                </div>
+                <p className="text-2xl font-black text-slate-900 leading-none">{stat.value}</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">{stat.label}</p>
+              </div>
+            ))}
           </div>
 
-          <div className="grid grid-cols-1 gap-6">
-            {loadingDrives ? (
-              Array.from({ length: 2 }).map((_, i) => (
-                <div key={i} className="h-40 animate-pulse rounded-[2.5rem] bg-gray-100" />
-              ))
-            ) : activeDrives.length > 0 ? (
-              activeDrives.map((drive: any) => (
-                <div key={drive.drive_id} className="group relative overflow-hidden rounded-[2.5rem] bg-white border border-gray-100 p-8 shadow-sm hover:shadow-2xl hover:shadow-indigo-100 transition-all hover:-translate-y-1">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-5">
-                      <div className="h-14 w-14 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-lg transition-transform group-hover:scale-110">
-                        <BookOpen className="h-7 w-7" />
-                      </div>
-                      <div>
-                        <h3 className="text-xl font-black text-gray-900">{drive.drive_name}</h3>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">{drive.rule_name}</span>
+          {/* Two Column: Upcoming + Academic Info */}
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+            {/* Upcoming Exams Quick View */}
+            <div className="lg:col-span-3 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-50 flex items-center justify-between">
+                <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Upcoming Exams</h3>
+                {activeDrives.length > 0 && (
+                  <button onClick={() => setActiveTab("exams")} className="text-xs font-bold text-indigo-500 hover:text-indigo-700 transition-colors flex items-center gap-1">
+                    View All <ArrowRight className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+              <div className="divide-y divide-slate-50">
+                {loadingDrives ? (
+                  <div className="p-6"><div className="h-16 animate-pulse bg-slate-50 rounded-xl" /></div>
+                ) : activeDrives.length > 0 ? (
+                  activeDrives.slice(0, 3).map((drive: any) => (
+                    <div key={drive.drive_id} className="flex items-center justify-between px-6 py-4 hover:bg-slate-50/50 transition-colors group">
+                      <div className="flex items-center gap-4">
+                        <div className="h-10 w-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-500 border border-indigo-100 group-hover:bg-indigo-500 group-hover:text-white transition-all">
+                          <BookOpen className="h-4 w-4" />
                         </div>
+                        <div>
+                          <p className="text-sm font-bold text-slate-900 leading-tight">{drive.drive_name}</p>
+                          <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                            {drive.duration_minutes}min · {drive.total_questions} questions
+                            {drive.scheduled_start && <> · {new Date(drive.scheduled_start).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</>}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {drive.session_status === "in_progress" && (
+                          <span className="text-[9px] font-black text-amber-600 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-full uppercase tracking-wider">In Progress</span>
+                        )}
+                        <button
+                          onClick={() => setInstructionDrive(drive.drive_id)}
+                          className="p-2 rounded-xl bg-indigo-50 text-indigo-500 hover:bg-indigo-500 hover:text-white transition-all"
+                        >
+                          <Play className="h-3.5 w-3.5" />
+                        </button>
                       </div>
                     </div>
-                    <div className="text-right">
-                      {drive.session_status === "in_progress" ? (
-                        <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-[10px] font-black text-amber-600 uppercase tracking-widest">
-                          <div className="h-2 w-2 rounded-full bg-amber-600 animate-pulse" />
-                          IN PROGRESS
-                        </div>
-                      ) : (
-                        <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-black text-emerald-600 uppercase tracking-widest">
-                          <div className="h-2 w-2 rounded-full bg-emerald-600" />
-                          {drive.session_status === "registered" ? "REGISTERED" : "ASSIGNED"}
-                        </div>
-                      )}
+                  ))
+                ) : (
+                  <div className="p-10 text-center">
+                    <CheckCircle2 className="h-8 w-8 text-slate-200 mx-auto mb-3" />
+                    <p className="text-sm font-bold text-slate-400">No upcoming exams</p>
+                    <p className="text-xs text-slate-300 mt-1">You're all caught up!</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Academic Info + Performance */}
+            <div className="lg:col-span-2 space-y-5">
+              {/* Performance */}
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider mb-4">Performance</h4>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between bg-slate-50 rounded-xl p-3 border border-slate-100">
+                    <span className="text-xs font-medium text-slate-500">Exams Taken</span>
+                    <span className="text-lg font-black text-slate-900">{completedDrives.length}</span>
+                  </div>
+                  {completedDrives.length > 0 && (
+                    <div className="flex items-center justify-between bg-indigo-50 rounded-xl p-3 border border-indigo-100">
+                      <div className="flex items-center gap-2">
+                        <Trophy className="h-3.5 w-3.5 text-indigo-500" />
+                        <span className="text-xs font-medium text-indigo-800">Avg. Score</span>
+                      </div>
+                      <span className="text-lg font-black text-indigo-700">{avgScore}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Academic */}
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider mb-4">Academic Info</h4>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Affiliation</p>
+                    <div className="flex items-center gap-2">
+                      <BookOpen className="h-3.5 w-3.5 text-slate-400" />
+                      <p className="text-sm font-semibold text-slate-800">{profile?.college_name || "N/A"}</p>
                     </div>
                   </div>
+                  <div className="pt-3 border-t border-slate-100">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Course</p>
+                    <p className="text-sm font-semibold text-slate-800">{profile?.specialization || "Undecided"}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{profile?.degree || "No Degree Set"}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-                  <div className="mt-8 flex items-center justify-between pt-8 border-t border-gray-50">
-                    <div className="flex items-center gap-6">
-                      {drive.scheduled_start && (
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-gray-400" />
-                          <span className="text-sm font-bold text-gray-700">{new Date(drive.scheduled_start).toLocaleDateString()}</span>
+      {activeTab === "exams" && (
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+
+          {/* ── Live Exams Section ── */}
+          <div>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-500 border border-indigo-100">
+                <Zap className="h-4 w-4" />
+              </div>
+              <h2 className="text-lg font-black text-slate-900 tracking-tight">Live Exams</h2>
+              {activeDrives.length > 0 && (
+                <span className="flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-indigo-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500" />
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 gap-4">
+              {loadingDrives ? (
+                Array.from({ length: 2 }).map((_, i) => (
+                  <div key={i} className="h-32 animate-pulse rounded-2xl bg-slate-50 border border-slate-100" />
+                ))
+              ) : activeDrives.length > 0 ? (
+                activeDrives.map((drive: any) => (
+                  <div key={drive.drive_id} className="group bg-white rounded-2xl border border-slate-100 p-5 shadow-sm hover:shadow-lg hover:border-indigo-100 transition-all duration-300">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-4 flex-1 min-w-0">
+                        <div className="h-12 w-12 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-500 border border-indigo-100 shrink-0 group-hover:bg-indigo-500 group-hover:text-white transition-all">
+                          <BookOpen className="h-5 w-5" />
                         </div>
+                        <div className="min-w-0">
+                          <h3 className="text-base font-bold text-slate-900 leading-tight truncate">{drive.drive_name}</h3>
+                          <p className="text-[11px] font-semibold text-slate-400 mt-1 uppercase tracking-wider">{drive.rule_name || "Assessment"}</p>
+                        </div>
+                      </div>
+                      {drive.session_status === "in_progress" ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold text-amber-600 border border-amber-100 uppercase tracking-wider shrink-0">
+                          <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                          In Progress
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-600 border border-emerald-100 uppercase tracking-wider shrink-0">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                          {drive.session_status === "registered" ? "Registered" : "Assigned"}
+                        </span>
                       )}
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-gray-400" />
-                        <span className="text-sm font-bold text-gray-700">{drive.duration_minutes} Mins</span>
+                    </div>
+
+                    <div className="mt-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-4 border-t border-slate-50">
+                      <div className="flex flex-wrap items-center gap-5">
+                        {drive.scheduled_start && (
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-3.5 w-3.5 text-slate-300" />
+                            <span className="text-[11px] font-bold text-slate-500">
+                              {new Date(drive.scheduled_start).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} {new Date(drive.scheduled_start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              {drive.scheduled_end && <> <span className="text-slate-300">→</span> {new Date(drive.scheduled_end).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} {new Date(drive.scheduled_end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</>}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-3.5 w-3.5 text-slate-300" />
+                          <span className="text-[11px] font-bold text-slate-500">{drive.duration_minutes} min</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-3.5 w-3.5 text-slate-300" />
+                          <span className="text-[11px] font-bold text-slate-500">{drive.total_questions} questions</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <BookOpen className="h-4 w-4 text-gray-400" />
-                        <span className="text-sm font-bold text-gray-700">{drive.total_questions} Qs</span>
-                      </div>
+                      <button
+                        onClick={() => setInstructionDrive(drive.drive_id)}
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-black hover:bg-indigo-700 shadow-lg shadow-indigo-600/15 transition-all active:scale-95 shrink-0"
+                      >
+                        {drive.session_status === "in_progress" ? <><RotateCcw className="h-3.5 w-3.5" /> Resume</> : <><Play className="h-3.5 w-3.5" /> Start Exam</>}
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="flex flex-col items-center justify-center py-14 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                  <CheckCircle2 className="h-10 w-10 text-slate-200 mb-3" />
+                  <p className="text-base font-bold text-slate-400">No active exams</p>
+                  <p className="text-xs text-slate-300 mt-1">Check back later or practice below.</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── Mock Exams Section ── */}
+          <div ref={mockZoneRef}>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="h-8 w-8 rounded-lg bg-violet-50 flex items-center justify-center text-violet-500 border border-violet-100">
+                <Gamepad2 className="h-4 w-4" />
+              </div>
+              <h2 className="text-lg font-black text-slate-900 tracking-tight">Mock Exams</h2>
+              <span className="text-[10px] font-black text-violet-500 bg-violet-50 border border-violet-100 px-2 py-0.5 rounded-full uppercase tracking-widest">Practice</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {mockExams.map((mock) => (
+                <div key={mock.id} className="group bg-white rounded-2xl border border-slate-100 p-5 shadow-sm hover:shadow-lg hover:border-violet-100 transition-all duration-300">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="h-10 w-10 rounded-xl bg-violet-50 flex items-center justify-center text-violet-500 border border-violet-100 group-hover:bg-violet-500 group-hover:text-white transition-all">
+                      <Gamepad2 className="h-4 w-4" />
+                    </div>
+                    <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-lg ${mock.difficulty === "Hard" ? "bg-red-50 text-red-500 border border-red-100" : "bg-emerald-50 text-emerald-500 border border-emerald-100"
+                      }`}>
+                      {mock.difficulty}
+                    </span>
+                  </div>
+                  <h4 className="text-sm font-black text-slate-900 mb-1">{mock.name}</h4>
+                  <p className="text-xs text-slate-400 font-medium mb-5 leading-relaxed">{mock.description}</p>
+                  <div className="flex items-center justify-between pt-4 border-t border-slate-50">
+                    <div className="flex items-center gap-4 text-[11px] font-bold text-slate-400">
+                      <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {mock.duration}m</span>
+                      <span className="flex items-center gap-1"><FileText className="h-3 w-3" /> {mock.questions} Qs</span>
                     </div>
                     <Link
-                      to={`/app/student-portal/exam/${drive.drive_id}/instructions`}
-                      className="flex items-center gap-2 rounded-2xl bg-gray-900 px-8 py-3.5 text-sm font-black text-white hover:bg-black transition-all group/btn"
+                      to={`/app/student-portal/mock/${mock.id}`}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-black hover:bg-violet-600 transition-all active:scale-95"
                     >
-                      {drive.session_status === "in_progress" ? (
-                        <>
-                          <RotateCcw className="h-4 w-4" />
-                          RESUME
-                        </>
-                      ) : (
-                        <>
-                          <Play className="h-4 w-4" />
-                          START EXAM
-                        </>
-                      )}
-                      <ArrowRight className="h-4 w-4 transition-transform group-hover/btn:translate-x-1" />
+                      <Play className="h-3 w-3" /> Start
                     </Link>
                   </div>
                 </div>
-              ))
-            ) : (
-              <div className="flex flex-col items-center justify-center py-20 bg-gray-50 rounded-[3rem] border-2 border-dashed border-gray-200">
-                <AlertCircle className="h-12 w-12 text-gray-300 mb-4" />
-                <p className="text-gray-500 font-bold">No assessments assigned yet.</p>
-                <p className="text-sm text-gray-400 mt-1">Contact your college coordinator for more info.</p>
-              </div>
-            )}
+              ))}
+            </div>
           </div>
 
-          {/* Completed Assessments */}
+          {/* ── Past Results Section ── */}
           {completedDrives.length > 0 && (
-            <div className="mt-10">
-              <h2 className="text-xl font-black text-gray-900 tracking-tight mb-4 px-2">Completed Assessments</h2>
-              <div className="space-y-4">
-                {completedDrives.map((drive: any) => (
-                  <div key={drive.drive_id} className="flex items-center justify-between p-6 bg-white rounded-2xl border border-gray-100 shadow-sm">
-                    <div className="flex items-center gap-4">
-                      <div className="h-10 w-10 rounded-xl bg-emerald-100 flex items-center justify-center">
-                        <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                      </div>
-                      <div>
-                        <h4 className="font-black text-gray-900">{drive.drive_name}</h4>
-                        <p className="text-xs text-gray-400 font-bold">
-                          Completed {drive.completed_at ? new Date(drive.completed_at).toLocaleDateString() : ""}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <p className="text-lg font-black text-indigo-600">{drive.score ?? "—"}</p>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">/ {drive.total_marks}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+            <div>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="h-8 w-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-500 border border-emerald-100">
+                  <CheckCircle2 className="h-4 w-4" />
+                </div>
+                <h2 className="text-lg font-black text-slate-900 tracking-tight">Past Results</h2>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-100">
+                        <th className="px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Exam Name</th>
+                        <th className="px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Date</th>
+                        <th className="px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Score</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {completedDrives.map((drive: any) => (
+                        <tr key={drive.drive_id} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="px-5 py-3.5">
+                            <p className="text-sm font-bold text-slate-900">{drive.drive_name}</p>
+                          </td>
+                          <td className="px-5 py-3.5 text-center">
+                            <span className="text-xs font-medium text-slate-500">
+                              {drive.completed_at ? new Date(drive.completed_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : "Recently"}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3.5 text-right">
+                            <span className="text-base font-black text-indigo-600">{drive.score ?? "—"}</span>
+                            <span className="text-xs text-slate-400 ml-0.5">/ {drive.total_marks || "100"}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
         </div>
+      )}
+    </div>
+  );
+}
 
-        {/* ── Sidebar (Profile & Prep) ── */}
-        <div className="space-y-8">
-          {/* ── Profile Status ── */}
-          <div className="rounded-[2.5rem] bg-white border border-gray-100 p-8 shadow-sm">
-            <div className="flex items-center gap-4 mb-6">
-              <div className="h-14 w-14 rounded-full bg-gray-100 border-4 border-white shadow-inner flex items-center justify-center">
-                <User className="h-7 w-7 text-gray-400" />
-              </div>
-              <div>
-                <h4 className="font-black text-gray-900">Your Credentials</h4>
-                <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Candidate ID: {user?.id.slice(0, 8)}</p>
-              </div>
+function InstructionsModal({
+  driveId,
+  onClose,
+  drives,
+  navigate,
+}: {
+  driveId: string | null;
+  onClose: () => void;
+  drives: any[];
+  navigate: any;
+}) {
+  const session = drives?.find((d) => d.drive_id === driveId);
+
+  const startMutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post(`/exam-sessions/${driveId}/start`);
+      return data.data;
+    },
+    onSuccess: () => {
+      navigate(`/app/student-portal/exam/${driveId}/play`);
+    },
+  });
+
+  if (!driveId || !session) return null;
+
+  const isResume = session.session_status === "in_progress";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
+      <div className="relative bg-white rounded-[2.5rem] shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col border border-white/20 animate-in zoom-in-95 duration-300">
+        <button
+          onClick={onClose}
+          className="absolute top-6 right-6 p-2 rounded-2xl bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-900 transition-all z-10"
+        >
+          <X className="h-5 w-5" />
+        </button>
+
+        {/* Header */}
+        <div className="p-8 pb-4 border-b border-slate-50 relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none">
+            <FileText className="h-40 w-40" />
+          </div>
+          <div className="flex items-center gap-5 relative z-10">
+            <div className="h-16 w-16 rounded-3xl bg-indigo-600 flex items-center justify-center text-white shadow-xl shadow-indigo-600/20">
+              <FileText className="h-8 w-8" />
             </div>
-            <div className="space-y-4">
-              <div className="p-4 rounded-2xl bg-gray-50 border border-gray-50">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Affiliation</p>
-                <p className="text-sm font-black text-gray-900 mt-1">{profile?.college_name || "N/A"}</p>
-              </div>
-              <div className="p-4 rounded-2xl bg-gray-50 border border-gray-50">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Course Focus</p>
-                <p className="text-sm font-black text-gray-900 mt-1">
-                  {profile?.specialization || "N/A"} ({profile?.degree || "N/A"})
-                </p>
-              </div>
+            <div>
+              <h2 className="text-2xl font-black text-slate-900">{session.drive_name}</h2>
+              <p className="text-sm font-bold text-slate-500 uppercase tracking-widest mt-1.5">{session.rule_name || "Assessment"}</p>
             </div>
           </div>
 
-          {/* ── Performance Stats ── */}
-          <div className="rounded-[2.5rem] bg-indigo-600 p-8 text-white shadow-xl shadow-indigo-100 overflow-hidden relative">
-            <h4 className="text-lg font-black tracking-tight mb-6">Performance Index</h4>
-            <div className="space-y-6">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-bold text-indigo-100">Exams Taken</span>
-                  <span className="text-lg font-black">{completedDrives.length}</span>
-                </div>
+          <div className="grid grid-cols-3 gap-4 mt-8">
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100/50">
+              <div className="flex items-center gap-2 text-indigo-500 mb-1">
+                <Clock className="h-3.5 w-3.5" />
+                <span className="text-[10px] font-black uppercase tracking-widest mt-0.5">Time</span>
               </div>
-              {completedDrives.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-bold text-indigo-100">Average Score</span>
-                    <span className="text-lg font-black">
-                      {Math.round(
-                        completedDrives.reduce((acc: number, d: any) => acc + (Number(d.score) || 0), 0) / completedDrives.length
-                      )}
-                    </span>
-                  </div>
-                </div>
-              )}
-              <div className="flex items-center gap-2 text-xs font-bold text-indigo-100">
-                <Award className="h-4 w-4" />
-                {completedDrives.length > 0 ? "Keep performing well!" : "Complete your first exam"}
-              </div>
+              <p className="text-xl font-black text-slate-900">{session.duration_minutes}m</p>
             </div>
-            <ShieldCheck className="absolute -bottom-8 -right-8 h-32 w-32 text-white/5" />
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100/50">
+              <div className="flex items-center gap-2 text-emerald-500 mb-1">
+                <FileText className="h-3.5 w-3.5" />
+                <span className="text-[10px] font-black uppercase tracking-widest mt-0.5">Tasks</span>
+              </div>
+              <p className="text-xl font-black text-slate-900">{session.total_questions}</p>
+            </div>
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100/50">
+              <div className="flex items-center gap-2 text-amber-500 mb-1">
+                <Award className="h-3.5 w-3.5" />
+                <span className="text-[10px] font-black uppercase tracking-widest mt-0.5">Marks</span>
+              </div>
+              <p className="text-xl font-black text-slate-900">{session.total_marks}</p>
+            </div>
           </div>
         </div>
 
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-8 pt-6 space-y-4">
+          <h3 className="text-lg font-black text-slate-900 mb-4">Exam Guidelines</h3>
+          <div className="space-y-3">
+            {[
+              "Timed assessment (starts immediately).",
+              "Proctoring enabled. Avoid tab switching.",
+              "Auto-save is active every 5 seconds.",
+              "Resume available if your session disconnects.",
+            ].map((text, i) => (
+              <div key={i} className="flex items-start gap-4 p-4 bg-slate-50/50 rounded-2xl border border-slate-100 font-medium text-slate-700 text-sm">
+                <div className="h-5 w-5 rounded-full bg-white shadow-sm flex items-center justify-center text-[10px] font-black text-indigo-500 shrink-0 mt-0.5 border border-slate-100">
+                  {i + 1}
+                </div>
+                {text}
+              </div>
+            ))}
+          </div>
+
+          <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex items-start gap-3 mt-4">
+            <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+            <p className="text-xs font-bold text-amber-800 leading-relaxed">
+              Ensure a stable internet connection and quiet environment. Once started, you must complete it according to the rules.
+            </p>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="p-8 pt-4 border-t border-slate-50">
+          <button
+            onClick={() => startMutation.mutate()}
+            disabled={startMutation.isPending}
+            className="w-full h-14 flex items-center justify-center gap-3 rounded-2xl bg-indigo-600 text-white font-black hover:bg-indigo-700 shadow-xl shadow-indigo-600/20 transition-all disabled:opacity-70 group"
+          >
+            {startMutation.isPending ? (
+              <div className="h-5 w-5 animate-spin rounded-full border-3 border-white border-t-transparent" />
+            ) : (
+              <>
+                {isResume ? <RotateCcw className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+                {isResume ? "Resume My Session" : "I Understand & Start Exam"}
+                <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );

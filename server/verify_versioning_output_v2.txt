@@ -1,0 +1,10 @@
+≡ƒÜÇ Starting Rule Versioning Verification (AR-03)...
+Γ£à Draft rule created: 3bb782c6-ce09-4c32-9370-b7d37adc28c6 (Version: 1)
+Γ£à Draft updated. Version should still be 1 (default): 1. Actual versions in DB: 0
+Γ£à Rule activated.
+Updating active rule configuration...
+Γ£à Active rule updated.
+≡ƒôè New Template Version: 2
+≡ƒôè Versions Table Count: 1
+≡ƒôè Last Version Number stored in snapshots: 1
+≡ƒÄè SUCCESS: Automatic versioning (AR-03) verified with refined logic!

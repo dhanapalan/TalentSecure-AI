@@ -134,7 +134,7 @@ export const getById = async (
 
 /**
  * PUT /api/students/:id
- * Update student / profile (HR/Admin)
+ * Update student / profile (HR/Admin/Student)
  */
 export const update = async (
   req: Request,
@@ -143,6 +143,12 @@ export const update = async (
 ) => {
   try {
     const { id } = req.params;
+
+    // A student can only update their own profile
+    if (req.user?.role === "student" && req.user.userId !== id) {
+      return res.status(403).json({ success: false, error: "Not authorized to update this profile" });
+    }
+
     const result = await studentService.updateStudent(id as string, req.body);
     res.json({ success: true, data: result });
   } catch (err) {

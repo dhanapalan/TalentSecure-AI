@@ -1,36 +1,298 @@
-import { Edit2 } from "lucide-react";
+import { useState, useRef } from "react";
+import { useAuthStore } from "../../stores/authStore";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import api from "../../lib/api";
+import toast from "react-hot-toast";
+import { ArrowLeft, Edit2, Upload, User, Save, Lock, FileText, CheckCircle2, ShieldCheck, Mail, Phone, BookOpen, GraduationCap, Building2, Calendar } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 export default function StudentProfile() {
+  const user = useAuthStore((s) => s.user);
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  const [isEditing, setIsEditing] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [formData, setFormData] = useState<any>({});
+
+  const { data: profile, isLoading } = useQuery({
+    queryKey: ["student-profile"],
+    queryFn: async () => {
+      const { data } = await api.get("/auth/me");
+      const profileData = data?.data || {};
+      setFormData(profileData);
+      return profileData;
+    },
+  });
+
+  const updateProfileMutation = useMutation({
+    mutationFn: async (updatedData: any) => {
+      if (!user?.id) throw new Error("No user ID");
+      const { data } = await api.put(`/students/${user.id}`, updatedData);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["student-profile"] });
+      toast.success("Profile updated successfully");
+      setIsEditing(false);
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.message || "Failed to update profile");
+      setFormData(profile || {});
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex h-96 items-center justify-center">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent" />
+      </div>
+    );
+  }
+
+  const handleSave = () => {
+    // Pick only editable fields
+    const {
+      phone,
+      department,
+      resume_url,
+      avatar_url,
+      degree,
+      specialization,
+      passing_year
+    } = formData;
+
+    updateProfileMutation.mutate({ phone, department, resume_url, avatar_url, degree, specialization, passing_year });
+  };
+
+  const handleDocumentUpload = () => {
+    // In a real app we would open a file picker and upload to S3/Cloud
+    // For this mockup, we'll just simulate selecting a file
+    toast.success("File selected (Mockup)");
+  };
+
   return (
-    <div className="max-w-2xl space-y-5">
-      <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-gray-900 text-base" style={{ fontWeight: 700 }}>My Profile</h3>
-          <button className="flex items-center gap-1.5 border border-gray-200 text-gray-600 px-3 py-1.5 rounded-lg text-sm hover:bg-gray-50">
-            <Edit2 className="w-3.5 h-3.5" /> Edit
-          </button>
-        </div>
-        <div className="flex items-center gap-4 mb-6">
-          <div className="w-16 h-16 bg-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center text-2xl" style={{ fontWeight: 800 }}>AS</div>
-          <div>
-            <h2 className="text-gray-900 text-lg" style={{ fontWeight: 700 }}>Arjun Sharma</h2>
-            <p className="text-gray-400 text-sm">CS21001 · IIT Delhi</p>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          {[
-            { label: "Degree", value: "B.Tech CSE" },
-            { label: "Batch", value: "2025" },
-            { label: "CGPA", value: "8.7" },
-            { label: "Email", value: "arjun.s@iitd.ac.in" },
-          ].map(f => (
-            <div key={f.label} className="bg-gray-50 rounded-xl p-4">
-              <p className="text-gray-500 text-xs">{f.label}</p>
-              <p className="text-gray-800 text-sm mt-0.5" style={{ fontWeight: 500 }}>{f.value}</p>
-            </div>
-          ))}
+    <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 pb-12">
+
+      {/* ── Navigation & Header ── */}
+      <div className="flex items-center justify-between">
+        <button
+          onClick={() => navigate("/app/student-portal")}
+          className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-indigo-600 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" /> Back to Dashboard
+        </button>
+
+        <div className="flex gap-3">
+          {isEditing ? (
+            <>
+              <button
+                onClick={() => {
+                  setIsEditing(false);
+                  setFormData(profile || {});
+                }}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={updateProfileMutation.isPending}
+                className="flex items-center gap-2 px-5 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 shadow-md shadow-indigo-600/20 transition-all disabled:opacity-50"
+              >
+                {updateProfileMutation.isPending ? "Saving..." : <><Save className="w-4 h-4" /> Save Changes</>}
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setIsEditing(true)}
+              className="flex items-center gap-2 px-5 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 text-sm font-semibold hover:border-indigo-300 hover:text-indigo-600 transition-all shadow-sm"
+            >
+              <Edit2 className="w-4 h-4" /> Edit Profile
+            </button>
+          )}
         </div>
       </div>
+
+      {/* ── Main Layout ── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+
+        {/* ── Left Column: Identity & Photo ── */}
+        <div className="md:col-span-1 space-y-6">
+
+          <div className="bg-white rounded-[2rem] border border-slate-200 overflow-hidden shadow-sm relative">
+            <div className="h-24 bg-gradient-to-r from-indigo-500 to-indigo-700 absolute top-0 left-0 w-full" />
+
+            <div className="p-8 pt-12 relative z-10 flex flex-col items-center text-center">
+              <div className="h-28 w-28 rounded-full bg-white p-1.5 shadow-xl mb-4 relative group">
+                <div className="h-full w-full rounded-full bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200">
+                  {formData.avatar_url ? (
+                    <img src={formData.avatar_url} alt="Profile" className="h-full w-full object-cover" />
+                  ) : (
+                    <User className="h-10 w-10 text-slate-400" />
+                  )}
+                </div>
+                {isEditing && (
+                  <button onClick={() => fileInputRef.current?.click()} className="absolute bottom-0 right-0 h-8 w-8 bg-indigo-600 text-white rounded-full flex items-center justify-center border-2 border-white shadow-md hover:bg-indigo-700 transition-colors">
+                    <Upload className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    toast.success("Photo uploaded (mockup)");
+                  }
+                }} />
+              </div>
+
+              <h2 className="text-xl font-bold text-slate-900 group flex items-center gap-1.5 justify-center">
+                {profile?.name || user?.name}
+                <ShieldCheck className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+              </h2>
+              <p className="text-sm font-medium text-slate-500 mt-1">{profile?.college_name || "N/A"}</p>
+
+              <div className="w-full mt-6 pt-6 border-t border-slate-100 flex flex-col gap-3">
+                <div className="flex items-center gap-2.5 text-sm text-slate-600 text-left bg-slate-50 p-3 rounded-xl border border-slate-100">
+                  <Lock className="w-4 h-4 text-slate-400 shrink-0" />
+                  <div className="flex-1 overflow-hidden">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-none mb-1">Candidate ID</p>
+                    <p className="font-semibold text-slate-900 truncate">{user?.id}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Resume Section */}
+          <div className="bg-white rounded-[1.5rem] p-6 border border-slate-200 shadow-sm transition-all hover:border-indigo-100">
+            <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
+              <FileText className="w-4 h-4 text-indigo-500" /> Professional
+            </h3>
+
+            <div className="border border-dashed border-slate-300 rounded-xl p-5 text-center bg-slate-50/50">
+              <div className="h-10 w-10 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-3 text-indigo-600">
+                <FileText className="w-5 h-5" />
+              </div>
+              <p className="text-sm font-medium text-slate-700">Resume / CV</p>
+              <p className="text-xs text-slate-400 mt-1 mb-4">PDF, DOCX up to 5MB</p>
+
+              {isEditing ? (
+                <button onClick={handleDocumentUpload} className="w-full text-sm font-semibold text-indigo-600 bg-white border border-indigo-100 rounded-lg py-2 hover:bg-indigo-50 transition-colors shadow-sm">
+                  Upload Resume
+                </button>
+              ) : (
+                <button disabled className="w-full text-sm font-semibold text-slate-400 bg-slate-100 border border-slate-200 rounded-lg py-2 flex items-center justify-center gap-1.5">
+                  {formData.resume_url ? <><CheckCircle2 className="w-4 h-4 text-emerald-500" /> Uploaded</> : "No file found"}
+                </button>
+              )}
+            </div>
+          </div>
+
+        </div>
+
+        {/* ── Right Column: Form Data ── */}
+        <div className="md:col-span-2 space-y-6">
+
+          <div className="bg-white rounded-[2rem] p-8 border border-slate-200 shadow-sm relative overflow-hidden">
+
+            <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2 pb-5 border-b border-slate-100">
+              <User className="w-5 h-5 text-indigo-500" /> Basic Details
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="space-y-1.5 opacity-70">
+                <label className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">Full Name <Lock className="w-3 h-3 text-slate-400" /></label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    disabled
+                    value={profile?.name || user?.name || ""}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-900 cursor-not-allowed pl-10"
+                  />
+                  <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                </div>
+              </div>
+              <div className="space-y-1.5 opacity-70">
+                <label className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">Email Address <Lock className="w-3 h-3 text-slate-400" /></label>
+                <div className="relative">
+                  <input
+                    type="email"
+                    disabled
+                    value={profile?.email || user?.email || ""}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-900 cursor-not-allowed pl-10"
+                  />
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-700">Phone Number</label>
+                <div className="relative">
+                  <input
+                    type="tel"
+                    disabled={!isEditing}
+                    value={formData.phone || ""}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    className={`w-full border rounded-xl px-4 py-2.5 text-sm font-medium text-slate-900 pl-10 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors ${!isEditing ? "bg-slate-50/50 border-slate-200" : "bg-white border-slate-300"}`}
+                    placeholder="+91 "
+                  />
+                  <Phone className={`w-4 h-4 absolute left-3.5 top-3 ${isEditing ? 'text-indigo-400' : 'text-slate-400'}`} />
+                </div>
+              </div>
+            </div>
+
+            <h3 className="text-lg font-bold text-slate-900 mb-6 mt-10 flex items-center gap-2 pb-5 border-b border-slate-100">
+              <BookOpen className="w-5 h-5 text-indigo-500" /> Academic Information
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-700">Degree</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    disabled={!isEditing}
+                    value={formData.degree || ""}
+                    onChange={(e) => setFormData({ ...formData, degree: e.target.value })}
+                    className={`w-full border rounded-xl px-4 py-2.5 text-sm font-medium text-slate-900 pl-10 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors ${!isEditing ? "bg-slate-50/50 border-slate-200" : "bg-white border-slate-300"}`}
+                    placeholder="e.g. B.Tech"
+                  />
+                  <GraduationCap className={`w-4 h-4 absolute left-3.5 top-3 ${isEditing ? 'text-indigo-400' : 'text-slate-400'}`} />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-700">Specialization / Department</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    disabled={!isEditing}
+                    value={formData.specialization || formData.department || ""}
+                    onChange={(e) => setFormData({ ...formData, specialization: e.target.value, department: e.target.value })}
+                    className={`w-full border rounded-xl px-4 py-2.5 text-sm font-medium text-slate-900 pl-10 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors ${!isEditing ? "bg-slate-50/50 border-slate-200" : "bg-white border-slate-300"}`}
+                    placeholder="e.g. Computer Science"
+                  />
+                  <Building2 className={`w-4 h-4 absolute left-3.5 top-3 ${isEditing ? 'text-indigo-400' : 'text-slate-400'}`} />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-700">Passing Year</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    disabled={!isEditing}
+                    value={formData.passing_year || ""}
+                    onChange={(e) => setFormData({ ...formData, passing_year: parseInt(e.target.value) })}
+                    className={`w-full border rounded-xl px-4 py-2.5 text-sm font-medium text-slate-900 pl-10 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors ${!isEditing ? "bg-slate-50/50 border-slate-200" : "bg-white border-slate-300"}`}
+                    placeholder="e.g. 2024"
+                  />
+                  <Calendar className={`w-4 h-4 absolute left-3.5 top-3 ${isEditing ? 'text-indigo-400' : 'text-slate-400'}`} />
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+
     </div>
   );
 }

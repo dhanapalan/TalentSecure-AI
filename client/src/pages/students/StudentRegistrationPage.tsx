@@ -180,7 +180,7 @@ export default function StudentRegistrationPage() {
         <div>
           <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Student Registration</h1>
           <p className="mt-1.5 text-gray-500">
-            Join Nallas Campus Connect and secure your future with AI-verified assessments.
+            Join GradLogic and secure your future with AI-verified assessments.
           </p>
         </div>
         <Link to="/auth/login" className="text-sm font-semibold text-indigo-600 hover:text-indigo-500">

@@ -30,7 +30,7 @@ export default function AuthLayout() {
             <div className="relative z-10">
               <div className="flex items-center gap-2">
                 <Logo size={40} />
-                <span className="text-xl font-bold tracking-tight">Nallas <span className="text-indigo-400">Connect</span></span>
+                <span className="text-xl font-bold tracking-tight">Grad<span className="text-indigo-400">Logic</span></span>
               </div>
 
               <div className="mt-8">
@@ -63,7 +63,7 @@ export default function AuthLayout() {
 
             <div className="relative z-10 mt-6 pt-6 border-t border-white/10">
               <p className="text-xs text-white/50">
-                © 2026 Nallas Technologies. All rights reserved.
+                © 2026 GradLogic Technologies. All rights reserved.
               </p>
             </div>
           </section>
@@ -74,7 +74,7 @@ export default function AuthLayout() {
               <div className="mb-6 lg:hidden text-center">
                 <div className="flex items-center justify-center gap-2">
                   <Logo size={32} />
-                  <span className="text-lg font-bold tracking-tight">Nallas <span className="text-indigo-500">Connect</span></span>
+                  <span className="text-lg font-bold tracking-tight">Grad<span className="text-indigo-500">Logic</span></span>
                 </div>
               </div>
               <Outlet />

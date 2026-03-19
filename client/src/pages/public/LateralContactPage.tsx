@@ -52,7 +52,7 @@ export default function LateralContactPage() {
                         Submit your profile
                     </h1>
                     <p className="mx-auto mt-4 max-w-xl text-lg text-slate-500">
-                        Share your resume, skills, and experience — and get discovered by top companies hiring on Nallas Connect.
+                        Share your resume, skills, and experience — and get discovered by top companies hiring on GradLogic.
                     </p>
                 </div>
             </section>

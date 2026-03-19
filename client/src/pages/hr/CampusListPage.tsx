@@ -45,7 +45,7 @@ interface Campus {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function CampusListPage() {
-    const navigate = useNavigate();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive" | "suspended">("all");

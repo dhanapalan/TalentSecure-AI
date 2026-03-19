@@ -17,7 +17,7 @@ export default function CampusContactPage() {
       <section className="bg-gradient-to-br from-slate-900 to-indigo-900 py-20 px-6 text-center text-white">
         <h1 className="text-4xl font-black">Partner With Us</h1>
         <p className="mt-4 max-w-xl mx-auto text-indigo-200">
-          Join 500+ campuses using Nallas Connect to streamline their placement drives.
+          Join 500+ campuses using GradLogic to streamline their placement drives.
         </p>
       </section>
 

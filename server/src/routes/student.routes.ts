@@ -166,12 +166,12 @@ router.get(
 
 /**
  * PUT /api/students/:id
- * Update student / profile (HR/Admin)
+ * Update student / profile (HR/Admin/Student)
  */
 router.put(
   "/:id",
   authenticate,
-  authorize("super_admin", "admin", "hr"),
+  authorize("super_admin", "admin", "hr", "student"),
   studentController.update
 );
 

@@ -50,6 +50,7 @@ export default function OverviewTab({ drive, snapshot }: { drive: any; snapshot:
         proctoring_mode: "standard",
         tab_switch_limit: "3",
         face_detection_required: false,
+        max_applicants: "500",
     });
 
     // Populate form from drive data when editing starts
@@ -65,6 +66,7 @@ export default function OverviewTab({ drive, snapshot }: { drive: any; snapshot:
                 proctoring_mode: drive.proctoring_mode ?? snapshot.proctoring_mode ?? "standard",
                 tab_switch_limit: String(drive.tab_switch_limit ?? snapshot.proctoring_config?.max_tab_switches ?? 3),
                 face_detection_required: drive.face_detection_required ?? snapshot.proctoring_config?.face_detection_mandatory ?? false,
+                max_applicants: String(drive.max_applicants ?? 500),
             });
         }
     }, [editing]);
@@ -82,6 +84,7 @@ export default function OverviewTab({ drive, snapshot }: { drive: any; snapshot:
                 proctoring_mode: config.proctoring_mode,
                 tab_switch_limit: parseInt(config.tab_switch_limit) || 3,
                 face_detection_required: config.face_detection_required,
+                max_applicants: config.max_applicants ? parseInt(config.max_applicants) : 500,
             });
             toast.success("Execution config saved");
             setEditing(false);
@@ -157,7 +160,7 @@ export default function OverviewTab({ drive, snapshot }: { drive: any; snapshot:
                 {[
                     { label: "Duration", value: `${drive.duration_minutes ?? snapshot.duration_minutes ?? "—"} min`, icon: Clock },
                     { label: "Total Questions", value: snapshot.total_questions || "—", icon: FileText },
-                    { label: "Total Students", value: drive.total_students, icon: Users },
+                    { label: "Registered / Max", value: `${drive.total_students} / ${drive.max_applicants || 500}`, icon: Users },
                 ].map((s) => (
                     <div key={s.label} className="bg-slate-50 rounded-xl p-5 border border-slate-100">
                         <div className="flex items-center gap-3">
@@ -196,6 +199,11 @@ export default function OverviewTab({ drive, snapshot }: { drive: any; snapshot:
                             <label className="block">
                                 <span className="text-xs font-bold text-slate-500">Max Attempts</span>
                                 <input type="number" min={1} max={10} value={config.attempt_limit} onChange={e => setConfig(c => ({ ...c, attempt_limit: e.target.value }))}
+                                    className="mt-1 w-full px-3 py-2.5 bg-white border border-indigo-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+                            </label>
+                            <label className="block">
+                                <span className="text-xs font-bold text-slate-500">Max Applicants</span>
+                                <input type="number" min={1} value={config.max_applicants} onChange={e => setConfig(c => ({ ...c, max_applicants: e.target.value }))}
                                     className="mt-1 w-full px-3 py-2.5 bg-white border border-indigo-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200" />
                             </label>
                         </div>
@@ -245,6 +253,7 @@ export default function OverviewTab({ drive, snapshot }: { drive: any; snapshot:
                             <Row label="End" value={fmt(drive.scheduled_end)} />
                             <Row label="Duration" value={drive.duration_minutes ? `${drive.duration_minutes} min` : (snapshot.duration_minutes ? `${snapshot.duration_minutes} min (from rule)` : "—")} />
                             <Row label="Max Attempts" value={String(drive.attempt_limit ?? 1)} />
+                            <Row label="Max Applicants" value={String(drive.max_applicants || 500)} />
                             <Row label="Auto Publish" value={drive.auto_publish ? "Yes" : "No"} />
                         </div>
                     </div>

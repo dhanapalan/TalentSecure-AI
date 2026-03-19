@@ -28,6 +28,7 @@ export interface DriveRow {
     proctoring_mode: string;
     tab_switch_limit: number;
     face_detection_required: boolean;
+    max_applicants: number;
     rule_snapshot: any;
     created_by: string | null;
     created_at: Date;
@@ -49,6 +50,7 @@ export interface CreateDriveInput {
     proctoring_config?: any;
     tab_switch_limit?: number;
     face_detection_required?: boolean;
+    max_applicants?: number;
     created_by?: string;
     status?: string;
     auto_generate_pool?: boolean;
@@ -137,8 +139,8 @@ export async function createDrive(input: CreateDriveInput) {
        (name, rule_id, rule_version_id, rule_snapshot, scheduled_start, scheduled_end,
         auto_publish, allow_mock, attempt_limit, duration_minutes,
         shuffle_questions, auto_submit, proctoring_mode, tab_switch_limit, face_detection_required,
-        created_by, status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+        max_applicants, created_by, status)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
      RETURNING *`,
         [
             input.name,
@@ -156,6 +158,7 @@ export async function createDrive(input: CreateDriveInput) {
             input.proctoring_mode || snapshotData.proctoring_mode || 'standard',
             input.tab_switch_limit ?? (snapshotData.proctoring_config?.max_tab_switches ?? 3),
             input.face_detection_required ?? (snapshotData.proctoring_config?.face_detection_mandatory ?? false),
+            input.max_applicants || 500,
             input.created_by || null,
             input.status || 'DRAFT'
         ],
@@ -179,7 +182,7 @@ export async function updateDrive(id: string, input: Partial<CreateDriveInput> &
     const CONFIG_FIELDS = [
         "scheduled_start", "scheduled_end", "duration_minutes", "attempt_limit",
         "shuffle_questions", "auto_submit", "proctoring_mode", "tab_switch_limit",
-        "face_detection_required",
+        "face_detection_required", "max_applicants",
     ];
     const hasConfigChange = CONFIG_FIELDS.some((f) => (input as any)[f] !== undefined);
 
@@ -200,7 +203,7 @@ export async function updateDrive(id: string, input: Partial<CreateDriveInput> &
         "name", "scheduled_start", "scheduled_end", "auto_publish",
         "allow_mock", "attempt_limit", "status", "duration_minutes",
         "shuffle_questions", "auto_submit", "proctoring_mode",
-        "tab_switch_limit", "face_detection_required",
+        "tab_switch_limit", "face_detection_required", "max_applicants",
     ];
 
     for (const f of allowed) {
@@ -261,13 +264,18 @@ export async function generateDrive(driveId: string) {
         );
     }
 
-    // 2. Create an empty drive-scoped pool
+    // 2. Create or reuse a drive-scoped pool
     const pool = await queryOne<{ id: string }>(
         `INSERT INTO drive_question_pool (drive_id, total_generated, generation_status, status)
-     VALUES ($1, $2, 'ready', 'pending')
-     RETURNING id`,
+         VALUES ($1, $2, 'ready', 'pending')
+         ON CONFLICT (drive_id) DO UPDATE 
+         SET generation_status = 'ready', status = 'pending', total_generated = 0
+         RETURNING id`,
         [driveId, 0],
     );
+
+    // 2.5 Clear any existing questions in this pool
+    await query(`DELETE FROM drive_pool_questions WHERE pool_id = $1`, [pool!.id]);
 
     // 3. Update drive with pool and status
     await query(
@@ -367,6 +375,7 @@ export async function generateDrive(driveId: string) {
                             const questionText = q.question_text;
                             const difficulty = q.difficulty === 'easy' ? 'Easy' : q.difficulty === 'medium' ? 'Medium' : 'Hard';
                             const marks = q.difficulty === 'easy' ? 5 : q.difficulty === 'medium' ? 10 : 15;
+
 
                             let options: any = null;
                             let correctAnswer: string | null = null;
@@ -960,9 +969,31 @@ export async function addDriveAssignment(driveId: string, collegeId?: string, se
     // Enforce state check: only allow in DRAFT or POOL_APPROVED
     const drive = await queryOne('SELECT status FROM assessment_drives WHERE id = $1', [driveId]);
     if (!drive) throw new AppError('Drive not found', 404);
-    if (!['DRAFT', 'POOL_APPROVED', 'APPROVED'].includes(drive.status?.toUpperCase())) {
-        throw new AppError('Assignment configuration is only allowed in DRAFT or POOL_APPROVED state', 403);
+    if (!['DRAFT', 'GENERATING_POOL', 'POOL_APPROVED', 'APPROVED'].includes(drive.status?.toUpperCase())) {
+        throw new AppError('Assignment configuration is only allowed in DRAFT, GENERATING_POOL, POOL_APPROVED, or APPROVED state', 403);
     }
+
+    // Calculate potential students to be added
+    let countToAdd = 0;
+    if (collegeId) {
+        const countQuery = `
+            SELECT COUNT(u.id) as count
+            FROM users u
+            JOIN student_details sd ON u.id = sd.user_id
+            WHERE COALESCE(u.college_id, sd.college_id) = $1 
+              AND u.role = 'student'
+              AND NOT EXISTS (
+                  SELECT 1 FROM drive_students ds WHERE ds.drive_id = $2 AND ds.student_id = u.id
+              )
+              ${segment ? 'AND sd.specialization ILIKE $3' : ''}
+        `;
+        const countParams = segment ? [collegeId, driveId, `%${segment}%`] : [collegeId, driveId];
+        const { count } = await queryOne<{ count: string | number }>(countQuery, countParams) || { count: 0 };
+        countToAdd = Number(count);
+    }
+
+    // Validate (DR-03, DR-04)
+    await validateRegistrationEligibility(driveId, countToAdd);
 
     const assignment = await queryOne(
         `INSERT INTO drive_assignments(drive_id, college_id, segment)
@@ -973,10 +1004,32 @@ export async function addDriveAssignment(driveId: string, collegeId?: string, se
 
     if (collegeId) {
         let sql = `
-            INSERT INTO drive_students (drive_id, student_id, status)
-            SELECT $1, u.id, 'registered'
+            INSERT INTO drive_students (drive_id, student_id, status, eligibility_status)
+            SELECT $1, u.id, 'registered',
+                   CASE 
+                     WHEN (t.cfg->>'min_cgpa' IS NOT NULL AND (t.cfg->>'min_cgpa')::float > 0 AND (sd.cgpa IS NULL OR sd.cgpa = 0))
+                       OR (t.cfg->>'min_percentage' IS NOT NULL AND (t.cfg->>'min_percentage')::float > 0 AND (sd.percentage IS NULL OR sd.percentage = 0))
+                       THEN 'missing'
+                     WHEN (
+                         (t.cfg->>'min_cgpa' IS NULL OR (t.cfg->>'min_cgpa')::float = 0 OR sd.cgpa >= (t.cfg->>'min_cgpa')::float)
+                         AND 
+                         (t.cfg->>'min_percentage' IS NULL OR (t.cfg->>'min_percentage')::float = 0 OR sd.percentage >= (t.cfg->>'min_percentage')::float)
+                       ) THEN 'eligible'
+                     WHEN (
+                         (t.cfg->>'min_cgpa' IS NOT NULL AND (t.cfg->>'min_cgpa')::float > 0 AND sd.cgpa >= (t.cfg->>'min_cgpa')::float)
+                         OR 
+                         (t.cfg->>'min_percentage' IS NOT NULL AND (t.cfg->>'min_percentage')::float > 0 AND sd.percentage >= (t.cfg->>'min_percentage')::float)
+                       ) THEN 'partial'
+                     ELSE 'ineligible'
+                   END
             FROM users u
             JOIN student_details sd ON u.id = sd.user_id
+            CROSS JOIN (
+                SELECT snapshot->'targeting_config' as cfg
+                FROM assessment_rule_versions arv
+                JOIN assessment_drives d ON d.rule_version_id = arv.id
+                WHERE d.id = $1
+            ) t
             WHERE COALESCE(u.college_id, sd.college_id) = $2 
               AND u.role = 'student'
               AND NOT EXISTS (
@@ -1038,15 +1091,20 @@ export async function addDriveStudent(driveId: string, studentId: string) {
     // Enforce state check: only allow in DRAFT or POOL_APPROVED
     const drive = await queryOne('SELECT status FROM assessment_drives WHERE id = $1', [driveId]);
     if (!drive) throw new AppError('Drive not found', 404);
-    if (!['DRAFT', 'POOL_APPROVED', 'APPROVED'].includes(drive.status?.toUpperCase())) {
-        throw new AppError('Student mapping is only allowed in DRAFT or POOL_APPROVED state', 403);
+    if (!['DRAFT', 'GENERATING_POOL', 'POOL_APPROVED', 'APPROVED'].includes(drive.status?.toUpperCase())) {
+        throw new AppError('Student mapping is only allowed in DRAFT, GENERATING_POOL, POOL_APPROVED, or APPROVED state', 403);
     }
+
+    // Validate (DR-03, DR-04, EL-01/02)
+    await validateRegistrationEligibility(driveId, 1);
+    const eligibilityStatus = await validateStudentEligibility(driveId, studentId);
+
     const result = await queryOne(
-        `INSERT INTO drive_students(drive_id, student_id, status)
-         VALUES($1, $2, 'INVITED')
-         ON CONFLICT(drive_id, student_id) DO NOTHING
+        `INSERT INTO drive_students(drive_id, student_id, status, eligibility_status)
+         VALUES($1, $2, 'INVITED', $3)
+         ON CONFLICT(drive_id, student_id) DO UPDATE SET eligibility_status = EXCLUDED.eligibility_status
          RETURNING *`,
-        [driveId, studentId],
+        [driveId, studentId, eligibilityStatus],
     );
     if (result) await syncDriveStudentCount(driveId);
     return result;
@@ -1056,8 +1114,41 @@ export async function addDriveStudent(driveId: string, studentId: string) {
 
 export async function addStudentsByCampus(driveId: string, collegeId: string, segment?: string) {
     let sql = `
-        INSERT INTO drive_students (drive_id, student_id, status)
-        SELECT $1, u.id, 'INVITED'
+        INSERT INTO drive_students (drive_id, student_id, status, eligibility_status)
+        SELECT $1, u.id, 'INVITED',
+               CASE 
+                 WHEN (t.cfg->>'min_cgpa' IS NOT NULL AND (t.cfg->>'min_cgpa')::float > 0 AND (sd.cgpa IS NULL OR sd.cgpa = 0))
+                   OR (t.cfg->>'min_percentage' IS NOT NULL AND (t.cfg->>'min_percentage')::float > 0 AND (sd.percentage IS NULL OR sd.percentage = 0))
+                   THEN 'missing'
+                 WHEN (
+                     (t.cfg->>'min_cgpa' IS NULL OR (t.cfg->>'min_cgpa')::float = 0 OR sd.cgpa >= (t.cfg->>'min_cgpa')::float)
+                     AND 
+                     (t.cfg->>'min_percentage' IS NULL OR (t.cfg->>'min_percentage')::float = 0 OR sd.percentage >= (t.cfg->>'min_percentage')::float)
+                   ) THEN 'eligible'
+                 WHEN (
+                     (t.cfg->>'min_cgpa' IS NOT NULL AND (t.cfg->>'min_cgpa')::float > 0 AND sd.cgpa >= (t.cfg->>'min_cgpa')::float)
+                     OR 
+                     (t.cfg->>'min_percentage' IS NOT NULL AND (t.cfg->>'min_percentage')::float > 0 AND sd.percentage >= (t.cfg->>'min_percentage')::float)
+                   ) THEN 'partial'
+                 ELSE 'ineligible'
+               END
+        FROM users u
+        JOIN student_details sd ON u.id = sd.user_id
+        CROSS JOIN (
+            SELECT snapshot->'targeting_config' as cfg
+            FROM assessment_rule_versions arv
+            JOIN assessment_drives d ON d.rule_version_id = arv.id
+            WHERE d.id = $1
+        ) t
+        WHERE COALESCE(u.college_id, sd.college_id) = $2
+          AND u.role = 'student'
+          AND u.is_active = TRUE
+          AND NOT EXISTS (
+              SELECT 1 FROM drive_students ds WHERE ds.drive_id = $1 AND ds.student_id = u.id
+          )
+    `;
+    let countSql = `
+        SELECT COUNT(u.id) as count
         FROM users u
         JOIN student_details sd ON u.id = sd.user_id
         WHERE COALESCE(u.college_id, sd.college_id) = $2
@@ -1071,8 +1162,13 @@ export async function addStudentsByCampus(driveId: string, collegeId: string, se
 
     if (segment) {
         sql += ` AND sd.specialization ILIKE $3`;
+        countSql += ` AND sd.specialization ILIKE $3`;
         params.push(`%${segment}%`);
     }
+
+    // Validate (DR-03, DR-04)
+    const { count } = await queryOne<{ count: string | number }>(countSql, params) || { count: 0 };
+    await validateRegistrationEligibility(driveId, Number(count));
 
     const result = await query(sql, params);
     await syncDriveStudentCount(driveId);
@@ -1089,8 +1185,8 @@ export async function addStudentsByCSV(driveId: string, rows: Array<{ email?: st
     // Enforce state check: only allow in DRAFT or POOL_APPROVED (once per batch)
     const drive = await queryOne('SELECT status FROM assessment_drives WHERE id = $1', [driveId]);
     if (!drive) throw new AppError('Drive not found', 404);
-    if (!['DRAFT', 'POOL_APPROVED', 'APPROVED'].includes(drive.status?.toUpperCase())) {
-        throw new AppError('Student mapping is only allowed in DRAFT or POOL_APPROVED state', 403);
+    if (!['DRAFT', 'GENERATING_POOL', 'POOL_APPROVED', 'APPROVED'].includes(drive.status?.toUpperCase())) {
+        throw new AppError('Student mapping is only allowed in DRAFT, GENERATING_POOL, POOL_APPROVED, or APPROVED state', 403);
     }
 
     for (let i = 0; i < rows.length; i++) {
@@ -1145,6 +1241,97 @@ export async function removeDriveStudent(driveId: string, studentId: string) {
     await query(`DELETE FROM drive_students WHERE drive_id = $1 AND student_id = $2`, [driveId, studentId]);
     await syncDriveStudentCount(driveId);
     return true;
+}
+
+// ── Validation Helpers ───────────────────────────────────────────────────────
+
+/**
+ * Validates if the registration/assignment is within the scheduled window 
+ * and doesn't exceed the max applicants limit.
+ */
+async function validateRegistrationEligibility(driveId: string, studentsToAddCount: number = 1) {
+    const drive = await queryOne<DriveRow>(
+        `SELECT scheduled_start, scheduled_end, max_applicants, total_students, status 
+         FROM assessment_drives WHERE id = $1`,
+        [driveId]
+    );
+
+    if (!drive) throw new AppError('Drive not found', 404);
+
+    // 1. Check Registration Window (DR-03)
+    const now = new Date();
+    if (drive.scheduled_start && now < drive.scheduled_start) {
+        throw new AppError(`Registration hasn't started yet. Scheduled to start at ${drive.scheduled_start.toLocaleString()}`, 403);
+    }
+    if (drive.scheduled_end && now > drive.scheduled_end) {
+        throw new AppError(`Registration window closed at ${drive.scheduled_end.toLocaleString()}`, 403);
+    }
+
+    // 2. Check Max Applicant Capacity (DR-04)
+    const currentCount = drive.total_students || 0;
+    const limit = drive.max_applicants || 500; // default to 500 if null
+
+    if (currentCount + studentsToAddCount > limit) {
+        throw new AppError(
+            `Drive capacity reached. Limit: ${limit}, Current: ${currentCount}, Trying to add: ${studentsToAddCount}`,
+            409
+        );
+    }
+
+    return drive;
+}
+
+/**
+ * Validates if a specific student meets the drive's targeting criteria (CGPA, etc.)
+ * Returns: 'eligible', 'partial', 'missing', or 'ineligible'
+ */
+async function validateStudentEligibility(driveId: string, studentId: string): Promise<string> {
+    const drive = await queryOne<{ targeting_config: any }>(
+        `SELECT arv.snapshot->'targeting_config' as targeting_config
+         FROM assessment_drives d
+         JOIN assessment_rule_versions arv ON arv.id = d.rule_version_id
+         WHERE d.id = $1`,
+        [driveId]
+    );
+
+    // If config is missing or no criteria defined, skip
+    const cfg = drive?.targeting_config;
+    if (!cfg) return 'eligible';
+
+    const student = await queryOne<{ cgpa: number; percentage: number }>(
+        `SELECT cgpa, percentage 
+         FROM student_details WHERE user_id = $1`,
+        [studentId]
+    );
+    if (!student) return 'eligible';
+
+    const minCgpa = Number(cfg.min_cgpa) || 0;
+    const minPct = Number(cfg.min_percentage) || 0;
+
+    let isMissing = false;
+    let isFailing = false;
+    let isPassing = false;
+    let totalCriteria = 0;
+
+    if (minCgpa > 0) {
+        totalCriteria++;
+        if (student.cgpa === null || student.cgpa === 0) isMissing = true;
+        else if (student.cgpa < minCgpa) isFailing = true;
+        else isPassing = true;
+    }
+
+    if (minPct > 0) {
+        totalCriteria++;
+        if (student.percentage === null || student.percentage === 0) isMissing = true;
+        else if (student.percentage < minPct) isFailing = true;
+        else isPassing = true;
+    }
+
+    if (totalCriteria === 0) return 'eligible';
+    if (isMissing) return 'missing';
+    if (isPassing && !isFailing) return 'eligible';
+    if (isPassing && isFailing) return 'partial';
+    return 'ineligible';
 }
 
 // ── Sync total_students count on assessment_drives ───────────────────────────

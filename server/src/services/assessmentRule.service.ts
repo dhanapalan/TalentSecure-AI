@@ -114,6 +114,26 @@ export async function createRule(input: CreateRuleInput) {
 // ── Update Rule ──────────────────────────────────────────────────────────────
 
 export async function updateRule(id: string, input: Partial<CreateRuleInput>) {
+    const current = await getRuleById(id);
+    if (!current) throw new Error("Assessment rule not found");
+
+    // AR-03: If modifying an 'active' rule, create a snapshot of the current state first
+    if (current.status === 'active') {
+        const configFields: (keyof CreateRuleInput)[] = [
+            "name", "description", "target_role", "duration_minutes", "total_questions",
+            "total_marks", "negative_marking_enabled", "negative_marking_value",
+            "sectional_cutoff", "overall_cutoff", "skill_distribution", "difficulty_distribution",
+            "proctoring_mode", "proctoring_config", "pool_generation_config", "targeting_config"
+        ];
+
+        const hasConfigChange = configFields.some(f => input[f] !== undefined);
+
+        // Only version if configuration changes (not just status change to archived)
+        if (hasConfigChange) {
+            await createVersion(id, "Automatic version created before modification of active rule", current.created_by || undefined);
+        }
+    }
+
     // Build dynamic SET clause
     const fields: string[] = [];
     const params: any[] = [];
@@ -183,18 +203,24 @@ export async function cloneRule(id: string, createdBy?: string) {
     });
 }
 
+// ── Archive Rule ─────────────────────────────────────────────────────────────
+
+export async function archiveRule(id: string) {
+    return queryOne<RuleRow>(
+        `UPDATE assessment_rule_templates SET status = 'archived', updated_at = NOW() WHERE id = $1 RETURNING *`,
+        [id],
+    );
+}
+
 // ── Versioning ───────────────────────────────────────────────────────────────
 
 export async function createVersion(ruleId: string, changeNotes?: string, createdBy?: string) {
     const rule = await getRuleById(ruleId);
     if (!rule) return null;
 
-    // Get the next version number
-    const last = await queryOne<{ max_version: number }>(
-        `SELECT COALESCE(MAX(version_number), 0) as max_version FROM assessment_rule_versions WHERE rule_id = $1`,
-        [ruleId],
-    );
-    const nextVersion = (last?.max_version || 0) + 1;
+    // Use current rule version for the snapshot
+    const snapshotVersion = rule.version || 1;
+    const nextVersion = snapshotVersion + 1;
 
     // Create snapshot
     const snapshot = { ...rule };
@@ -203,10 +229,10 @@ export async function createVersion(ruleId: string, changeNotes?: string, create
         `INSERT INTO assessment_rule_versions (rule_id, version_number, snapshot, change_notes, created_by)
      VALUES ($1, $2, $3, $4, $5)
      RETURNING *`,
-        [ruleId, nextVersion, JSON.stringify(snapshot), changeNotes || null, createdBy || null],
+        [ruleId, snapshotVersion, JSON.stringify(snapshot), changeNotes || null, createdBy || null],
     );
 
-    // Update the rule's version counter
+    // Update the rule's version counter for the template
     await query(`UPDATE assessment_rule_templates SET version = $1, updated_at = NOW() WHERE id = $2`, [nextVersion, ruleId]);
 
     return version;

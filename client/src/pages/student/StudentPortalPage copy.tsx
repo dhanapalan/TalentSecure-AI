@@ -38,7 +38,7 @@ export default function StudentPortalPage() {
         <h1 className="text-xl font-bold">Welcome back, {user?.name?.split(" ")[0] ?? "Student"} 👋</h1>
         <p className="text-emerald-200 text-sm mt-0.5">
           {user?.department ? `${user.department} · ` : ""}
-          Nallas Connect Student Portal
+          GradLogic Student Portal
         </p>
         <div className="flex items-center gap-6 mt-4">
           {[

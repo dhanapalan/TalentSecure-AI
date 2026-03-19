@@ -57,7 +57,10 @@ const limiter = rateLimit({
   legacyHeaders: false,
   message: { error: "Too many requests, please try again later." },
 });
-app.use("/api/", limiter);
+// Allow test environments to explicitly opt out while keeping rate limiting on by default.
+if (!env.DISABLE_RATE_LIMIT) {
+  app.use("/api/", limiter);
+}
 
 // ── Body Parsing ─────────────────────────────────────────────────────────────
 app.use(express.json({ limit: "10mb" }));
@@ -72,7 +75,7 @@ if (env.NODE_ENV !== "test") {
 app.get("/api/health", (_req, res) => {
   res.json({
     status: "healthy",
-    service: "Nallas Campus Connect API",
+    service: "GradLogic API",
     timestamp: new Date().toISOString(),
     version: "1.0.0",
   });

@@ -42,6 +42,13 @@ router.post(
     ctrl.clone,
 );
 
+// POST /api/assessment-rules/:id/archive
+router.post(
+    "/:id/archive",
+    authorize("super_admin", "hr", "engineer"),
+    ctrl.archive,
+);
+
 // GET  /api/assessment-rules/:id/versions
 router.get(
     "/:id/versions",

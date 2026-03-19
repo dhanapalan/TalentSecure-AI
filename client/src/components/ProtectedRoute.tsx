@@ -15,7 +15,7 @@ export type AppRole =
   | "college_staff"
   | "student";
 
-export type AppWorkflow = "admin" | "college" | "neutral";
+export type AppWorkflow = "admin" | "college" | "student" | "neutral";
 
 // Legacy roles map to their canonical equivalents
 const ROLE_ALIASES: Record<string, AppRole> = {
@@ -41,29 +41,32 @@ const COLLEGE_WORKFLOW_ROLES: AppRole[] = [
   "college_admin",
   "college",
   "college_staff",
-  "student",
 ];
+
+const STUDENT_WORKFLOW_ROLES: AppRole[] = ["student"];
 
 function getCurrentWorkflow(hostname: string): AppWorkflow {
   const host = hostname.toLowerCase();
   if (host === "admin" || host.startsWith("admin.")) return "admin";
   if (host === "college" || host.startsWith("college.")) return "college";
+  if (host === "student" || host.startsWith("student.")) return "student";
   return "neutral";
 }
 
 function getWorkflowForRole(role: AppRole): AppWorkflow {
   if (ADMIN_WORKFLOW_ROLES.includes(role)) return "admin";
   if (COLLEGE_WORKFLOW_ROLES.includes(role)) return "college";
+  if (STUDENT_WORKFLOW_ROLES.includes(role)) return "student";
   return "neutral";
 }
 
-function inferWorkflowOrigin(targetWorkflow: "admin" | "college"): string | null {
+function inferWorkflowOrigin(targetWorkflow: "admin" | "college" | "student"): string | null {
   const current = new URL(window.location.origin);
   const host = current.hostname.toLowerCase();
   const protocol = current.protocol;
   const port = current.port ? `:${current.port}` : "";
 
-  if (host.startsWith("admin.") || host.startsWith("college.")) {
+  if (host.startsWith("admin.") || host.startsWith("college.") || host.startsWith("student.")) {
     const rest = host.split(".").slice(1).join(".");
     if (rest) {
       return `${protocol}//${targetWorkflow}.${rest}${port}`;
@@ -73,11 +76,13 @@ function inferWorkflowOrigin(targetWorkflow: "admin" | "college"): string | null
   return null;
 }
 
-function getConfiguredWorkflowOrigin(workflow: "admin" | "college"): string | null {
+function getConfiguredWorkflowOrigin(workflow: "admin" | "college" | "student"): string | null {
   const key =
     workflow === "admin"
       ? import.meta.env.VITE_ADMIN_APP_URL
-      : import.meta.env.VITE_COLLEGE_APP_URL;
+      : workflow === "college"
+        ? import.meta.env.VITE_COLLEGE_APP_URL
+        : import.meta.env.VITE_STUDENT_APP_URL;
   const value = (typeof key === "string" ? key.trim() : "") || "";
   return value || null;
 }

@@ -3,8 +3,9 @@ import { env } from "./env.js";
 
 const { combine, timestamp, printf, colorize, errors } = winston.format;
 
-const logFormat = printf(({ level, message, timestamp, stack }) => {
-  return `${timestamp} [${level}]: ${stack || message}`;
+const logFormat = printf(({ level, message, timestamp, stack, ...meta }) => {
+  const metaStr = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : "";
+  return `${timestamp} [${level}]: ${stack || message}${metaStr}`;
 });
 
 export const logger = winston.createLogger({

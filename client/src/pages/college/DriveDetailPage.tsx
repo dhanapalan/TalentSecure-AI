@@ -152,7 +152,7 @@ function OverviewTab({ drive }: { drive: any }) {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {[
                     { label: "Registered Students", value: drive.total_students, icon: Users, color: "blue" },
-                    { label: "Active Window", value: drive.scheduled_start ? `${new Date(drive.scheduled_start).toLocaleDateString()}` : "Not Set", icon: Clock, color: "amber" },
+                    { label: "Active Window", value: drive.scheduled_start ? `${new Date(drive.scheduled_start).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${new Date(drive.scheduled_start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} → ${drive.scheduled_end ? new Date(drive.scheduled_end).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + new Date(drive.scheduled_end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Unlimited"}` : "Not Set", icon: Clock, color: "amber" },
                     { label: "Participation", value: "85%", icon: Target, color: "emerald" }, // Dummy percentage for now
                 ].map((stat) => (
                     <div key={stat.label} className="bg-slate-50/50 border border-slate-100 rounded-2xl p-6">

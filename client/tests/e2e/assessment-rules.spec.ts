@@ -1,27 +1,13 @@
 import { test, expect } from '@playwright/test';
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
-const injectAuth = async (page: any) => {
-    await page.goto('/');
-    await page.evaluate(() => {
-        localStorage.setItem('accessToken', 'mock-token');
-        localStorage.setItem('user', JSON.stringify({
-            id: 'mock-user-id',
-            email: 'admin@talentsecure.ai',
-            role: 'super_admin',
-            name: 'Super Admin',
-        }));
-    });
-};
+import { injectAdminAuth } from './helpers/auth';
 
 // ════════════════════════════════════════════════════════════════════════════════
 // 1. RULE DASHBOARD — Layout & Structure
 // ════════════════════════════════════════════════════════════════════════════════
 
 test.describe('Assessment Rules Dashboard — Layout & Structure', () => {
-    test.beforeEach(async ({ page }) => {
-        await injectAuth(page);
+    test.beforeEach(async ({ page, request }) => {
+        await injectAdminAuth(page, request);
         await page.goto('/app/assessment-rules');
         await page.waitForLoadState('networkidle');
     });
@@ -87,8 +73,8 @@ test.describe('Assessment Rules Dashboard — Layout & Structure', () => {
 // ════════════════════════════════════════════════════════════════════════════════
 
 test.describe('Assessment Rules Dashboard — Filtering & Search', () => {
-    test.beforeEach(async ({ page }) => {
-        await injectAuth(page);
+    test.beforeEach(async ({ page, request }) => {
+        await injectAdminAuth(page, request);
         await page.goto('/app/assessment-rules');
         await page.waitForLoadState('networkidle');
     });
@@ -104,7 +90,7 @@ test.describe('Assessment Rules Dashboard — Filtering & Search', () => {
         const searchInput = page.getByPlaceholder('Search rules...');
         await searchInput.fill('nonexistent');
         await searchInput.fill('');
-        await expect(page.getByText('Assessment Rules')).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Assessment Rules' })).toBeVisible();
     });
 
     test('should filter by status — draft', async ({ page }) => {
@@ -136,7 +122,7 @@ test.describe('Assessment Rules Dashboard — Filtering & Search', () => {
     test('should combine search + status filter without crashing', async ({ page }) => {
         await page.getByRole('button', { name: 'draft' }).click();
         await page.getByPlaceholder('Search rules...').fill('test');
-        await expect(page.getByText('Assessment Rules')).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Assessment Rules' })).toBeVisible();
     });
 });
 
@@ -145,8 +131,8 @@ test.describe('Assessment Rules Dashboard — Filtering & Search', () => {
 // ════════════════════════════════════════════════════════════════════════════════
 
 test.describe('Assessment Rules Dashboard — Navigation', () => {
-    test.beforeEach(async ({ page }) => {
-        await injectAuth(page);
+    test.beforeEach(async ({ page, request }) => {
+        await injectAdminAuth(page, request);
         await page.goto('/app/assessment-rules');
         await page.waitForLoadState('networkidle');
     });
@@ -178,8 +164,8 @@ test.describe('Assessment Rules Dashboard — Navigation', () => {
 // ════════════════════════════════════════════════════════════════════════════════
 
 test.describe('Rule Wizard — Structure & Step Navigation', () => {
-    test.beforeEach(async ({ page }) => {
-        await injectAuth(page);
+    test.beforeEach(async ({ page, request }) => {
+        await injectAdminAuth(page, request);
         await page.goto('/app/assessment-rules/new');
         await page.waitForLoadState('networkidle');
     });
@@ -247,8 +233,8 @@ test.describe('Rule Wizard — Structure & Step Navigation', () => {
 // ════════════════════════════════════════════════════════════════════════════════
 
 test.describe('Rule Wizard — Step 1: Basic Configuration', () => {
-    test.beforeEach(async ({ page }) => {
-        await injectAuth(page);
+    test.beforeEach(async ({ page, request }) => {
+        await injectAdminAuth(page, request);
         await page.goto('/app/assessment-rules/new');
         await page.waitForLoadState('networkidle');
     });
@@ -310,15 +296,15 @@ test.describe('Rule Wizard — Step 1: Basic Configuration', () => {
 // ════════════════════════════════════════════════════════════════════════════════
 
 test.describe('Rule Wizard — Step 2: Skill Distribution', () => {
-    test.beforeEach(async ({ page }) => {
-        await injectAuth(page);
+    test.beforeEach(async ({ page, request }) => {
+        await injectAdminAuth(page, request);
         await page.goto('/app/assessment-rules/new');
         await page.waitForLoadState('networkidle');
         await page.getByRole('button', { name: 'Next' }).click();
     });
 
     test('should display Skill Distribution heading', async ({ page }) => {
-        await expect(page.getByText('Skill Distribution')).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Skill Distribution' })).toBeVisible();
     });
 
     test('should display default skills with percentages', async ({ page }) => {
@@ -362,21 +348,21 @@ test.describe('Rule Wizard — Step 2: Skill Distribution', () => {
 // ════════════════════════════════════════════════════════════════════════════════
 
 test.describe('Rule Wizard — Step 6: Review & Save', () => {
-    test.beforeEach(async ({ page }) => {
-        await injectAuth(page);
+    test.beforeEach(async ({ page, request }) => {
+        await injectAdminAuth(page, request);
         await page.goto('/app/assessment-rules/new');
         await page.waitForLoadState('networkidle');
         await page.getByRole('button', { name: /Review & Save/i }).click();
     });
 
     test('should display review heading', async ({ page }) => {
-        await expect(page.getByText('Review & Save')).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Review & Save' })).toBeVisible();
     });
 
     test('should display all review sections', async ({ page }) => {
-        await expect(page.getByText('Basic Configuration')).toBeVisible();
-        await expect(page.getByText('Skill Distribution')).toBeVisible();
-        await expect(page.getByText('Difficulty')).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Basic Configuration' })).toBeVisible();
+        await expect(page.getByRole('heading', { name: /Skill Distribution/i })).toBeVisible();
+        await expect(page.getByRole('heading', { name: /Difficulty/i })).toBeVisible();
     });
 
     test('should display three action buttons', async ({ page }) => {
@@ -386,8 +372,14 @@ test.describe('Rule Wizard — Step 6: Review & Save', () => {
     });
 
     test('review should show default values', async ({ page }) => {
-        await expect(page.getByText('60 min')).toBeVisible();
-        await expect(page.getByText('30')).toBeVisible(); // total questions default
+        const basicConfigCard = page
+            .locator('div')
+            .filter({ has: page.getByRole('heading', { name: 'Basic Configuration' }) })
+            .first();
+        await expect(basicConfigCard).toContainText('Duration:');
+        await expect(basicConfigCard).toContainText('60 min');
+        await expect(basicConfigCard).toContainText('Questions:');
+        await expect(basicConfigCard).toContainText('30');
     });
 
     test('review should reflect data entered in earlier steps', async ({ page }) => {
@@ -408,8 +400,8 @@ test.describe('Rule Wizard — Step 6: Review & Save', () => {
 // ════════════════════════════════════════════════════════════════════════════════
 
 test.describe('Assessment Rules — Sidebar Navigation', () => {
-    test.beforeEach(async ({ page }) => {
-        await injectAuth(page);
+    test.beforeEach(async ({ page, request }) => {
+        await injectAdminAuth(page, request);
         await page.goto('/app/overview');
         await page.waitForLoadState('networkidle');
     });

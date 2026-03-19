@@ -47,7 +47,7 @@ export default function AboutPage() {
                         <span className="bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">intelligent hiring</span>
                     </h1>
                     <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-slate-300">
-                        We started Nallas Connect with a simple belief: every company deserves access to the best talent, and every candidate deserves a fair shot — whether they're an experienced professional or a fresh graduate.
+                        We started GradLogic with a simple belief: every company deserves access to the best talent, and every candidate deserves a fair shot — whether they're an experienced professional or a fresh graduate.
                     </p>
                 </div>
             </section>

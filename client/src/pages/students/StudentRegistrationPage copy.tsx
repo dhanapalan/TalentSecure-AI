@@ -38,7 +38,7 @@ export default function StudentRegistrationPage() {
       {/* Header */}
       <div className="flex items-center gap-2 mb-8">
         <Logo size={36} />
-        <span className="text-xl font-bold text-slate-800">Nallas Connect</span>
+        <span className="text-xl font-bold text-slate-800">GradLogic</span>
       </div>
 
       {step === 3 ? (

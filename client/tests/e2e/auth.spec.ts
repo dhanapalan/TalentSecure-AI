@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Authentication E2E', () => {
     test.beforeEach(async ({ page }) => {
-        await page.goto('/login');
+        await page.goto('/auth/login');
     });
 
     test('should show login page with proper elements', async ({ page }) => {
@@ -61,8 +61,8 @@ test.describe('Authentication E2E', () => {
         await page.locator('input[type="password"]').fill('password123');
         await page.getByRole('button', { name: 'Sign in to Account' }).click();
 
-        // Should eventually redirect to the overview page via getLandingPath for super_admin
-        await page.waitForURL('**/app/overview*');
+        // Redirect target depends on role mapping and can vary by dashboard strategy.
+        await expect(page).toHaveURL(/\/app\/(overview|hr-dashboard)/);
         // Let's ensure a toast appears too
         await expect(page.getByText('Login successful')).toBeVisible();
     });

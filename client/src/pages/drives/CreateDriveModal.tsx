@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { X, Calendar, Rocket, ClipboardList, Loader2, Clock, RefreshCw, Shield } from "lucide-react";
+import { X, Calendar, Rocket, ClipboardList, Loader2, Clock, RefreshCw, Shield, User } from "lucide-react";
 import api from "../../lib/api";
 import toast from "react-hot-toast";
 
@@ -33,6 +33,7 @@ export default function CreateDriveModal({ isOpen, onClose, onSuccess, initialRu
         proctoring_mode: "standard",
         scheduled_start: "",
         scheduled_end: "",
+        max_applicants: "500",
     });
 
     // When rule changes, pre-fill defaults from the selected rule
@@ -89,6 +90,7 @@ export default function CreateDriveModal({ isOpen, onClose, onSuccess, initialRu
                 proctoring_mode: formData.proctoring_mode,
                 scheduled_start: formData.scheduled_start || undefined,
                 scheduled_end: formData.scheduled_end || undefined,
+                max_applicants: formData.max_applicants ? parseInt(formData.max_applicants) : 500,
                 auto_generate_pool: true,
             });
             toast.success("Drive created — pool generation started automatically");
@@ -250,6 +252,24 @@ export default function CreateDriveModal({ isOpen, onClose, onSuccess, initialRu
                                         title="End date and time"
                                     />
                                 </div>
+                            </div>
+                        </div>
+
+                        {/* Max Applicants */}
+                        <div>
+                            <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Max Applicants</label>
+                            <div className="relative">
+                                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="10000"
+                                    value={formData.max_applicants}
+                                    onChange={e => setFormData({ ...formData, max_applicants: e.target.value })}
+                                    className="w-full pl-10 pr-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                    placeholder="500"
+                                    title="Max Applicants"
+                                />
                             </div>
                         </div>
 
