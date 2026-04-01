@@ -32,13 +32,15 @@ DROP TABLE IF EXISTS
 CASCADE;
 
 -- Drop all custom types
-DROP TYPE IF EXISTS user_role         CASCADE;
-DROP TYPE IF EXISTS violation_type    CASCADE;
-DROP TYPE IF EXISTS drive_status      CASCADE;
-DROP TYPE IF EXISTS pool_status       CASCADE;
-DROP TYPE IF EXISTS session_status    CASCADE;
-DROP TYPE IF EXISTS question_type     CASCADE;
-DROP TYPE IF EXISTS difficulty_level  CASCADE;
+DROP TYPE IF EXISTS user_role              CASCADE;
+DROP TYPE IF EXISTS violation_type        CASCADE;
+DROP TYPE IF EXISTS placement_status_type CASCADE;
+DROP TYPE IF EXISTS risk_level_type       CASCADE;
+DROP TYPE IF EXISTS drive_status          CASCADE;
+DROP TYPE IF EXISTS pool_status           CASCADE;
+DROP TYPE IF EXISTS session_status        CASCADE;
+DROP TYPE IF EXISTS question_type         CASCADE;
+DROP TYPE IF EXISTS difficulty_level      CASCADE;
 
 -- Drop custom functions
 DROP FUNCTION IF EXISTS update_updated_at() CASCADE;

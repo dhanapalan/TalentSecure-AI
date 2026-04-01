@@ -5,19 +5,17 @@
 -- to allow fast KPI aggregations and advanced filtering on the College Dashboard.
 -- =============================================================================
 
-CREATE TYPE placement_status_type AS ENUM (
-    'Not Shortlisted',
-    'Shortlisted',
-    'Interviewed',
-    'Offered',
-    'Joined'
-);
+DO $$ BEGIN
+  CREATE TYPE placement_status_type AS ENUM (
+    'Not Shortlisted', 'Shortlisted', 'Interviewed', 'Offered', 'Joined'
+  );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TYPE risk_level_type AS ENUM (
-    'Low',
-    'Medium',
-    'High'
-);
+DO $$ BEGIN
+  CREATE TYPE risk_level_type AS ENUM ('Low', 'Medium', 'High');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 CREATE TABLE IF NOT EXISTS student_summary (
     student_id          UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
