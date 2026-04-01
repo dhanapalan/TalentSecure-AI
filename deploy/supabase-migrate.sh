@@ -9,11 +9,11 @@
 # =============================================================================
 
 # ── Fill these in ─────────────────────────────────────────────────────────────
-SUPABASE_HOST="db.tmutpbunrcdtvdkqhvcn.supabase.co"
+SUPABASE_HOST="db.xgwxtgsjcbsdwnfehaht.supabase.co"
 SUPABASE_PORT="5432"
 SUPABASE_DB="postgres"
 SUPABASE_USER="postgres"
-SUPABASE_PASSWORD="YOUR_SUPABASE_DB_PASSWORD"   # ← paste your Supabase DB password here
+SUPABASE_PASSWORD="K10OyG5BsUG0PP4R"
 # ─────────────────────────────────────────────────────────────────────────────
 
 export PGPASSWORD="$SUPABASE_PASSWORD"
@@ -42,4 +42,4 @@ echo "==> [4/4] Importing data into Supabase..."
 psql $CONN -f /tmp/talentsecure_data_only.sql
 
 echo ""
-echo "Migration complete! Verify at: https://supabase.com/dashboard/project/tmutpbunrcdtvdkqhvcn/editor"
+echo "Migration complete! Verify at: https://supabase.com/dashboard/project/xgwxtgsjcbsdwnfehaht/editor"

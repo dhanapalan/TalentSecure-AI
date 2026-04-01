@@ -13,7 +13,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 
 const SUPABASE = {
-  host: 'db.tmutpbunrcdtvdkqhvcn.supabase.co',
+  host: 'db.xgwxtgsjcbsdwnfehaht.supabase.co',
   port: 5432,
   user: 'postgres',
   password: 'K10OyG5BsUG0PP4R',
@@ -99,7 +99,7 @@ async function main() {
   await client.end();
 
   console.log('\n=== Migration complete! ===');
-  console.log('Verify at: https://supabase.com/dashboard/project/tmutpbunrcdtvdkqhvcn/editor\n');
+  console.log('Verify at: https://supabase.com/dashboard/project/xgwxtgsjcbsdwnfehaht/editor\n');
 }
 
 main().catch(err => {
