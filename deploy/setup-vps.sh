@@ -13,7 +13,7 @@
 
 set -e
 
-DOMAIN="atherasys.com"
+DOMAIN="gradlogic.atherasys.com"
 APP_DIR="/opt/talentsecure"
 REPO_URL="https://github.com/dhanapalan/TalentSecure-AI.git"
 
@@ -88,12 +88,11 @@ nginx -t && systemctl reload nginx
 
 certbot --nginx \
   -d "$DOMAIN" \
-  -d "www.$DOMAIN" \
   -d "admin.$DOMAIN" \
   -d "campus.$DOMAIN" \
   -d "exam.$DOMAIN" \
   -d "api.$DOMAIN" \
-  --non-interactive --agree-tos -m "admin@$DOMAIN"
+  --non-interactive --agree-tos -m "admin@atherasys.com"
 
 # Re-enable redirect
 sed -i 's/# return 301 https/return 301 https/' /etc/nginx/sites-available/$DOMAIN
