@@ -1,4 +1,3 @@
--- Migration: Add max_applicants to assessment_drives
--- Description: Adds a column to limit the number of students who can be part of a drive.
-
-ALTER TABLE assessment_drives ADD COLUMN max_applicants INT DEFAULT 500;
+-- max_applicants is already defined in 10-drives-sessions-schema.sql
+-- This file is kept for local Docker upgrade compatibility only.
+ALTER TABLE assessment_drives ADD COLUMN IF NOT EXISTS max_applicants INT DEFAULT 500;
