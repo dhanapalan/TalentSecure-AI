@@ -1,3 +1,3 @@
--- max_applicants is already defined in 10-drives-sessions-schema.sql
--- This file is kept for local Docker upgrade compatibility only.
-ALTER TABLE assessment_drives ADD COLUMN IF NOT EXISTS max_applicants INT DEFAULT 500;
+-- max_applicants is defined in 10-drives-sessions-schema.sql (CREATE TABLE assessment_drives).
+-- This file is intentionally a no-op — kept only for historical reference.
+SELECT 'skipping 09 — handled by 10-drives-sessions-schema.sql' AS status;
