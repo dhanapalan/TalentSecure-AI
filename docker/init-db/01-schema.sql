@@ -9,7 +9,17 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- ── ENUM Types ───────────────────────────────────────────────────────────────
-CREATE TYPE user_role AS ENUM ('admin', 'college', 'student');
+CREATE TYPE user_role AS ENUM (
+  'admin',        -- legacy super admin
+  'super_admin',
+  'college',      -- legacy college admin
+  'college_admin',
+  'college_staff',
+  'student',
+  'hr',
+  'cxo',
+  'engineer'
+);
 
 CREATE TYPE violation_type AS ENUM (
     'face_not_detected',

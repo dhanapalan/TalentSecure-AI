@@ -4,17 +4,7 @@
 -- This script is idempotent and safe to run on an existing database.
 -- =============================================================================
 
--- Ensure enum supports explicit college staff role.
--- Uses pg_enum direct insert to avoid the PostgreSQL restriction that prevents
--- a newly added enum value from being used in the same transaction.
-INSERT INTO pg_catalog.pg_enum (enumtypid, enumlabel, enumsortorder)
-SELECT
-  'user_role'::regtype::oid,
-  'college_staff',
-  COALESCE(MAX(enumsortorder), 0) + 1
-FROM pg_catalog.pg_enum
-WHERE enumtypid = 'user_role'::regtype::oid
-ON CONFLICT DO NOTHING;
+-- Note: all user_role enum values (including college_staff) are defined in 01-schema.sql
 
 -- 1) Create colleges table.
 CREATE TABLE IF NOT EXISTS colleges (
