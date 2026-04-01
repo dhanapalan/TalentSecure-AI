@@ -135,13 +135,12 @@ export async function persistExamQuestions(examId: string, questionIds: string[]
 export async function getExamQuestions(examId: string, subsetIds: string[] | null = null) {
   if (subsetIds && subsetIds.length > 0) {
     // Return only the randomized subset for the student, in the provided order
-    const placeholders = subsetIds.map((_, i) => `$${i + 2}`).join(",");
     return query(
-      `SELECT qb.*, array_position(ARRAY[${placeholders}]::uuid[], qb.id) as sort_order
+      `SELECT qb.*, array_position($2::uuid[], qb.id) as sort_order
        FROM question_bank qb
-       WHERE qb.id = ANY(ARRAY[${placeholders}]::uuid[])
+       WHERE qb.id = ANY($2::uuid[])
        ORDER BY sort_order`,
-      [examId, ...subsetIds],
+      [examId, subsetIds],
     );
   }
 

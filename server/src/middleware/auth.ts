@@ -84,9 +84,6 @@ export const authorize = (...roles: UserRole[]) => {
     }
 
     if (!expanded.has(effective)) {
-      // DEBUG — remove after root cause is found
-      console.warn(`[AUTH 403] raw="${req.user.role}" effective="${effective}" expanded=[${[...expanded].join(",")}] path="${req.path}"`);
-      // Log permission denial for audit trail
       logPermissionDenied(req).catch(() => { });
       return next(new AppError("Insufficient permissions", 403));
     }

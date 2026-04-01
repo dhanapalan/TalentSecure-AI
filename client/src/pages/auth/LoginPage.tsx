@@ -52,6 +52,10 @@ export default function LoginPage() {
     try {
       const { data } = await api.get("/auth/microsoft/url");
       if (data?.data?.url) {
+        // Persist state so MicrosoftCallback can verify it (CSRF protection)
+        if (data.data.state) {
+          sessionStorage.setItem("ms_oauth_state", data.data.state);
+        }
         window.location.href = data.data.url;
       }
     } catch (err) {

@@ -132,7 +132,6 @@ router.get(
         ORDER BY c.name ASC
       `);
 
-      console.log(`[DEBUG] GET /api/campuses found ${campuses.length} active campuses.`);
       res.json({ success: true, data: campuses });
     } catch (err) {
       next(err);
@@ -232,10 +231,24 @@ router.post(
   }
 );
 
+// Whitelist of columns that can be updated on a campus record.
+// Must be kept in sync with updateCampusSchema.
+const ALLOWED_CAMPUS_UPDATE_KEYS = new Set([
+  "name", "city", "state", "tier", "category", "institution_type", "region",
+  "naac_grade", "nirf_rank", "is_active", "agreement_start_date",
+  "agreement_end_date", "sla", "mou_url", "contract_status",
+  "eligible_for_hiring", "eligible_for_tier1", "is_blacklisted",
+  "is_suspended", "internal_notes",
+]);
+
 /**
  * GET /api/campuses/:id -> DEEP VIEW
  */
-router.get("/:id", authenticate, async (req, res, next) => {
+router.get(
+  "/:id",
+  authenticate,
+  authorize("super_admin", "admin", "hr", "cxo", "college_admin", "college_staff"),
+  async (req, res, next) => {
   try {
     const id = getParamAsString(req.params.id);
     const userRole = req.user?.role?.toLowerCase();
@@ -314,11 +327,9 @@ router.put(
       const values: any[] = [];
       let paramIdx = 1;
 
-      // Handle all fields securely, ignore id, created_at, updated_at
-      const forbiddenKeys = ['id', 'created_at', 'updated_at', 'college_code'];
-
+      // Whitelist: only allow explicitly permitted columns to prevent mass-assignment
       for (const [key, value] of Object.entries(req.body)) {
-        if (value !== undefined && !forbiddenKeys.includes(key)) {
+        if (value !== undefined && ALLOWED_CAMPUS_UPDATE_KEYS.has(key)) {
           updates.push(`${key} = $${paramIdx++}`);
           values.push(value);
         }

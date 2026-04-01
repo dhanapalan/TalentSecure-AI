@@ -309,23 +309,22 @@ export async function bulkAction(req: Request, res: Response, next: NextFunction
             throw new AppError("Student IDs required", 400);
         }
 
-        const placeholders = studentIds.map((_, i) => `$${i + 2}`).join(',');
-
         if (action === 'suspend') {
             await query(`
-                UPDATE users SET is_active = false 
+                UPDATE users SET is_active = false
                 WHERE id IN (
-                    SELECT u.id FROM users u JOIN student_details sd ON sd.user_id = u.id WHERE u.id IN (${placeholders}) AND COALESCE(u.college_id, sd.college_id) = $1
+                    SELECT u.id FROM users u JOIN student_details sd ON sd.user_id = u.id
+                    WHERE u.id = ANY($2::uuid[]) AND COALESCE(u.college_id, sd.college_id) = $1
                 )
-            `, [collegeId, ...studentIds]);
+            `, [collegeId, studentIds]);
         } else if (action === 'update_placement') {
             await query(`
                 INSERT INTO student_summary (student_id, college_id, placement_status)
                 SELECT u.id, $1, $2
-                FROM users u JOIN student_details sd ON sd.user_id = u.id 
-                WHERE u.id IN (${placeholders}) AND COALESCE(u.college_id, sd.college_id) = $1
+                FROM users u JOIN student_details sd ON sd.user_id = u.id
+                WHERE u.id = ANY($3::uuid[]) AND COALESCE(u.college_id, sd.college_id) = $1
                 ON CONFLICT (student_id) DO UPDATE SET placement_status = EXCLUDED.placement_status
-            `, [collegeId, payload.placement_status, ...studentIds]);
+            `, [collegeId, payload.placement_status, studentIds]);
         }
         res.json({ success: true, message: `Action ${action} executed` });
     } catch (err) {

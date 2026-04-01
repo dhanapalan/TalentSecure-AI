@@ -143,10 +143,22 @@ export const update = async (
 ) => {
   try {
     const { id } = req.params;
+    const role = req.user?.role ?? "";
 
-    // A student can only update their own profile
-    if (req.user?.role === "student" && req.user.userId !== id) {
+    // Students can only update their own profile
+    if (role === "student" && req.user?.userId !== id) {
       return res.status(403).json({ success: false, error: "Not authorized to update this profile" });
+    }
+
+    // College admins can only update students belonging to their own college
+    if (["college_admin", "college", "college_staff"].includes(role)) {
+      const student = await studentService.getStudentById(id as string);
+      if (!student) {
+        return res.status(404).json({ success: false, error: "Student not found" });
+      }
+      if (student.college_id !== req.user?.college_id) {
+        return res.status(403).json({ success: false, error: "Not authorized to update this student" });
+      }
     }
 
     const result = await studentService.updateStudent(id as string, req.body);

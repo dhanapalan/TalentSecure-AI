@@ -313,13 +313,11 @@ export async function getSession(driveId: string, studentId: string): Promise<{
         return { session, questions: [] };
     }
 
-    // Build parameterized IN clause
-    const placeholders = questionIds.map((_, i) => `$${i + 1}`).join(",");
     const questions = await query<QuestionForPlayer>(
         `SELECT id, skill as category, 'multiple_choice' as type, difficulty as difficulty_level, question_text, options, marks
          FROM drive_pool_questions
-         WHERE id IN (${placeholders})`,
-        questionIds,
+         WHERE id = ANY($1::uuid[])`,
+        [questionIds],
     );
 
     // Sort questions by the mapping sort_order
@@ -395,15 +393,14 @@ export async function submitExam(driveId: string, studentId: string): Promise<Se
     let totalScore = 0;
 
     if (questionIds.length > 0) {
-        const placeholders = questionIds.map((_, i) => `$${i + 1}`).join(",");
         const questions = await query<{
             id: string;
             correct_answer: string | null;
             marks: number;
             type: string;
         }>(
-            `SELECT id, correct_answer, marks, 'multiple_choice' as type FROM drive_pool_questions WHERE id IN (${placeholders})`,
-            questionIds,
+            `SELECT id, correct_answer, marks, 'multiple_choice' as type FROM drive_pool_questions WHERE id = ANY($1::uuid[])`,
+            [questionIds],
         );
 
         for (const q of questions) {

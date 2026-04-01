@@ -57,8 +57,21 @@ const limiter = rateLimit({
   legacyHeaders: false,
   message: { error: "Too many requests, please try again later." },
 });
+
+// Strict limiter for auth endpoints — prevents brute-force credential attacks
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many login attempts. Please try again in 15 minutes." },
+  skipSuccessfulRequests: true, // only count failed attempts
+});
+
 // Allow test environments to explicitly opt out while keeping rate limiting on by default.
 if (!env.DISABLE_RATE_LIMIT) {
+  app.use("/api/auth/login", authLimiter);
+  app.use("/api/auth/microsoft", authLimiter);
   app.use("/api/", limiter);
 }
 

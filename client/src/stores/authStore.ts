@@ -26,16 +26,19 @@ interface AuthState {
 
 // ── Internal state ───────────────────────────────────────────────────────────
 
+// Tokens are stored in sessionStorage (cleared on tab close) rather than
+// localStorage to reduce XSS token-theft exposure window.
+// The ideal fix is httpOnly cookies — migrate when backend cookie auth is added.
 let state: AuthState = {
-  isAuthenticated: !!localStorage.getItem("accessToken"),
+  isAuthenticated: !!sessionStorage.getItem("accessToken"),
   user: (() => {
     try {
-      return JSON.parse(localStorage.getItem("user") || "null");
+      return JSON.parse(sessionStorage.getItem("user") || "null");
     } catch {
       return null;
     }
   })(),
-  token: localStorage.getItem("accessToken"),
+  token: sessionStorage.getItem("accessToken"),
 };
 
 const listeners = new Set<() => void>();
@@ -66,21 +69,21 @@ export function useAuthStore<T>(selector: (s: AuthState) => T): T {
 
 export const authActions = {
   login(accessToken: string, user: AuthUser) {
-    localStorage.setItem("accessToken", accessToken);
-    localStorage.setItem("user", JSON.stringify(user));
+    sessionStorage.setItem("accessToken", accessToken);
+    sessionStorage.setItem("user", JSON.stringify(user));
     state = { isAuthenticated: true, user, token: accessToken };
     emitChange();
   },
 
   logout() {
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("user");
+    sessionStorage.removeItem("accessToken");
+    sessionStorage.removeItem("user");
     state = { isAuthenticated: false, user: null, token: null };
     emitChange();
   },
 
   setUser(user: AuthUser) {
-    localStorage.setItem("user", JSON.stringify(user));
+    sessionStorage.setItem("user", JSON.stringify(user));
     state = { ...state, user };
     emitChange();
   },

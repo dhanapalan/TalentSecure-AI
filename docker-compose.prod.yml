@@ -1,0 +1,93 @@
+services:
+  # ── API Server ───────────────────────────────────────────────────────────────
+  # PostgreSQL → Supabase (managed)
+  # Redis     → Upstash   (managed)
+  # Storage   → Supabase Storage (managed)
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.server
+    container_name: talentsecure-api
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DISABLE_RATE_LIMIT: "false"
+    ports:
+      - "127.0.0.1:5050:5050"   # localhost only — host nginx proxies this
+    restart: unless-stopped
+
+  # ── AI / CV Engine ──────────────────────────────────────────────────────────
+  ai-engine:
+    build:
+      context: ./ai-engine
+      dockerfile: ../docker/Dockerfile.ai-engine
+    container_name: talentsecure-ai
+    environment:
+      BACKEND_URL: http://api:5050
+      AI_ENGINE_API_KEY: ${AI_ENGINE_API_KEY}
+    restart: unless-stopped
+
+  # ── Client (React SPA → nginx) ───────────────────────────────────────────────
+  client:
+    build:
+      context: ./client
+      dockerfile: ../docker/Dockerfile.client
+    container_name: talentsecure-client
+    ports:
+      - "127.0.0.1:3000:80"     # localhost only — host nginx proxies this
+    volumes:
+      - ./docker/nginx.prod.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  # ── Judge0 CE (Code Execution Sandbox) ─────────────────────────────────────
+  # Judge0 requires its own local postgres + redis (cannot use managed services)
+  judge0:
+    image: judge0/judge0-ce:1.13.0
+    container_name: talentsecure-judge0
+    environment:
+      REDIS_URL: redis://judge0-redis:6379
+      POSTGRES_HOST: judge0-postgres
+      POSTGRES_USER: judge0
+      POSTGRES_PASSWORD: ${JUDGE0_PG_PASSWORD}
+      POSTGRES_DB: judge0_db
+    depends_on:
+      judge0-postgres:
+        condition: service_healthy
+      judge0-redis:
+        condition: service_healthy
+    restart: unless-stopped
+    privileged: true
+
+  judge0-postgres:
+    image: postgres:16-alpine
+    container_name: talentsecure-judge0-postgres
+    environment:
+      POSTGRES_USER: judge0
+      POSTGRES_PASSWORD: ${JUDGE0_PG_PASSWORD}
+      POSTGRES_DB: judge0_db
+    volumes:
+      - judge0pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U judge0"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  judge0-redis:
+    image: redis:7-alpine
+    container_name: talentsecure-judge0-redis
+    volumes:
+      - judge0redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  judge0pgdata:
+  judge0redisdata:

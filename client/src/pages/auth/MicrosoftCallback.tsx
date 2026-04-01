@@ -10,6 +10,7 @@ export default function MicrosoftCallback() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const code = searchParams.get("code");
+    const stateFromUrl = searchParams.get("state");
     const processed = useRef(false);
 
     useEffect(() => {
@@ -19,12 +20,21 @@ export default function MicrosoftCallback() {
             return;
         }
 
+        // Verify CSRF state: must match what was stored before the redirect
+        const storedState = sessionStorage.getItem("ms_oauth_state");
+        sessionStorage.removeItem("ms_oauth_state");
+        if (!storedState || storedState !== stateFromUrl) {
+            toast.error("Invalid OAuth state. Please try signing in again.");
+            navigate("/auth/login");
+            return;
+        }
+
         if (processed.current) return;
         processed.current = true;
 
         const exchangeCodeForToken = async () => {
             try {
-                const { data } = await api.post("/auth/microsoft", { code });
+                const { data } = await api.post("/auth/microsoft", { code, state: stateFromUrl });
                 if (data.success && data.data) {
                     const { accessToken, user } = data.data;
                     authActions.login(accessToken, user);
