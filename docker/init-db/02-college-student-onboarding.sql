@@ -5,18 +5,16 @@
 -- =============================================================================
 
 -- Ensure enum supports explicit college staff role.
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM pg_type t
-    JOIN pg_enum e ON e.enumtypid = t.oid
-    WHERE t.typname = 'user_role'
-      AND e.enumlabel = 'college_staff'
-  ) THEN
-    ALTER TYPE user_role ADD VALUE 'college_staff';
-  END IF;
-END $$;
+-- Uses pg_enum direct insert to avoid the PostgreSQL restriction that prevents
+-- a newly added enum value from being used in the same transaction.
+INSERT INTO pg_catalog.pg_enum (enumtypid, enumlabel, enumsortorder)
+SELECT
+  'user_role'::regtype::oid,
+  'college_staff',
+  COALESCE(MAX(enumsortorder), 0) + 1
+FROM pg_catalog.pg_enum
+WHERE enumtypid = 'user_role'::regtype::oid
+ON CONFLICT DO NOTHING;
 
 -- 1) Create colleges table.
 CREATE TABLE IF NOT EXISTS colleges (

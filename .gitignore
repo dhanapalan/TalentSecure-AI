@@ -17,3 +17,6 @@ uploads/
 .prisma/
 # Exclude dev-only credential update script
 prisma/bulk_update_student_college_credentials.ts
+# Exclude deploy scripts that may contain real credentials
+deploy/supabase-migrate.sh
+deploy/migrate-db.sh
