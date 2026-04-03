@@ -44,7 +44,7 @@ services:
   # ── Judge0 CE (Code Execution Sandbox) ─────────────────────────────────────
   # Judge0 requires its own local postgres + redis (cannot use managed services)
   judge0:
-    image: judge0/judge0-ce:1.13.0
+    image: judge0/judge0:1.13.0
     container_name: talentsecure-judge0
     environment:
       REDIS_URL: redis://judge0-redis:6379
