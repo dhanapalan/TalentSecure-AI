@@ -103,7 +103,8 @@ export function useWebcamProctoring({
             // or just assume the AI engine is accessible. Let's try sending directly to the AI engine on port 8000 for now.
             // Alternatively, the python file says POST /api/proctoring/analyze
 
-            const response = await fetch("http://localhost:8000/api/proctoring/analyze", {
+            const aiUrl = import.meta.env.VITE_API_URL || "https://api.gradlogic.atherasys.com";
+            const response = await fetch(`${aiUrl}/api/proctoring/analyze`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
