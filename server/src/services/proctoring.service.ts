@@ -1,6 +1,4 @@
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { query, queryOne } from "../config/database.js";
 
 // Define weighted scores for different event types
 const EVENT_WEIGHTS: Record<string, number> = {
@@ -22,29 +20,25 @@ const EVENT_WEIGHTS: Record<string, number> = {
 };
 
 // Auto-termination thresholds
-const TERMINATION_THRESHOLD = 50; // If integrity score drops below this, terminate
-const CRITICAL_EVENTS = ["FACE_MISMATCH", "TIME_TAMPER_ATTEMPT", "mobile_detected"]; // Events that cause immediate termination
+const TERMINATION_THRESHOLD = 50;
+const CRITICAL_EVENTS = ["FACE_MISMATCH", "TIME_TAMPER_ATTEMPT", "mobile_detected"];
 
 export const proctoringService = {
     /**
      * Log a proctoring event async (does not block standard exam flow)
      */
     async logEvent(sessionId: string, eventType: string, metadata?: any) {
-        // 1. Insert into event stream
-        await prisma.exam_events.create({
-            data: {
-                session_id: sessionId,
-                event_type: eventType,
-                metadata: metadata || {}
-            }
-        });
+        await query(
+            `INSERT INTO proctoring_events (session_id, event_type, metadata)
+             VALUES ($1, $2, $3)`,
+            [sessionId, eventType, JSON.stringify(metadata || {})]
+        );
 
-        // 2. Trigger async scoring evaluation (don't await to keep endpoint fast)
+        // Trigger async scoring evaluation (don't await to keep endpoint fast)
         this.evaluateIntegrity(sessionId).catch(err => {
             console.error(`Scoring error for session ${sessionId}:`, err);
         });
 
-        // Broadcast to live monitoring sockets if needed (future scaling)
         return { success: true };
     },
 
@@ -52,70 +46,57 @@ export const proctoringService = {
      * Calculates session integrity score based on all logged events
      */
     async evaluateIntegrity(sessionId: string) {
-        // Fetch all events for this session
-        const events = await prisma.exam_events.findMany({
-            where: { session_id: sessionId },
-            select: { event_type: true }
-        });
+        const events = await query<{ event_type: string }>(
+            `SELECT event_type FROM proctoring_events WHERE session_id = $1`,
+            [sessionId]
+        );
 
         let totalPenalty = 0;
         let hasCriticalEvent = false;
 
-        // Calculate penalty sum
         for (const event of events) {
             const weight = EVENT_WEIGHTS[event.event_type] || 0;
             totalPenalty += weight;
-
             if (CRITICAL_EVENTS.includes(event.event_type)) {
                 hasCriticalEvent = true;
             }
         }
 
-        // Integrity is 100 minus total penalties (min 0)
         let newScore = Math.max(0, 100 - totalPenalty);
 
-        // Determine risk level
         let riskLevel = "low";
         if (newScore < 50 || hasCriticalEvent) riskLevel = "high";
         else if (newScore < 80) riskLevel = "medium";
 
-        // Update the session's integrity score and violation count
-        await prisma.drive_students.update({
-            where: { id: sessionId },
-            data: {
-                integrity_score: newScore,
-                violations: events.length
-            }
-        });
+        await query(
+            `UPDATE drive_students
+             SET integrity_score = $1, violations = $2
+             WHERE id = $3`,
+            [newScore, events.length, sessionId]
+        );
 
-        // Manage incident record
         if (riskLevel === "high" || riskLevel === "medium") {
-            const existingIncident = await prisma.exam_incidents.findFirst({
-                where: { session_id: sessionId }
-            });
+            const existing = await queryOne<{ id: string }>(
+                `SELECT id FROM proctoring_incidents WHERE session_id = $1 LIMIT 1`,
+                [sessionId]
+            );
 
-            if (existingIncident) {
-                await prisma.exam_incidents.update({
-                    where: { id: existingIncident.id },
-                    data: {
-                        score: newScore,
-                        risk_level: riskLevel,
-                        updated_at: new Date()
-                    }
-                });
+            if (existing) {
+                await query(
+                    `UPDATE proctoring_incidents
+                     SET score = $1, risk_level = $2, updated_at = NOW()
+                     WHERE id = $3`,
+                    [newScore, riskLevel, existing.id]
+                );
             } else {
-                await prisma.exam_incidents.create({
-                    data: {
-                        session_id: sessionId,
-                        score: newScore,
-                        risk_level: riskLevel,
-                        status: "pending"
-                    }
-                });
+                await query(
+                    `INSERT INTO proctoring_incidents (session_id, score, risk_level, status)
+                     VALUES ($1, $2, $3, 'pending')`,
+                    [sessionId, newScore, riskLevel]
+                );
             }
         }
 
-        // Auto-terminate check
         if (newScore < TERMINATION_THRESHOLD || hasCriticalEvent) {
             await this.terminateSession(sessionId, "Auto-terminated due to critical integrity violation.");
         }
@@ -127,54 +108,51 @@ export const proctoringService = {
      * Terminate session immediately due to violations
      */
     async terminateSession(sessionId: string, reason: string) {
-        await prisma.drive_students.update({
-            where: { id: sessionId },
-            data: {
-                status: "terminated",
-                completed_at: new Date()
-            }
-        });
+        await query(
+            `UPDATE drive_students
+             SET status = 'terminated', completed_at = NOW()
+             WHERE id = $1`,
+            [sessionId]
+        );
 
-        await prisma.exam_events.create({
-            data: {
-                session_id: sessionId,
-                event_type: "AUTO_TERMINATED",
-                metadata: { reason }
-            }
-        });
+        await query(
+            `INSERT INTO proctoring_events (session_id, event_type, metadata)
+             VALUES ($1, 'AUTO_TERMINATED', $2)`,
+            [sessionId, JSON.stringify({ reason })]
+        );
     },
 
     /**
      * Get live sessions for the monitoring dashboard
      */
     async getLiveMonitoring(driveId?: string) {
-        // Find assigned, in_progress, or terminated sessions
-        const query: any = {
-            status: { in: ["in_progress", "terminated"] }
-        };
-
+        const statuses = ["in_progress", "terminated"];
+        const params: any[] = [statuses];
+        let driveFilter = "";
         if (driveId) {
-            query.drive_id = driveId;
+            params.push(driveId);
+            driveFilter = `AND ds.drive_id = $${params.length}`;
         }
 
-        const sessions = await prisma.drive_students.findMany({
-            where: query,
-            include: {
-                drive: { select: { name: true } }
-            },
-            orderBy: { started_at: "desc" }
-        });
+        const sessions = await query(
+            `SELECT ds.id, ds.student_id, ds.status, ds.integrity_score,
+                    ds.violations, ds.started_at, ds.time_remaining_seconds,
+                    ad.name AS drive_name
+             FROM drive_students ds
+             LEFT JOIN assessment_drives ad ON ad.id = ds.drive_id
+             WHERE ds.status = ANY($1::text[])
+             ${driveFilter}
+             ORDER BY ds.started_at DESC`,
+            params
+        );
 
-        // Map to monitoring grid format
-        // In a real app we'd join with the core user table to get names 
-        // For MVP, returning the IDs and scores is enough to prove the engine works.
         return sessions.map((s: any) => ({
             id: s.id,
             studentId: s.student_id,
-            driveName: s.drive?.name || "Unknown",
+            driveName: s.drive_name || "Unknown",
             status: s.status,
-            integrityScore: s.integrity_score || 100,
-            violations: s.violations || 0,
+            integrityScore: s.integrity_score ?? 100,
+            violations: s.violations ?? 0,
             startedAt: s.started_at,
             timeRemaining: s.time_remaining_seconds
         }));
@@ -184,19 +162,20 @@ export const proctoringService = {
      * Get chronological event timeline for a specific session
      */
     async getSessionTimeline(sessionId: string) {
-        const events = await prisma.exam_events.findMany({
-            where: { session_id: sessionId },
-            orderBy: { timestamp: "desc" }
-        });
+        const events = await query(
+            `SELECT * FROM proctoring_events WHERE session_id = $1 ORDER BY timestamp DESC`,
+            [sessionId]
+        );
 
-        const incident = await prisma.exam_incidents.findFirst({
-            where: { session_id: sessionId }
-        });
+        const incident = await queryOne(
+            `SELECT * FROM proctoring_incidents WHERE session_id = $1 LIMIT 1`,
+            [sessionId]
+        );
 
-        const session = await prisma.drive_students.findUnique({
-            where: { id: sessionId },
-            select: { integrity_score: true, violations: true, status: true }
-        });
+        const session = await queryOne(
+            `SELECT integrity_score, violations, status FROM drive_students WHERE id = $1`,
+            [sessionId]
+        );
 
         return {
             events,
@@ -209,19 +188,18 @@ export const proctoringService = {
      * Admin action to manually clear an incident
      */
     async clearIncident(sessionId: string, notes: string) {
-        const incident = await prisma.exam_incidents.findFirst({
-            where: { session_id: sessionId }
-        });
+        const incident = await queryOne<{ id: string }>(
+            `SELECT id FROM proctoring_incidents WHERE session_id = $1 LIMIT 1`,
+            [sessionId]
+        );
 
         if (incident) {
-            await prisma.exam_incidents.update({
-                where: { id: incident.id },
-                data: {
-                    status: "false_positive",
-                    notes,
-                    updated_at: new Date()
-                }
-            });
+            await query(
+                `UPDATE proctoring_incidents
+                 SET status = 'false_positive', notes = $1, updated_at = NOW()
+                 WHERE id = $2`,
+                [notes, incident.id]
+            );
         }
 
         return { success: true };
