@@ -735,7 +735,7 @@ export default function CampusDetailPage() {
                 <h3 className="text-lg font-black text-slate-900">Assessment History</h3>
                 <p className="text-sm text-slate-500">Exams conducted, scheduled, and assigned to this campus.</p>
               </div>
-              <button className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 shadow-sm">
+              <button onClick={() => navigate("/app/drives/new")} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 shadow-sm">
                 Assign New Assessment
               </button>
             </div>
