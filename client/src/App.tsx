@@ -77,6 +77,7 @@ const RuleDashboardPage = lazy(() => import("./pages/assessments/RuleDashboardPa
 const RuleWizardPage = lazy(() => import("./pages/assessments/RuleWizardPage"));
 const DrivesDashboardPage = lazy(() => import("./pages/drives/DrivesDashboardPage"));
 const DriveDetailPage = lazy(() => import("./pages/drives/DriveDetailPage"));
+const CreateDrivePage = lazy(() => import("./pages/drives/CreateDrivePage"));
 
 const ExamInstructionsPage = lazy(() => import("./pages/student/ExamInstructionsPage"));
 const ExamPlayerPage = lazy(() => import("./pages/student/ExamPlayerPage"));
@@ -548,6 +549,14 @@ export default function App() {
                 element={
                   <RoleGuard allowed={["super_admin", "hr", "college_admin", "engineer"]}>
                     <DrivesDashboardPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="drives/new"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "college_admin", "engineer"]}>
+                    <CreateDrivePage />
                   </RoleGuard>
                 }
               />

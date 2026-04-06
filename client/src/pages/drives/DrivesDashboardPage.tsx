@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useSearchParams } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import {
     Plus,
     Search,
@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import api from "../../lib/api";
 import toast from "react-hot-toast";
-import CreateDriveModal from "./CreateDriveModal";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -47,17 +46,11 @@ const statusConfig: Record<string, { label: string; color: string; icon: typeof 
 
 export default function DrivesDashboardPage() {
     const [searchParams] = useSearchParams();
+    const navigate = useNavigate();
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState<string>("all");
-    const [isModalOpen, setIsModalOpen] = useState(false);
 
     const fromRule = searchParams.get("from_rule");
-
-    useEffect(() => {
-        if (fromRule) {
-            setIsModalOpen(true);
-        }
-    }, [fromRule]);
 
     const { data: drives = [], isLoading, refetch } = useQuery<Drive[]>({
         queryKey: ["drives", statusFilter],
@@ -116,10 +109,10 @@ export default function DrivesDashboardPage() {
                     <p className="text-sm text-slate-500 ml-11">Manage execution instances of assessment rules</p>
                 </div>
                 <button
-                    onClick={() => setIsModalOpen(true)}
+                    onClick={() => navigate(fromRule ? `/app/drives/new?rule_id=${fromRule}` : "/app/drives/new")}
                     className="flex items-center gap-2 rounded-xl bg-indigo-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-indigo-200 hover:bg-indigo-600 transition-all"
                 >
-                    <Plus className="h-4 w-4" /> New Drive from Rule
+                    <Plus className="h-4 w-4" /> New Drive
                 </button>
             </div>
 
@@ -249,12 +242,6 @@ export default function DrivesDashboardPage() {
                 )}
             </div>
 
-            <CreateDriveModal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                onSuccess={refetch}
-                initialRuleId={fromRule}
-            />
         </div>
     );
 }
