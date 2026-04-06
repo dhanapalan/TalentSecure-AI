@@ -254,3 +254,17 @@ CREATE TABLE IF NOT EXISTS drive_pool_audit_logs (
 
 CREATE INDEX IF NOT EXISTS idx_dpal_pool  ON drive_pool_audit_logs (pool_id);
 CREATE INDEX IF NOT EXISTS idx_dpal_actor ON drive_pool_audit_logs (actor_id);
+
+-- =============================================================================
+-- 11. exam_colleges  (links exams to colleges)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS exam_colleges (
+    id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    exam_id    UUID NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+    college_id UUID NOT NULL REFERENCES colleges(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(exam_id, college_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ec_exam    ON exam_colleges (exam_id);
+CREATE INDEX IF NOT EXISTS idx_ec_college ON exam_colleges (college_id);
