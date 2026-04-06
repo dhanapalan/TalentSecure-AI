@@ -10,7 +10,6 @@ import {
   UsersIcon,
   ClipboardDocumentListIcon,
   ArrowRightOnRectangleIcon,
-  UserPlusIcon,
   AcademicCapIcon,
   WrenchScrewdriverIcon,
   RocketLaunchIcon,
@@ -224,18 +223,6 @@ export default function DashboardLayout() {
             </NavLink>
           ))}
 
-          {/* Quick link: Student Registration (only for admin / hr / college_admin) */}
-          {["super_admin", "hr", "college_admin"].includes(effectiveRole) && (
-            <div className="mt-6 pt-6">
-              <Link
-                to="/student/register"
-                className="group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors border border-slate-200 shadow-sm"
-              >
-                <UserPlusIcon className="h-5 w-5 flex-shrink-0 text-slate-400 group-hover:text-slate-600" strokeWidth={1.5} />
-                Register Student
-              </Link>
-            </div>
-          )}
         </nav>
 
         {/* User info + Logout */}
