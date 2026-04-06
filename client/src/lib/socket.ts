@@ -8,7 +8,6 @@ export function connectProctoringSocket(): Socket {
   if (proctoringSocket?.connected) return proctoringSocket;
 
   proctoringSocket = io(`${API_BASE}/proctoring`, {
-    transports: ["websocket"],
     auth: {
       token: localStorage.getItem("accessToken"),
     },
@@ -34,7 +33,6 @@ export function connectGeneralSocket(): Socket {
   if (generalSocket?.connected) return generalSocket;
 
   generalSocket = io(API_BASE, {
-    transports: ["websocket"],
     auth: {
       token: localStorage.getItem("accessToken"),
     },
