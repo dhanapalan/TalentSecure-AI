@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router";
 import api from "../../lib/api";
 import {
     MagnifyingGlassIcon,
     PencilSquareIcon,
     CloudArrowUpIcon,
     CheckCircleIcon,
-    XMarkIcon,
     TrashIcon
 } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
@@ -14,9 +14,9 @@ import { clsx } from "clsx";
 
 export default function QuestionBankPage({ isStudioView }: { isStudioView?: boolean }) {
     const queryClient = useQueryClient();
+    const navigate = useNavigate();
     const [search, setSearch] = useState("");
     const [filterCategory, setFilterCategory] = useState("");
-    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
     // Fetch Questions
     const { data: questions, isLoading } = useQuery({
@@ -67,7 +67,8 @@ export default function QuestionBankPage({ isStudioView }: { isStudioView?: bool
                             Bulk Upload
                         </button>
                         <button
-                            onClick={() => setIsAddModalOpen(true)}
+                            type="button"
+                            onClick={() => navigate("/app/assessments/bank/new")}
                             className="btn-primary flex items-center gap-2"
                         >
                             <div className="h-5 w-5 border-2 border-white rounded-md flex items-center justify-center font-black text-xs">+</div>
@@ -196,28 +197,6 @@ export default function QuestionBankPage({ isStudioView }: { isStudioView?: bool
                 )}
             </div>
 
-            {/* Add Modal Placeholder */}
-            {isAddModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-                    <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl border border-gray-100 animate-in fade-in zoom-in duration-200">
-                        <div className="p-6 border-b border-gray-50 flex items-center justify-between">
-                            <h2 className="text-xl font-bold text-gray-900">Add Global Question</h2>
-                            <button onClick={() => setIsAddModalOpen(false)} className="text-gray-400 hover:text-gray-600">
-                                <XMarkIcon className="h-6 w-6" />
-                            </button>
-                        </div>
-                        <div className="p-10 text-center">
-                            <p className="text-sm text-gray-500 font-medium italic">Integration with Assessment Wizard Curator Service Ready...</p>
-                            <button
-                                onClick={() => setIsAddModalOpen(false)}
-                                className="btn-primary mt-6 px-10"
-                            >
-                                Close
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

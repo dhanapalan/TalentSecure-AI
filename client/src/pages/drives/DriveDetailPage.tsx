@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams, Link } from "react-router";
+import { useParams, Link, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
     ArrowLeft,
@@ -26,7 +26,6 @@ import toast from "react-hot-toast";
 import PoolReviewTab from "./PoolReviewTab";
 import StudentsTab from "./StudentsTab";
 import OverviewTab from "./OverviewTab";
-import AssignCampusModal from "./AssignCampusModal";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -57,8 +56,8 @@ const statusConfig: Record<string, { label: string; color: string; icon: typeof 
 
 export default function DriveDetailPage() {
     const { id } = useParams();
+    const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<Tab>("overview");
-    const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
     const queryClient = useQueryClient();
 
     const { data: drive, isLoading } = useQuery({
@@ -202,7 +201,7 @@ export default function DriveDetailPage() {
                 {activeTab === "assignment" && (
                     <AssignmentTab
                         assignments={assignments}
-                        onAssignClick={() => setIsAssignModalOpen(true)}
+                        onAssignClick={() => navigate(`/app/drives/${id}/assign-campus`)}
                         isReadOnly={isReadOnly}
                     />
                 )}
@@ -212,16 +211,6 @@ export default function DriveDetailPage() {
                 {activeTab === "results" && <ResultsTab />}
             </div>
 
-            {/* Modals */}
-            <AssignCampusModal
-                isOpen={isAssignModalOpen}
-                onClose={() => setIsAssignModalOpen(false)}
-                driveId={id!}
-                onSuccess={() => {
-                    queryClient.invalidateQueries({ queryKey: ["drive-assignments", id] });
-                    queryClient.invalidateQueries({ queryKey: ["drive-students", id] });
-                }}
-            />
         </div>
     );
 }

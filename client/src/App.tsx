@@ -78,6 +78,14 @@ const RuleWizardPage = lazy(() => import("./pages/assessments/RuleWizardPage"));
 const DrivesDashboardPage = lazy(() => import("./pages/drives/DrivesDashboardPage"));
 const DriveDetailPage = lazy(() => import("./pages/drives/DriveDetailPage"));
 const CreateDrivePage = lazy(() => import("./pages/drives/CreateDrivePage"));
+const AssignCampusPage = lazy(() => import("./pages/drives/AssignCampusPage"));
+
+const CreateUserPage = lazy(() => import("./pages/admin/CreateUserPage"));
+const EditUserPage = lazy(() => import("./pages/admin/EditUserPage"));
+
+const AddQuestionPage = lazy(() => import("./pages/assessments/AddQuestionPage"));
+
+const AddStudentPage = lazy(() => import("./pages/students/AddStudentPage"));
 
 const ExamInstructionsPage = lazy(() => import("./pages/student/ExamInstructionsPage"));
 const ExamPlayerPage = lazy(() => import("./pages/student/ExamPlayerPage"));
@@ -442,6 +450,14 @@ export default function App() {
                   </RoleGuard>
                 }
               />
+              <Route
+                path="students/new"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "cxo", "college_admin"]}>
+                    <AddStudentPage />
+                  </RoleGuard>
+                }
+              />
 
               {/* Administration */}
               <Route
@@ -462,6 +478,22 @@ export default function App() {
                   </RoleGuard>
                 }
               />
+              <Route
+                path="administration/users/new"
+                element={
+                  <RoleGuard allowed={["super_admin", "admin"]}>
+                    <CreateUserPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="administration/users/:id/edit"
+                element={
+                  <RoleGuard allowed={["super_admin", "admin"]}>
+                    <EditUserPage />
+                  </RoleGuard>
+                }
+              />
 
               {/* Assessments */}
               <Route
@@ -475,6 +507,14 @@ export default function App() {
               <Route
                 path="assessments/bank"
                 element={<Navigate to="/app/assessments?tab=bank" replace />}
+              />
+              <Route
+                path="assessments/bank/new"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "engineer"]}>
+                    <AddQuestionPage />
+                  </RoleGuard>
+                }
               />
               <Route
                 path="assessments/wizard"
@@ -565,6 +605,14 @@ export default function App() {
                 element={
                   <RoleGuard allowed={["super_admin", "hr", "college_admin", "engineer"]}>
                     <DriveDetailPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="drives/:id/assign-campus"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "college_admin", "engineer"]}>
+                    <AssignCampusPage />
                   </RoleGuard>
                 }
               />

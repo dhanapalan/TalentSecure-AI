@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router";
 import api from "../../lib/api";
 import { useAuthStore } from "../../stores/authStore";
 import {
@@ -8,7 +9,6 @@ import {
     FunnelIcon,
     EnvelopeIcon,
     PlusIcon,
-    XMarkIcon,
     KeyIcon
 } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
@@ -33,24 +33,15 @@ const ALL_ROLES = [...SYSTEM_ROLES, ...COLLEGE_ROLES];
 
 export default function UserManagementPage() {
     const queryClient = useQueryClient();
+    const navigate = useNavigate();
     const userRole = useAuthStore((state) => state.user?.role);
     const isAdmin = userRole === "super_admin" || userRole === "admin";
     const [search, setSearch] = useState("");
     const [roleFilter, setRoleFilter] = useState("");
 
-    // Add User Flow states
-    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-    const [userType, setUserType] = useState<"system" | "college">("system");
-
     // Inline editing states
     const [editingUserId, setEditingUserId] = useState<string | null>(null);
     const [editForm, setEditForm] = useState<any>({});
-
-    // Change Password states
-    const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
-    const [passwordUserId, setPasswordUserId] = useState<string | null>(null);
-    const [newPassword, setNewPassword] = useState("");
-    const [confirmPassword, setConfirmPassword] = useState("");
 
     const { data: users, isLoading } = useQuery({
         queryKey: ["users", roleFilter, search],
@@ -58,14 +49,6 @@ export default function UserManagementPage() {
             const { data } = await api.get(`/users`, {
                 params: { role: roleFilter, search: search }
             });
-            return data.data;
-        },
-    });
-
-    const { data: campuses } = useQuery({
-        queryKey: ["campuses"],
-        queryFn: async () => {
-            const { data } = await api.get("/campuses");
             return data.data;
         },
     });
@@ -93,47 +76,6 @@ export default function UserManagementPage() {
             toast.error(err.response?.data?.error || "Failed to update user");
         }
     });
-
-    const updatePasswordMutation = useMutation({
-        mutationFn: ({ id, password }: { id: string, password: string }) => api.put(`/users/${id}/password`, { password }),
-        onSuccess: (res) => {
-            queryClient.invalidateQueries({ queryKey: ["users"] });
-            toast.success(res.data.message || "Password updated successfully");
-            setIsPasswordModalOpen(false);
-            setPasswordUserId(null);
-            setNewPassword("");
-            setConfirmPassword("");
-        },
-        onError: (err: any) => {
-            toast.error(err.response?.data?.error || "Failed to update password");
-        }
-    });
-
-    const createMutation = useMutation({
-        mutationFn: (newUser: any) => api.post("/users", newUser),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["users"] });
-            setIsAddModalOpen(false);
-            toast.success("New user added successfully");
-        },
-        onError: (err: any) => {
-            toast.error(err.response?.data?.error || "Failed to add user");
-        }
-    });
-
-    const handleCreateUser = (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        const fd = new FormData(e.currentTarget);
-        const name = `${fd.get("firstName")} ${fd.get("lastName")}`.trim();
-
-        createMutation.mutate({
-            name: name,
-            email: fd.get("email"),
-            password: fd.get("password"),
-            role: fd.get("role"),
-            college_id: userType === "college" ? fd.get("college_id") : undefined
-        });
-    };
 
     const handleRowDoubleClick = (user: any) => {
         if (!isAdmin) return;
@@ -198,10 +140,8 @@ export default function UserManagementPage() {
                     </span>
                     {isAdmin && (
                         <button
-                            onClick={() => {
-                                setUserType("system");
-                                setIsAddModalOpen(true);
-                            }}
+                            type="button"
+                            onClick={() => navigate("/app/administration/users/new")}
                             className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md transition-all active:scale-95 text-nowrap"
                         >
                             <PlusIcon className="h-4 w-4" />
@@ -359,15 +299,15 @@ export default function UserManagementPage() {
                                                             </button>
                                                         </div>
                                                         <button
+                                                            type="button"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                setPasswordUserId(user.id);
-                                                                setIsPasswordModalOpen(true);
+                                                                navigate(`/app/administration/users/${user.id}/edit`);
                                                             }}
                                                             className="flex items-center gap-1.5 px-3 py-1.5 text-amber-600 bg-amber-50 hover:bg-amber-100 rounded-lg text-xs font-bold transition-colors w-full justify-center"
                                                         >
                                                             <KeyIcon className="h-3.5 w-3.5" />
-                                                            Change Password
+                                                            Edit / Change Password
                                                         </button>
                                                     </div>
                                                 ) : isAdmin ? (
@@ -385,174 +325,6 @@ export default function UserManagementPage() {
                 </div>
             </div>
 
-            {/* Add User Modal */}
-            {isAddModalOpen && (
-                <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" onClick={() => setIsAddModalOpen(false)} />
-                    <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden animate-in zoom-in-95 duration-200">
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-50">
-                            <div className="flex items-center gap-3">
-                                <div className="h-10 w-10 bg-primary-50 rounded-xl flex items-center justify-center">
-                                    <PlusIcon className="h-5 w-5 text-primary-600" />
-                                </div>
-                                <h3 className="text-lg font-bold text-gray-900">Add User</h3>
-                            </div>
-                            <button onClick={() => setIsAddModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 transition-colors">
-                                <XMarkIcon className="h-5 w-5" />
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleCreateUser} className="p-6 space-y-5">
-                            {/* User Type Selector */}
-                            <div className="flex rounded-xl bg-gray-100 p-1">
-                                <button
-                                    type="button"
-                                    onClick={() => setUserType("system")}
-                                    className={clsx(
-                                        "w-1/2 py-2 text-sm font-bold rounded-lg transition-all",
-                                        userType === "system" ? "bg-white text-primary-700 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                                    )}
-                                >
-                                    System User
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setUserType("college")}
-                                    className={clsx(
-                                        "w-1/2 py-2 text-sm font-bold rounded-lg transition-all",
-                                        userType === "college" ? "bg-white text-primary-700 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                                    )}
-                                >
-                                    College User
-                                </button>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">First Name</label>
-                                    <input required name="firstName" placeholder="John" className="w-full px-4 py-2.5 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-primary-500" />
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Last Name</label>
-                                    <input required name="lastName" placeholder="Doe" className="w-full px-4 py-2.5 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-primary-500" />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Email Address</label>
-                                <input required type="email" name="email" placeholder="john.doe@example.com" className="w-full px-4 py-2.5 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-primary-500" />
-                            </div>
-
-                            <div>
-                                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Initial Password</label>
-                                <input required type="password" name="password" placeholder="••••••••" className="w-full px-4 py-2.5 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-primary-500" />
-                            </div>
-
-                            <div className="grid grid-cols-1 gap-4">
-                                <div>
-                                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Role</label>
-                                    <select required name="role" className="w-full px-4 py-2.5 bg-gray-50 border-none rounded-xl text-sm font-bold text-gray-700 focus:ring-2 focus:ring-primary-500">
-                                        {userType === "system" ? (
-                                            SYSTEM_ROLES.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)
-                                        ) : (
-                                            COLLEGE_ROLES.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)
-                                        )}
-                                    </select>
-                                </div>
-
-                                {userType === "college" && (
-                                    <div>
-                                        <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Assigned College</label>
-                                        <select required name="college_id" className="w-full px-4 py-2.5 bg-gray-50 border-none rounded-xl text-sm font-bold text-primary-700 focus:ring-2 focus:ring-primary-500">
-                                            <option value="">Select a college...</option>
-                                            {campuses?.map((c: any) => (
-                                                <option key={c.id} value={c.id}>{c.name}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="pt-4 flex gap-3 border-t border-gray-100">
-                                <button type="button" onClick={() => setIsAddModalOpen(false)} className="flex-1 px-4 py-2.5 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 transition-colors">
-                                    Cancel
-                                </button>
-                                <button type="submit" disabled={createMutation.isPending} className="flex-[2] px-4 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-sm font-bold shadow-lg shadow-primary-200 transition-all active:scale-95 disabled:opacity-50">
-                                    {createMutation.isPending ? "Creating..." : "Create User"}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* Change Password Modal */}
-            {isPasswordModalOpen && passwordUserId && (
-                <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" onClick={() => setIsPasswordModalOpen(false)} />
-                    <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden animate-in zoom-in-95 duration-200">
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-50">
-                            <div className="flex items-center gap-3">
-                                <div className="h-10 w-10 bg-amber-50 rounded-xl flex items-center justify-center">
-                                    <KeyIcon className="h-5 w-5 text-amber-600" />
-                                </div>
-                                <h3 className="text-lg font-bold text-gray-900">Change Password</h3>
-                            </div>
-                            <button onClick={() => setIsPasswordModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 transition-colors">
-                                <XMarkIcon className="h-5 w-5" />
-                            </button>
-                        </div>
-
-                        <form onSubmit={(e) => {
-                            e.preventDefault();
-                            if (newPassword.length < 6) {
-                                toast.error("Password must be at least 6 characters.");
-                                return;
-                            }
-                            if (newPassword !== confirmPassword) {
-                                toast.error("Passwords do not match.");
-                                return;
-                            }
-                            updatePasswordMutation.mutate({ id: passwordUserId, password: newPassword });
-                        }} className="p-6 space-y-5">
-                            <div>
-                                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">New Password</label>
-                                <input
-                                    required
-                                    type="password"
-                                    placeholder="••••••••"
-                                    minLength={6}
-                                    value={newPassword}
-                                    onChange={(e) => setNewPassword(e.target.value)}
-                                    className="w-full px-4 py-2.5 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-primary-500"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Confirm Password</label>
-                                <input
-                                    required
-                                    type="password"
-                                    placeholder="••••••••"
-                                    minLength={6}
-                                    value={confirmPassword}
-                                    onChange={(e) => setConfirmPassword(e.target.value)}
-                                    className="w-full px-4 py-2.5 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-primary-500"
-                                />
-                            </div>
-
-                            <div className="pt-4 flex gap-3 border-t border-gray-100">
-                                <button type="button" onClick={() => setIsPasswordModalOpen(false)} className="flex-1 px-4 py-2.5 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 transition-colors">
-                                    Cancel
-                                </button>
-                                <button type="submit" disabled={updatePasswordMutation.isPending} className="flex-[2] px-4 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-sm font-bold shadow-lg shadow-primary-200 transition-all active:scale-95 disabled:opacity-50">
-                                    {updatePasswordMutation.isPending ? "Updating..." : "Update"}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
