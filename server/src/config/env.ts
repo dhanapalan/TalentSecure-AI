@@ -9,9 +9,9 @@ const defaultClientUrl = process.env.CLIENT_URL || "http://localhost:5173";
 const defaultAdminClientUrl =
   process.env.ADMIN_CLIENT_URL || "http://admin.localhost:5173";
 const defaultCollegeClientUrl =
-  process.env.COLLEGE_CLIENT_URL || "http://college.localhost:5173";
+  process.env.COLLEGE_CLIENT_URL || "http://campus.localhost:5173";
 const defaultStudentClientUrl =
-  process.env.STUDENT_CLIENT_URL || "http://student.localhost:5173";
+  process.env.STUDENT_CLIENT_URL || "http://exam.localhost:5173";
 
 const clientUrlCandidates = [
   defaultClientUrl,
