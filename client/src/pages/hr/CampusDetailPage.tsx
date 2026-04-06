@@ -860,14 +860,7 @@ export default function CampusDetailPage() {
                     <FileText className="h-3.5 w-3.5" /> View Current Document
                   </a>
                 )}
-                <input
-                  ref={mouInputRef}
-                  type="file"
-                  accept="application/pdf"
-                  aria-label="Upload MOU PDF document"
-                  className="hidden"
-                  onChange={handleMouUpload}
-                />
+
                 <button
                   onClick={() => mouInputRef.current?.click()}
                   disabled={uploadingMou}
@@ -882,6 +875,15 @@ export default function CampusDetailPage() {
         )}
 
       </div>
+
+      <input
+        ref={mouInputRef}
+        type="file"
+        accept="application/pdf"
+        aria-label="Upload MOU PDF document"
+        className="hidden"
+        onChange={handleMouUpload}
+      />
     </div>
   );
-}
+};

@@ -7,7 +7,6 @@ const baseURL = VITE_API_URL.endsWith("/") ? `${VITE_API_URL}api` : `${VITE_API_
 
 const api = axios.create({
   baseURL,
-  headers: { "Content-Type": "application/json" },
 });
 
 // Attach access token to every request

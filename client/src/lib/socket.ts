@@ -9,7 +9,7 @@ export function connectProctoringSocket(): Socket {
 
   proctoringSocket = io(`${API_BASE}/proctoring`, {
     auth: {
-      token: localStorage.getItem("accessToken"),
+      token: sessionStorage.getItem("accessToken"),
     },
   });
 
@@ -34,7 +34,7 @@ export function connectGeneralSocket(): Socket {
 
   generalSocket = io(API_BASE, {
     auth: {
-      token: localStorage.getItem("accessToken"),
+      token: sessionStorage.getItem("accessToken"),
     },
   });
 
