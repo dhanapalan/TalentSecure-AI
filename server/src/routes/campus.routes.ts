@@ -127,7 +127,6 @@ router.get(
           (SELECT COUNT(DISTINCT cl.id) FROM cheating_logs cl JOIN student_details s ON s.user_id = cl.student_id WHERE s.college_id = c.id)::int as incident_count
         FROM colleges c
         LEFT JOIN student_details sd ON sd.college_id = c.id
-        WHERE c.is_active IS NOT FALSE
         GROUP BY c.id
         ORDER BY c.name ASC
       `);
