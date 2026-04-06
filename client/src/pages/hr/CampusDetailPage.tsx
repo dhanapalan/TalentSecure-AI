@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -107,6 +107,10 @@ export default function CampusDetailPage() {
   const [showInviteAdmin, setShowInviteAdmin] = useState(false);
   const [inviteAdminForm, setInviteAdminForm] = useState({ name: "", email: "", password: "" });
 
+  // MOU Upload State
+  const [uploadingMou, setUploadingMou] = useState(false);
+  const mouInputRef = useRef<HTMLInputElement>(null);
+
   // ── Fetching ────────────────────────────────────────────────────────────────
 
   const { data: campus, isLoading } = useQuery({
@@ -196,6 +200,28 @@ export default function CampusDetailPage() {
   const handleInviteAdmin = (e: React.FormEvent) => {
     e.preventDefault();
     inviteAdminMutation.mutate(inviteAdminForm);
+  };
+
+  const handleMouUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !id) return;
+    const form = new FormData();
+    form.append("mou_file", file);
+    setUploadingMou(true);
+    try {
+      const res = await api.post(`/campuses/${id}/upload-mou`, form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      const url = res.data.data.mou_url;
+      setFormData((prev) => ({ ...prev, mou_url: url }));
+      qc.invalidateQueries({ queryKey: ["campus", id] });
+      toast.success("MOU document uploaded successfully");
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || "Upload failed");
+    } finally {
+      setUploadingMou(false);
+      if (mouInputRef.current) mouInputRef.current.value = "";
+    }
   };
 
   const getRiskBadge = (score: number) => {
@@ -821,8 +847,31 @@ export default function CampusDetailPage() {
                 <FileText className="h-12 w-12 text-slate-300 mb-3" />
                 <h4 className="text-sm font-bold text-slate-700">MOU Document</h4>
                 <p className="text-xs text-slate-400 text-center mt-1 mb-4">Upload the signed contract PDF for reference.</p>
-                <button className="rounded-lg bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm ring-1 ring-slate-200 hover:bg-slate-50 flex items-center gap-2">
-                  <Upload className="h-4 w-4" /> Upload PDF
+                {formData.mou_url && (
+                  <a
+                    href={formData.mou_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mb-3 text-xs font-bold text-indigo-600 hover:underline flex items-center gap-1"
+                  >
+                    <FileText className="h-3.5 w-3.5" /> View Current Document
+                  </a>
+                )}
+                <input
+                  ref={mouInputRef}
+                  type="file"
+                  accept="application/pdf"
+                  aria-label="Upload MOU PDF document"
+                  className="hidden"
+                  onChange={handleMouUpload}
+                />
+                <button
+                  onClick={() => mouInputRef.current?.click()}
+                  disabled={uploadingMou}
+                  className="rounded-lg bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm ring-1 ring-slate-200 hover:bg-slate-50 flex items-center gap-2 disabled:opacity-60"
+                >
+                  <Upload className="h-4 w-4" />
+                  {uploadingMou ? "Uploading…" : formData.mou_url ? "Replace PDF" : "Upload PDF"}
                 </button>
               </div>
             </div>

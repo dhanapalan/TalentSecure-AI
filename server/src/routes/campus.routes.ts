@@ -8,6 +8,17 @@ import { v4 as uuidv4 } from "uuid";
 import { writeAuditLog } from "../services/audit.service.js";
 import bcrypt from "bcryptjs";
 import { AppError } from "../middleware/errorHandler.js";
+import multer from "multer";
+import { uploadFile } from "../config/storage.js";
+
+const mouUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype === "application/pdf") cb(null, true);
+    else cb(new Error("Only PDF files are allowed"));
+  },
+});
 
 const router = Router();
 
@@ -528,6 +539,54 @@ router.post(
       }).catch(() => { });
 
       res.json({ success: true, message: `Bulk ${action} completed successfully`, count: campusIds.length });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * POST /api/campuses/:id/upload-mou
+ * Upload a PDF document (MOU/agreement) for a campus and store the URL.
+ */
+router.post(
+  "/:id/upload-mou",
+  authenticate,
+  authorize("super_admin", "admin", "hr"),
+  mouUpload.single("mou_file"),
+  async (req, res, next) => {
+    try {
+      const id = getParamAsString(req.params.id);
+      const file = req.file;
+
+      if (!file) {
+        return res.status(400).json({ success: false, error: "No PDF file provided" });
+      }
+
+      const campus = await queryOne("SELECT id FROM colleges WHERE id = $1", [id]);
+      if (!campus) {
+        return res.status(404).json({ success: false, error: "Campus not found" });
+      }
+
+      const key = `campuses/${id}/mou/${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+      const url = await uploadFile(key, file.buffer, file.mimetype);
+
+      await query(
+        "UPDATE colleges SET mou_url = $1, updated_at = NOW() WHERE id = $2",
+        [url, id],
+      );
+
+      writeAuditLog({
+        actor_id: req.user!.userId,
+        actor_role: req.user!.role,
+        action: "CAMPUS_MOU_UPLOADED",
+        target_type: "campus",
+        target_id: id,
+        reason: `MOU document uploaded: ${file.originalname}`,
+        ip_address: typeof req.ip === "string" ? req.ip : undefined,
+      }).catch(() => {});
+
+      res.json({ success: true, data: { mou_url: url } });
     } catch (err) {
       next(err);
     }
