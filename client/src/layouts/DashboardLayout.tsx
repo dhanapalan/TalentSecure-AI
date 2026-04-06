@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Outlet, NavLink, Link } from "react-router-dom";
+import { Outlet, NavLink } from "react-router-dom";
 import { authActions, useAuthStore } from "../stores/authStore";
 import { resolveRole, type AppRole } from "../components/ProtectedRoute";
 import Logo from "../components/Logo";
