@@ -30,6 +30,25 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # ── MinIO (S3-compatible file storage) ──────────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: talentsecure-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadmin}
+    volumes:
+      - miniodata:/data
+    ports:
+      - "127.0.0.1:9000:9000"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   # ── API Server ───────────────────────────────────────────────────────────────
   api:
     build:
@@ -46,6 +65,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     restart: unless-stopped
 
@@ -109,5 +130,6 @@ services:
 volumes:
   pgdata:
   redisdata:
+  miniodata:
   judge0pgdata:
   judge0redisdata:

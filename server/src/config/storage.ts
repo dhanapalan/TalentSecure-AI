@@ -24,10 +24,18 @@ export async function ensureBucket(): Promise<void> {
   try {
     await s3.send(new HeadBucketCommand({ Bucket: env.S3_BUCKET }));
     logger.info(`✓ S3 bucket "${env.S3_BUCKET}" ready`);
-  } catch {
-    logger.info(`Creating S3 bucket "${env.S3_BUCKET}"…`);
-    await s3.send(new CreateBucketCommand({ Bucket: env.S3_BUCKET }));
-    logger.info(`✓ S3 bucket "${env.S3_BUCKET}" created`);
+  } catch (headErr: any) {
+    if (headErr?.name === "NotFound" || headErr?.$metadata?.httpStatusCode === 404) {
+      try {
+        logger.info(`Creating S3 bucket "${env.S3_BUCKET}"…`);
+        await s3.send(new CreateBucketCommand({ Bucket: env.S3_BUCKET }));
+        logger.info(`✓ S3 bucket "${env.S3_BUCKET}" created`);
+      } catch (createErr) {
+        logger.warn(`S3 bucket creation failed — file uploads will be unavailable: ${createErr}`);
+      }
+    } else {
+      logger.warn(`S3 unavailable — file uploads will be disabled: ${headErr?.message}`);
+    }
   }
 }
 
