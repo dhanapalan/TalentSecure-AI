@@ -22,6 +22,11 @@ import {
   Key,
   X,
   AlertTriangle,
+  Pencil,
+  Phone,
+  Globe,
+  Mail,
+  ExternalLink,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "../../lib/api";
@@ -111,6 +116,10 @@ export default function CampusDetailPage() {
   const [uploadingMou, setUploadingMou] = useState(false);
   const mouInputRef = useRef<HTMLInputElement>(null);
 
+  // Agreements inline edit state (independent of global isEditingParams)
+  const [isEditingAgreements, setIsEditingAgreements] = useState(false);
+  const [agreementForm, setAgreementForm] = useState<Partial<CampusDetails>>({});
+
   // ── Fetching ────────────────────────────────────────────────────────────────
 
   const { data: campus, isLoading } = useQuery({
@@ -126,6 +135,13 @@ export default function CampusDetailPage() {
   useEffect(() => {
     if (campus && !isNew) {
       setFormData(campus);
+      setAgreementForm({
+        contract_status: campus.contract_status,
+        sla: campus.sla,
+        agreement_start_date: campus.agreement_start_date,
+        agreement_end_date: campus.agreement_end_date,
+        mou_url: campus.mou_url,
+      });
       setIsEditingParams(isEditRoute);
     } else if (isNew) {
       setIsEditingParams(true);
@@ -202,8 +218,19 @@ export default function CampusDetailPage() {
     inviteAdminMutation.mutate(inviteAdminForm);
   };
 
+  const handleSaveAgreements = () => {
+    updateMutation.mutate(agreementForm, {
+      onSuccess: () => {
+        setIsEditingAgreements(false);
+        qc.invalidateQueries({ queryKey: ["campus", id] });
+        toast.success("Agreement details saved");
+      },
+    });
+  };
+
   const handleMouUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    if (!file) return;
     if (!id || id === "new") {
       toast.error("Please save the campus details before uploading documents");
       return;
@@ -217,6 +244,7 @@ export default function CampusDetailPage() {
       const res = await api.post(`/campuses/${id}/upload-mou`, form);
       const url = res.data.data.mou_url;
       setFormData((prev) => ({ ...prev, mou_url: url }));
+      setAgreementForm((prev) => ({ ...prev, mou_url: url }));
       qc.invalidateQueries({ queryKey: ["campus", id] });
       toast.success("MOU document uploaded successfully");
     } catch (err: any) {
@@ -441,6 +469,42 @@ export default function CampusDetailPage() {
                     {isEditingParams ? (
                       <textarea rows={2} required value={formData.address || ""} onChange={(e) => handleChange("address", e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="Address" aria-label="Address" title="Address" />
                     ) : (<span className="text-sm font-medium text-slate-700">{details.address || `${details.city}, ${details.state}`}</span>)}
+                  </div>
+
+                  <div>
+                    <span className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Contact Email</span>
+                    {isEditingParams ? (
+                      <input type="email" value={formData.contact_email || ""} onChange={(e) => handleChange("contact_email", e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="contact@campus.edu" aria-label="Contact email" />
+                    ) : (
+                      <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
+                        <Mail className="h-3.5 w-3.5 text-slate-400" />
+                        {details.contact_email ? <a href={`mailto:${details.contact_email}`} className="text-blue-600 hover:underline">{details.contact_email}</a> : "—"}
+                      </span>
+                    )}
+                  </div>
+
+                  <div>
+                    <span className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Contact Phone</span>
+                    {isEditingParams ? (
+                      <input type="tel" value={formData.contact_phone || ""} onChange={(e) => handleChange("contact_phone", e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="+91 98765 43210" aria-label="Contact phone" />
+                    ) : (
+                      <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
+                        <Phone className="h-3.5 w-3.5 text-slate-400" />
+                        {details.contact_phone || "—"}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="col-span-1 sm:col-span-2">
+                    <span className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Website</span>
+                    {isEditingParams ? (
+                      <input type="url" value={formData.website || ""} onChange={(e) => handleChange("website", e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="https://www.campus.edu" aria-label="Website" />
+                    ) : (
+                      <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
+                        <Globe className="h-3.5 w-3.5 text-slate-400" />
+                        {details.website ? <a href={details.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center gap-1">{details.website} <ExternalLink className="h-3 w-3" /></a> : "—"}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -688,8 +752,12 @@ export default function CampusDetailPage() {
                           {admin.last_login ? new Date(admin.last_login).toLocaleDateString() : 'Never'}
                         </td>
                         <td className="px-6 py-4 text-right text-sm">
-                          {/* Add quick actions like reset password or disable here */}
-                          <button className="text-blue-600 hover:text-blue-900 font-medium">Edit</button>
+                          <button
+                            onClick={() => navigate(`/app/administration/users/${admin.id}/edit`)}
+                            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-blue-600 hover:bg-blue-50 transition-colors"
+                          >
+                            <Pencil className="h-3.5 w-3.5" /> Edit
+                          </button>
                         </td>
                       </tr>
                     ))
@@ -800,8 +868,48 @@ export default function CampusDetailPage() {
         {/* ======================= AGREEMENTS TAB ======================= */}
         {activeTab === "agreements" && (
           <div className="space-y-6">
-            <h3 className="text-lg font-black text-slate-900">Enterprise Contracts & SLA</h3>
-            <p className="text-sm text-slate-500">Manage legal agreements, MOUs, and custom Service Level Agreements.</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-black text-slate-900">Enterprise Contracts & SLA</h3>
+                <p className="text-sm text-slate-500">Manage legal agreements, MOUs, and custom Service Level Agreements.</p>
+              </div>
+              {!isNew && (
+                isEditingAgreements ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setIsEditingAgreements(false);
+                        setAgreementForm({
+                          contract_status: campus?.contract_status,
+                          sla: campus?.sla,
+                          agreement_start_date: campus?.agreement_start_date,
+                          agreement_end_date: campus?.agreement_end_date,
+                          mou_url: campus?.mou_url,
+                        });
+                      }}
+                      className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-bold text-slate-700 ring-1 ring-inset ring-slate-300 hover:bg-slate-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSaveAgreements}
+                      disabled={updateMutation.isPending}
+                      className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      <Save className="h-4 w-4" />
+                      {updateMutation.isPending ? "Saving…" : "Save Agreement"}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setIsEditingAgreements(true)}
+                    className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-bold text-slate-700 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 shadow-sm"
+                  >
+                    <Pencil className="h-4 w-4" /> Edit Agreement
+                  </button>
+                )
+              )}
+            </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Form Side */}
@@ -809,8 +917,8 @@ export default function CampusDetailPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-8">
                   <div>
                     <span className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Contract Status</span>
-                    {isEditingParams ? (
-                      <select value={formData.contract_status || "Active"} onChange={(e) => handleChange("contract_status", e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" aria-label="Contract status">
+                    {isEditingAgreements ? (
+                      <select value={agreementForm.contract_status || "Active"} onChange={(e) => setAgreementForm(p => ({ ...p, contract_status: e.target.value }))} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" aria-label="Contract status">
                         <option>Active</option>
                         <option>Pending Signature</option>
                         <option>Expired</option>
@@ -818,29 +926,29 @@ export default function CampusDetailPage() {
                         <option>Terminated</option>
                       </select>
                     ) : (
-                      <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wide ${details.contract_status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{details.contract_status || "Active"}</span>
+                      <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wide ${campus?.contract_status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{campus?.contract_status || "Not Set"}</span>
                     )}
                   </div>
 
                   <div>
                     <span className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Service Level Agreement (SLA)</span>
-                    {isEditingParams ? (
-                      <input value={formData.sla || ""} onChange={(e) => handleChange("sla", e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="e.g. 99.9% Uptime guarantee" />
-                    ) : (<span className="text-sm font-semibold text-slate-800">{details.sla || "Standard Corporate SLA"}</span>)}
+                    {isEditingAgreements ? (
+                      <input value={agreementForm.sla || ""} onChange={(e) => setAgreementForm(p => ({ ...p, sla: e.target.value }))} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="e.g. 99.9% Uptime guarantee" aria-label="SLA" />
+                    ) : (<span className="text-sm font-semibold text-slate-800">{campus?.sla || "—"}</span>)}
                   </div>
 
                   <div>
                     <span className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Agreement Start Date</span>
-                    {isEditingParams ? (
-                      <input type="date" value={formData.agreement_start_date ? new Date(formData.agreement_start_date).toISOString().split('T')[0] : ""} onChange={(e) => handleChange("agreement_start_date", new Date(e.target.value).toISOString())} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="Agreement start date" aria-label="Agreement start date" />
-                    ) : (<span className="text-sm font-semibold text-slate-800">{details.agreement_start_date ? new Date(details.agreement_start_date).toLocaleDateString() : "—"}</span>)}
+                    {isEditingAgreements ? (
+                      <input type="date" value={agreementForm.agreement_start_date ? new Date(agreementForm.agreement_start_date).toISOString().split('T')[0] : ""} onChange={(e) => setAgreementForm(p => ({ ...p, agreement_start_date: e.target.value ? new Date(e.target.value).toISOString() : null }))} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" aria-label="Agreement start date" />
+                    ) : (<span className="text-sm font-semibold text-slate-800">{campus?.agreement_start_date ? new Date(campus.agreement_start_date).toLocaleDateString() : "—"}</span>)}
                   </div>
 
                   <div>
                     <span className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Agreement End Date</span>
-                    {isEditingParams ? (
-                      <input type="date" value={formData.agreement_end_date ? new Date(formData.agreement_end_date).toISOString().split('T')[0] : ""} onChange={(e) => handleChange("agreement_end_date", new Date(e.target.value).toISOString())} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="Agreement end date" aria-label="Agreement end date" />
-                    ) : (<span className="text-sm font-semibold text-slate-800">{details.agreement_end_date ? new Date(details.agreement_end_date).toLocaleDateString() : "—"}</span>)}
+                    {isEditingAgreements ? (
+                      <input type="date" value={agreementForm.agreement_end_date ? new Date(agreementForm.agreement_end_date).toISOString().split('T')[0] : ""} onChange={(e) => setAgreementForm(p => ({ ...p, agreement_end_date: e.target.value ? new Date(e.target.value).toISOString() : null }))} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" aria-label="Agreement end date" />
+                    ) : (<span className="text-sm font-semibold text-slate-800">{campus?.agreement_end_date ? new Date(campus.agreement_end_date).toLocaleDateString() : "—"}</span>)}
                   </div>
                 </div>
               </div>
@@ -850,25 +958,25 @@ export default function CampusDetailPage() {
                 <FileText className="h-12 w-12 text-slate-300 mb-3" />
                 <h4 className="text-sm font-bold text-slate-700">MOU Document</h4>
                 <p className="text-xs text-slate-400 text-center mt-1 mb-4">Upload the signed contract PDF for reference.</p>
-                {formData.mou_url && (
+                {agreementForm.mou_url && (
                   <a
-                    href={formData.mou_url}
+                    href={agreementForm.mou_url}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="mb-3 text-xs font-bold text-indigo-600 hover:underline flex items-center gap-1"
                   >
-                    <FileText className="h-3.5 w-3.5" /> View Current Document
+                    <ExternalLink className="h-3.5 w-3.5" /> View Current Document
                   </a>
                 )}
-
                 <button
                   onClick={() => mouInputRef.current?.click()}
-                  disabled={uploadingMou}
-                  className="rounded-lg bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm ring-1 ring-slate-200 hover:bg-slate-50 flex items-center gap-2 disabled:opacity-60"
+                  disabled={uploadingMou || isNew}
+                  className="rounded-lg bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm ring-1 ring-slate-200 hover:bg-slate-50 flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <Upload className="h-4 w-4" />
-                  {uploadingMou ? "Uploading…" : formData.mou_url ? "Replace PDF" : "Upload PDF"}
+                  {uploadingMou ? "Uploading…" : agreementForm.mou_url ? "Replace PDF" : "Upload PDF"}
                 </button>
+                {isNew && <p className="text-[10px] text-slate-400 mt-2">Save campus first to upload</p>}
               </div>
             </div>
           </div>
