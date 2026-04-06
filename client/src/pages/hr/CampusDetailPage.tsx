@@ -204,14 +204,17 @@ export default function CampusDetailPage() {
 
   const handleMouUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !id) return;
+    if (!id || id === "new") {
+      toast.error("Please save the campus details before uploading documents");
+      return;
+    }
+
     const form = new FormData();
     form.append("mou_file", file);
     setUploadingMou(true);
+
     try {
-      const res = await api.post(`/campuses/${id}/upload-mou`, form, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const res = await api.post(`/campuses/${id}/upload-mou`, form);
       const url = res.data.data.mou_url;
       setFormData((prev) => ({ ...prev, mou_url: url }));
       qc.invalidateQueries({ queryKey: ["campus", id] });

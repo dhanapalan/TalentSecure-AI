@@ -2,7 +2,8 @@ import axios from "axios";
 
 // In dev: relative "/api" is proxied by Vite → localhost:5050
 // In prod (Vercel): VITE_API_URL = "https://api.atherasys.com"
-const baseURL = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : "/api";
+const VITE_API_URL = import.meta.env.VITE_API_URL || "https://api.gradlogic.atherasys.com";
+const baseURL = VITE_API_URL.endsWith("/") ? `${VITE_API_URL}api` : `${VITE_API_URL}/api`;
 
 const api = axios.create({
   baseURL,
