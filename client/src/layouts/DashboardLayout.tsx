@@ -125,9 +125,9 @@ const navigation: NavItem[] = [
     roles: ["college_admin", "college"],
   },
 
-  // Skill Development Layer
+  // ── Skill Development Layer ──────────────────────────────────────────────────
   {
-    name: "Skills Taxonomy",
+    name: "Skills",
     href: "/app/skills",
     icon: AcademicCapIcon,
     roles: ["super_admin", "hr", "cxo"],
