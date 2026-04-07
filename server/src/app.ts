@@ -30,6 +30,10 @@ import driveRoutes from "./routes/drive.routes.js";
 import examSessionRoutes from "./routes/examSession.routes.js";
 import { proctoringRoutes } from "./routes/proctoring.routes.js";
 import notificationRoutes from "./routes/notification.routes.js";
+import skillsRoutes from "./routes/skills.routes.js";
+import learningModulesRoutes from "./routes/learningModules.routes.js";
+import skillProgramsRoutes from "./routes/skillPrograms.routes.js";
+import skillPartnersRoutes from "./routes/skillPartners.routes.js";
 
 const app = express();
 
@@ -117,6 +121,11 @@ app.use("/api/drives", driveRoutes);
 app.use("/api/exam-sessions", examSessionRoutes);
 app.use("/api/proctoring", proctoringRoutes);
 app.use("/api/notifications", notificationRoutes);
+// ── Skill Development Layer ───────────────────────────────────────────────────
+app.use("/api/skills", skillsRoutes);
+app.use("/api/learning-modules", learningModulesRoutes);
+app.use("/api/skill-programs", skillProgramsRoutes);
+app.use("/api/skill-partners", skillPartnersRoutes);
 
 // ── Error Handling ───────────────────────────────────────────────────────────
 app.use(notFoundHandler);
