@@ -107,19 +107,19 @@ CREATE TABLE IF NOT EXISTS program_modules (
 CREATE INDEX IF NOT EXISTS idx_program_modules_program ON program_modules(program_id);
 
 -- =============================================================================
--- 7. Extend drives table — add drive_type and skill dev columns
+-- 7. Extend assessment_drives table — add drive_type and skill dev columns
 -- =============================================================================
 DO $$ BEGIN
-    ALTER TABLE drives ADD COLUMN drive_type VARCHAR(20)
+    ALTER TABLE assessment_drives ADD COLUMN drive_type VARCHAR(20)
         CHECK (drive_type IN ('hiring','skill_development')) DEFAULT 'hiring';
 EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 
 DO $$ BEGIN
-    ALTER TABLE drives ADD COLUMN program_id UUID REFERENCES skill_programs(id) ON DELETE SET NULL;
+    ALTER TABLE assessment_drives ADD COLUMN program_id UUID REFERENCES skill_programs(id) ON DELETE SET NULL;
 EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 
 DO $$ BEGIN
-    ALTER TABLE drives ADD COLUMN target_skill_ids UUID[] DEFAULT '{}';
+    ALTER TABLE assessment_drives ADD COLUMN target_skill_ids UUID[] DEFAULT '{}';
 EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 
 -- =============================================================================
@@ -129,7 +129,7 @@ CREATE TABLE IF NOT EXISTS student_program_enrollments (
     id               UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
     student_id       UUID        NOT NULL REFERENCES student_details(id) ON DELETE CASCADE,
     program_id       UUID        NOT NULL REFERENCES skill_programs(id) ON DELETE CASCADE,
-    drive_id         UUID        REFERENCES drives(id) ON DELETE SET NULL,
+    drive_id         UUID        REFERENCES assessment_drives(id) ON DELETE SET NULL,
     status           VARCHAR(20) NOT NULL
                         CHECK (status IN ('enrolled','in_progress','completed','dropped'))
                         DEFAULT 'enrolled',

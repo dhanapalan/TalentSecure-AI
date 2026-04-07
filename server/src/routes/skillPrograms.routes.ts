@@ -298,8 +298,8 @@ router.post("/:id/enroll", authorize("student"), async (req, res, next) => {
     if (!program.is_active) return res.status(400).json({ success: false, error: "Program is not active" });
 
     const enrollment = await queryOne(
-      `INSERT INTO student_program_enrollments (id, student_id, program_id)
-       VALUES ($1,$2,$3)
+      `INSERT INTO student_program_enrollments (id, student_id, program_id, status)
+       VALUES ($1,$2,$3,'enrolled')
        ON CONFLICT (student_id, program_id) DO NOTHING
        RETURNING *`,
       [uuidv4(), student.id, id]
