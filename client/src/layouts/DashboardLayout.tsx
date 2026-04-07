@@ -19,9 +19,6 @@ import {
   Cog6ToothIcon,
   ShieldCheckIcon,
   UserGroupIcon,
-  BookOpenIcon,
-  PuzzlePieceIcon,
-  BuildingOffice2Icon,
 } from "@heroicons/react/24/outline";
 
 // ── Sidebar navigation items with role access control ────────────────────────
@@ -138,19 +135,19 @@ const navigation: NavItem[] = [
   {
     name: "Learning Modules",
     href: "/app/learning-modules",
-    icon: BookOpenIcon,
+    icon: ClipboardDocumentListIcon,
     roles: ["super_admin", "hr", "cxo"],
   },
   {
     name: "Skill Programs",
     href: "/app/skill-programs",
-    icon: PuzzlePieceIcon,
+    icon: RocketLaunchIcon,
     roles: ["super_admin", "hr", "cxo"],
   },
   {
     name: "Skill Partners",
     href: "/app/skill-partners",
-    icon: BuildingOffice2Icon,
+    icon: UserGroupIcon,
     roles: ["super_admin", "hr", "cxo"],
   },
 
