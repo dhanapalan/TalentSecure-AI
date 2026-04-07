@@ -95,6 +95,13 @@ const StudentProfile = lazy(() => import("./pages/student/StudentProfile"));
 const NotAuthorizedPage = lazy(() => import("./pages/NotAuthorizedPage"));
 const StudentOnboardingWizard = lazy(() => import("./components/StudentOnboardingWizard"));
 
+// ── Skill Development Layer ───────────────────────────────────────────────────
+const SkillsTaxonomyPage = lazy(() => import("./pages/skills/SkillsTaxonomyPage"));
+const LearningModulesPage = lazy(() => import("./pages/skills/LearningModulesPage"));
+const SkillProgramsPage = lazy(() => import("./pages/skills/SkillProgramsPage"));
+const ProgramDetailPage = lazy(() => import("./pages/skills/ProgramDetailPage"));
+const SkillPartnersPage = lazy(() => import("./pages/skills/SkillPartnersPage"));
+
 // ── QueryClient ───────────────────────────────────────────────────────────────
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
@@ -669,6 +676,64 @@ export default function App() {
                 element={
                   <RoleGuard allowed={["super_admin", "hr", "cxo", "engineer"]}>
                     <AnalyticsPage />
+                  </RoleGuard>
+                }
+              />
+
+              {/* Skill Development Layer */}
+              <Route
+                path="skills"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "cxo"]}>
+                    <SkillsTaxonomyPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="learning-modules"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "cxo"]}>
+                    <LearningModulesPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="skill-programs"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "cxo"]}>
+                    <SkillProgramsPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="skill-programs/new"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "cxo"]}>
+                    <ProgramDetailPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="skill-programs/:id"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "cxo"]}>
+                    <ProgramDetailPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="skill-programs/:id/edit"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "cxo"]}>
+                    <ProgramDetailPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="skill-partners"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "cxo"]}>
+                    <SkillPartnersPage />
                   </RoleGuard>
                 }
               />
