@@ -72,7 +72,17 @@ const createCampusSchema = z.object({
   institution_type: z.string().optional(),
   region: z.string().optional(),
   naac_grade: z.string().optional(),
-  nirf_rank: z.number().int().optional(),
+  nirf_rank: z.preprocess(
+    (val) => (val === null || val === undefined || Number.isNaN(Number(val)) ? undefined : Number(val)),
+    z.number().int().optional(),
+  ),
+
+  // Optional detail fields
+  address: z.string().optional(),
+  website: z.string().optional(),
+  contact_email: z.string().email().optional().or(z.literal("")),
+  contact_phone: z.string().optional(),
+  internal_notes: z.string().optional(),
 
   adminName: z.string().min(1, "Admin full name is required"),
   adminEmail: z.string().email("Valid admin email is required"),
@@ -92,7 +102,10 @@ const updateCampusSchema = createCampusSchema.omit({
   institution_type: z.string().optional().nullable(),
   region: z.string().optional().nullable(),
   naac_grade: z.string().optional().nullable(),
-  nirf_rank: z.number().int().optional().nullable(),
+  nirf_rank: z.preprocess(
+    (val) => (val === null || val === undefined || Number.isNaN(Number(val)) ? undefined : Number(val)),
+    z.number().int().optional().nullable(),
+  ),
 
   agreement_start_date: z.string().datetime().optional().nullable(),
   agreement_end_date: z.string().datetime().optional().nullable(),
@@ -248,7 +261,8 @@ const ALLOWED_CAMPUS_UPDATE_KEYS = new Set([
   "naac_grade", "nirf_rank", "is_active", "agreement_start_date",
   "agreement_end_date", "sla", "mou_url", "contract_status",
   "eligible_for_hiring", "eligible_for_tier1", "is_blacklisted",
-  "is_suspended", "internal_notes",
+  "is_suspended", "internal_notes", "address", "website",
+  "contact_email", "contact_phone",
 ]);
 
 /**

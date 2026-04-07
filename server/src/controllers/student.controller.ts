@@ -68,7 +68,17 @@ export const list = async (
     const collegeId = req.user?.college_id;
     const isCentral = ["super_admin", "admin", "hr"].includes(req.user?.role || "");
 
-    const { data: students, total } = await studentService.listStudents(limit, offset, isCentral ? undefined : (collegeId || undefined));
+    const search = typeof req.query.search === "string" ? req.query.search.trim() : undefined;
+    const placementStatus = typeof req.query.placementStatus === "string" ? req.query.placementStatus.trim() : undefined;
+    const riskLevel = typeof req.query.riskLevel === "string" ? req.query.riskLevel.trim() : undefined;
+    const status = typeof req.query.status === "string" ? req.query.status.trim() : undefined;
+
+    const { data: students, total } = await studentService.listStudents(
+      limit,
+      offset,
+      isCentral ? undefined : (collegeId || undefined),
+      { search, placementStatus, riskLevel, status },
+    );
     res.json({
       success: true,
       data: students,

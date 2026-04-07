@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   ShieldAlert,
   ShieldCheck,
+  Trash2,
 } from "lucide-react";
 import api from "../../lib/api";
 import toast from "react-hot-toast";
@@ -76,6 +77,20 @@ export default function CampusListPage() {
     },
     onError: () => {
       toast.error("Bulk action failed.");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/campuses/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["campuses"] });
+      toast.success("Campus status updated.");
+      setOpenDropdownId(null);
+    },
+    onError: () => {
+      toast.error("Failed to update campus status.");
     },
   });
 
@@ -395,6 +410,16 @@ export default function CampusListPage() {
                                   <button onClick={() => bulkMutation.mutate({ action: 'suspend', ids: [c.id] })} className="block w-full text-left px-4 py-2 text-sm text-amber-700 hover:bg-amber-50">Suspend</button>
                                 ) : (
                                   <button onClick={() => bulkMutation.mutate({ action: 'activate', ids: [c.id] })} className="block w-full text-left px-4 py-2 text-sm text-emerald-700 hover:bg-emerald-50">Activate</button>
+                                )}
+                                <div className="border-t border-slate-100" />
+                                {c.is_active ? (
+                                  <button onClick={() => { if (window.confirm(`Deactivate "${c.name}"? This will hide it from active campus lists.`)) deleteMutation.mutate(c.id); }} className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50">
+                                    <span className="flex items-center gap-2"><Trash2 className="h-3.5 w-3.5" /> Deactivate</span>
+                                  </button>
+                                ) : (
+                                  <button onClick={() => deleteMutation.mutate(c.id)} className="block w-full text-left px-4 py-2 text-sm text-emerald-600 hover:bg-emerald-50">
+                                    Reactivate
+                                  </button>
                                 )}
                               </div>
                             )}

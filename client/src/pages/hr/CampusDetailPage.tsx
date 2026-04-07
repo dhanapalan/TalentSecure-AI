@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -27,6 +27,13 @@ import {
   Globe,
   Mail,
   ExternalLink,
+  Search,
+  CheckCircle2,
+  Clock,
+  ClipboardList,
+  FileUp,
+  Download,
+  Eye,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "../../lib/api";
@@ -120,6 +127,11 @@ export default function CampusDetailPage() {
   const [isEditingAgreements, setIsEditingAgreements] = useState(false);
   const [agreementForm, setAgreementForm] = useState<Partial<CampusDetails>>({});
 
+  // Assessment Assignment State
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [assessmentSearch, setAssessmentSearch] = useState("");
+  const [selectedExamIds, setSelectedExamIds] = useState<string[]>([]);
+
   // ── Fetching ────────────────────────────────────────────────────────────────
 
   const { data: campus, isLoading } = useQuery({
@@ -130,6 +142,38 @@ export default function CampusDetailPage() {
       return data.data as CampusDetails;
     },
     enabled: !isNew,
+  });
+
+  // Fetch available exams for assignment
+  const { data: availableExams = [] } = useQuery({
+    queryKey: ["exams-list"],
+    queryFn: async () => {
+      try {
+        const { data } = await api.get(`/exams`);
+        return (data.data || data || []) as any[];
+      } catch {
+        return [];
+      }
+    },
+    enabled: showAssignModal,
+  });
+
+  // Fetch campus-assigned exams
+  const { data: campusExams = [], refetch: refetchCampusExams } = useQuery({
+    queryKey: ["campus-exams", id],
+    queryFn: async () => {
+      try {
+        const { data } = await api.get(`/exams`);
+        const allExams = (data.data || data || []) as any[];
+        // Filter exams assigned to this campus
+        return allExams.filter((exam: any) =>
+          exam.assigned_colleges?.some((c: any) => c.id === id || c.college_id === id)
+        );
+      } catch {
+        return [];
+      }
+    },
+    enabled: !isNew && activeTab === "assessments",
   });
 
   useEffect(() => {
@@ -194,10 +238,16 @@ export default function CampusDetailPage() {
   // ── Handlers ────────────────────────────────────────────────────────────────
 
   const handleSave = () => {
+    // Sanitize: remove NaN, undefined, and frontend-only fields before sending
+    const sanitized = { ...formData };
+    // Convert NaN numbers to undefined so Zod treats them as optional/missing
+    if (sanitized.nirf_rank !== undefined && sanitized.nirf_rank !== null && isNaN(Number(sanitized.nirf_rank))) {
+      delete sanitized.nirf_rank;
+    }
     if (isNew) {
-      createMutation.mutate(formData);
+      createMutation.mutate(sanitized);
     } else {
-      updateMutation.mutate(formData);
+      updateMutation.mutate(sanitized);
     }
   };
 
@@ -254,6 +304,37 @@ export default function CampusDetailPage() {
       if (mouInputRef.current) mouInputRef.current.value = "";
     }
   };
+
+  // Robust file input trigger
+  const triggerMouUpload = useCallback(() => {
+    if (isNew) {
+      toast.error("Please save the campus details before uploading documents");
+      return;
+    }
+    // Direct ref click
+    if (mouInputRef.current) {
+      mouInputRef.current.click();
+    } else {
+      // Fallback: find the hidden input by ID
+      const fileInput = document.getElementById("mou-file-input") as HTMLInputElement;
+      if (fileInput) fileInput.click();
+    }
+  }, [isNew]);
+
+  // Assign exams to campus
+  const assignExamMutation = useMutation({
+    mutationFn: async (examId: string) => {
+      return api.post(`/exams/${examId}/assign`, { campus_ids: [id] });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["campus-exams", id] });
+      qc.invalidateQueries({ queryKey: ["campus", id] });
+      toast.success("Assessment assigned to campus successfully!");
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || "Failed to assign assessment");
+    },
+  });
 
   const getRiskBadge = (score: number) => {
     if (score > 50) return <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-3 py-1.5 text-xs font-bold text-red-700 ring-1 ring-inset ring-red-600/20"><ShieldAlert className="h-4 w-4" /> High Risk</span>;
@@ -460,7 +541,7 @@ export default function CampusDetailPage() {
                   <div>
                     <span className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">NIRF Rank</span>
                     {isEditingParams ? (
-                      <input type="number" value={formData.nirf_rank || ""} onChange={(e) => handleChange("nirf_rank", parseInt(e.target.value))} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="NIRF rank" aria-label="NIRF rank" title="NIRF rank" />
+                      <input type="number" value={formData.nirf_rank ?? ""} onChange={(e) => handleChange("nirf_rank", e.target.value === "" ? undefined : parseInt(e.target.value))} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="NIRF rank" aria-label="NIRF rank" title="NIRF rank" />
                     ) : (<span className="text-sm font-semibold text-slate-800">{details.nirf_rank || "—"}</span>)}
                   </div>
 
@@ -803,16 +884,248 @@ export default function CampusDetailPage() {
                 <h3 className="text-lg font-black text-slate-900">Assessment History</h3>
                 <p className="text-sm text-slate-500">Exams conducted, scheduled, and assigned to this campus.</p>
               </div>
-              <button onClick={() => navigate("/app/drives/new")} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 shadow-sm">
-                Assign New Assessment
-              </button>
+              {!isNew && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setShowAssignModal(true);
+                  }}
+                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 shadow-sm transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                  Assign New Assessment
+                </button>
+              )}
             </div>
 
-            <div className="rounded-2xl bg-white shadow-sm ring-1 ring-slate-100 p-8 text-center text-slate-500 border border-dashed border-slate-300">
-              <BookOpen className="mx-auto h-12 w-12 text-slate-300 mb-3" />
-              <h4 className="text-base font-bold text-slate-700">Detailed Exam History Coming Soon</h4>
-              <p className="text-sm mt-1">View comprehensive statistics of all past exams.</p>
-            </div>
+            {/* Assigned Assessments List */}
+            {campusExams.length > 0 ? (
+              <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-xs font-semibold text-slate-500 border-b border-slate-100">
+                    <tr>
+                      <th className="px-6 py-4">Assessment Name</th>
+                      <th className="px-6 py-4">Duration</th>
+                      <th className="px-6 py-4">Questions</th>
+                      <th className="px-6 py-4">Status</th>
+                      <th className="px-6 py-4">Created</th>
+                      <th className="px-6 py-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {campusExams.map((exam: any) => (
+                      <tr key={exam.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="font-semibold text-slate-900">{exam.title || exam.name || "Untitled Exam"}</div>
+                          {exam.description && (
+                            <div className="text-xs text-slate-500 mt-0.5 truncate max-w-xs">{exam.description}</div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="inline-flex items-center gap-1 text-slate-600">
+                            <Clock className="h-3.5 w-3.5" />
+                            {exam.duration_minutes || "—"} min
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="inline-flex items-center gap-1 text-slate-600">
+                            <ClipboardList className="h-3.5 w-3.5" />
+                            {exam.total_questions || exam.questions_count || "—"}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          {exam.is_active ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+                              <CheckCircle2 className="h-3 w-3" /> Active
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600 ring-1 ring-inset ring-slate-500/10">
+                              Inactive
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-slate-500 text-xs">
+                          {exam.created_at ? new Date(exam.created_at).toLocaleDateString() : "—"}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/app/assessments/${exam.id}/questions`)}
+                            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-blue-600 hover:bg-blue-50 transition-colors"
+                          >
+                            <Eye className="h-3.5 w-3.5" /> View
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="rounded-2xl bg-white shadow-sm ring-1 ring-slate-100 p-8 text-center text-slate-500 border border-dashed border-slate-300">
+                <BookOpen className="mx-auto h-12 w-12 text-slate-300 mb-3" />
+                <h4 className="text-base font-bold text-slate-700">No Assessments Assigned Yet</h4>
+                <p className="text-sm mt-1">Click "Assign New Assessment" to link an existing exam to this campus.</p>
+              </div>
+            )}
+
+            {/* ── Assign Assessment Modal ─────────────────────────────── */}
+            {showAssignModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                <div className="w-full max-w-xl mx-4 rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                  {/* Modal Header */}
+                  <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 bg-gradient-to-r from-blue-50 to-indigo-50">
+                    <div>
+                      <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                        <ClipboardList className="h-5 w-5 text-blue-600" />
+                        Assign Assessment to Campus
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">Select an exam to assign to this campus.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAssignModal(false);
+                        setAssessmentSearch("");
+                        setSelectedExamIds([]);
+                      }}
+                      className="rounded-lg p-2 text-slate-400 hover:text-slate-600 hover:bg-white transition-colors"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  {/* Search */}
+                  <div className="px-6 py-3 border-b border-slate-100">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Search assessments..."
+                        value={assessmentSearch}
+                        onChange={(e) => setAssessmentSearch(e.target.value)}
+                        className="w-full rounded-lg border border-slate-200 py-2 pl-10 pr-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Exam List */}
+                  <div className="max-h-80 overflow-y-auto px-6 py-3">
+                    {availableExams.length === 0 ? (
+                      <div className="py-8 text-center text-sm text-slate-400">
+                        <BookOpen className="mx-auto h-10 w-10 text-slate-200 mb-3" />
+                        <p>No assessments found in the system.</p>
+                        <p className="mt-1">Create one from the Assessment Studio first.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {availableExams
+                          .filter((exam: any) => {
+                            const q = assessmentSearch.toLowerCase();
+                            const name = (exam.title || exam.name || "").toLowerCase();
+                            return !q || name.includes(q);
+                          })
+                          .map((exam: any) => {
+                            const alreadyAssigned = campusExams.some((ce: any) => ce.id === exam.id);
+                            const isSelected = selectedExamIds.includes(exam.id);
+                            return (
+                              <label
+                                key={exam.id}
+                                className={`flex items-center gap-3 rounded-xl p-3 cursor-pointer transition-all ring-1 ${
+                                  alreadyAssigned
+                                    ? "ring-emerald-200 bg-emerald-50/50 cursor-default opacity-60"
+                                    : isSelected
+                                    ? "ring-blue-300 bg-blue-50"
+                                    : "ring-slate-100 hover:ring-blue-200 hover:bg-blue-50/30"
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected || alreadyAssigned}
+                                  disabled={alreadyAssigned}
+                                  onChange={(e) => {
+                                    if (alreadyAssigned) return;
+                                    setSelectedExamIds((prev) =>
+                                      e.target.checked
+                                        ? [...prev, exam.id]
+                                        : prev.filter((eId) => eId !== exam.id)
+                                    );
+                                  }}
+                                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm font-semibold text-slate-900 truncate">
+                                    {exam.title || exam.name || "Untitled Exam"}
+                                  </div>
+                                  <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500">
+                                    {exam.duration_minutes && (
+                                      <span className="flex items-center gap-1">
+                                        <Clock className="h-3 w-3" />
+                                        {exam.duration_minutes} min
+                                      </span>
+                                    )}
+                                    {(exam.total_questions || exam.questions_count) && (
+                                      <span className="flex items-center gap-1">
+                                        <ClipboardList className="h-3 w-3" />
+                                        {exam.total_questions || exam.questions_count} Qs
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                {alreadyAssigned && (
+                                  <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                                    <CheckCircle2 className="h-3 w-3" /> Assigned
+                                  </span>
+                                )}
+                              </label>
+                            );
+                          })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Modal Footer */}
+                  <div className="flex items-center justify-between border-t border-slate-100 px-6 py-4 bg-slate-50">
+                    <p className="text-xs text-slate-500">
+                      {selectedExamIds.length > 0
+                        ? `${selectedExamIds.length} assessment(s) selected`
+                        : "Select assessments to assign"}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAssignModal(false);
+                          setAssessmentSearch("");
+                          setSelectedExamIds([]);
+                        }}
+                        className="rounded-lg bg-white px-4 py-2 text-sm font-bold text-slate-700 ring-1 ring-inset ring-slate-300 hover:bg-slate-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={selectedExamIds.length === 0 || assignExamMutation.isPending}
+                        onClick={async () => {
+                          for (const examId of selectedExamIds) {
+                            await assignExamMutation.mutateAsync(examId);
+                          }
+                          setShowAssignModal(false);
+                          setAssessmentSearch("");
+                          setSelectedExamIds([]);
+                          refetchCampusExams();
+                        }}
+                        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {assignExamMutation.isPending ? "Assigning…" : `Assign ${selectedExamIds.length > 0 ? `(${selectedExamIds.length})` : ""}`}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -954,29 +1267,55 @@ export default function CampusDetailPage() {
               </div>
 
               {/* Upload PDF Side */}
-              <div className="col-span-1 rounded-2xl bg-slate-50 shadow-sm ring-1 ring-slate-200 p-6 flex flex-col items-center justify-center border-2 border-dashed border-slate-300">
-                <FileText className="h-12 w-12 text-slate-300 mb-3" />
+              <div className="col-span-1 rounded-2xl bg-slate-50 shadow-sm ring-1 ring-slate-200 p-6 flex flex-col items-center justify-center border-2 border-dashed border-slate-300 transition-colors hover:border-blue-300 hover:bg-blue-50/30">
+                {agreementForm.mou_url ? (
+                  <CheckCircle2 className="h-12 w-12 text-emerald-400 mb-3" />
+                ) : (
+                  <FileUp className="h-12 w-12 text-slate-300 mb-3" />
+                )}
                 <h4 className="text-sm font-bold text-slate-700">MOU Document</h4>
                 <p className="text-xs text-slate-400 text-center mt-1 mb-4">Upload the signed contract PDF for reference.</p>
                 {agreementForm.mou_url && (
-                  <a
-                    href={agreementForm.mou_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mb-3 text-xs font-bold text-indigo-600 hover:underline flex items-center gap-1"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" /> View Current Document
-                  </a>
+                  <div className="flex items-center gap-2 mb-3">
+                    <a
+                      href={agreementForm.mou_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 ring-1 ring-inset ring-emerald-600/20 transition-colors"
+                    >
+                      <Eye className="h-3.5 w-3.5" /> View Document
+                    </a>
+                    <a
+                      href={agreementForm.mou_url}
+                      download
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-200 ring-1 ring-inset ring-slate-200 transition-colors"
+                    >
+                      <Download className="h-3.5 w-3.5" /> Download
+                    </a>
+                  </div>
                 )}
                 <button
-                  onClick={() => mouInputRef.current?.click()}
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    triggerMouUpload();
+                  }}
                   disabled={uploadingMou || isNew}
-                  className="rounded-lg bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm ring-1 ring-slate-200 hover:bg-slate-50 flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="rounded-lg bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm ring-1 ring-slate-200 hover:bg-blue-50 hover:ring-blue-300 hover:text-blue-700 flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
                 >
                   <Upload className="h-4 w-4" />
                   {uploadingMou ? "Uploading…" : agreementForm.mou_url ? "Replace PDF" : "Upload PDF"}
                 </button>
                 {isNew && <p className="text-[10px] text-slate-400 mt-2">Save campus first to upload</p>}
+                {uploadingMou && (
+                  <div className="mt-3 w-full">
+                    <div className="h-1.5 w-full rounded-full bg-slate-200 overflow-hidden">
+                      <div className="h-full bg-blue-500 rounded-full animate-pulse" style={{ width: "60%" }} />
+                    </div>
+                    <p className="text-[10px] text-blue-600 font-medium mt-1 text-center">Uploading document...</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -984,12 +1323,14 @@ export default function CampusDetailPage() {
 
       </div>
 
+      {/* Hidden file input — placed at root level to ensure it's always in the DOM */}
       <input
         ref={mouInputRef}
+        id="mou-file-input"
         type="file"
         accept="application/pdf"
         aria-label="Upload MOU PDF document"
-        className="hidden"
+        style={{ position: "absolute", top: -9999, left: -9999, opacity: 0, pointerEvents: "none" }}
         onChange={handleMouUpload}
       />
     </div>

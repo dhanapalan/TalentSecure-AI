@@ -71,7 +71,7 @@ export async function listDrives(filters?: { status?: string; rule_id?: string }
     const conditions: string[] = [];
 
     if (filters?.status && filters.status !== "all") {
-        conditions.push(`d.status = $${params.length + 1}`);
+        conditions.push(`UPPER(d.status) = UPPER($${params.length + 1})`);
         params.push(filters.status);
     }
     if (filters?.rule_id) {
