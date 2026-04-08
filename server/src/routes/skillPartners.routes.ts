@@ -71,6 +71,118 @@ router.get("/", authorize(...VIEW_ROLES), async (req, res, next) => {
 });
 
 // =============================================================================
+// SKILL-DEV ANALYTICS  (CXO endpoints — MUST be before /:id)
+// =============================================================================
+
+// GET /api/skill-partners/analytics/uplift
+router.get("/analytics/uplift", authorize("super_admin", "hr", "cxo"), async (_req, res, next) => {
+  try {
+    const metrics = await queryOne(
+      `SELECT
+         (SELECT COUNT(*)::int FROM skill_programs WHERE is_active = TRUE)         AS active_programs,
+         (SELECT COUNT(*)::int FROM student_program_enrollments)                   AS total_enrollments,
+         (SELECT COUNT(*)::int FROM student_program_enrollments WHERE status = 'completed') AS completions,
+         (SELECT ROUND(AVG(completion_score)::numeric, 1) FROM student_program_enrollments
+          WHERE status = 'completed')                                               AS avg_completion_score,
+         (SELECT COUNT(*)::int FROM learning_modules WHERE is_published = TRUE)    AS published_modules,
+         (SELECT COUNT(*)::int FROM skills WHERE is_active = TRUE)                 AS active_skills,
+         (SELECT COUNT(*)::int FROM skill_dev_partners WHERE is_active = TRUE)     AS active_partners`
+    );
+    res.json({ success: true, data: metrics });
+  } catch (err) { next(err); }
+});
+
+// GET /api/skill-partners/analytics/programs
+router.get("/analytics/programs", authorize("super_admin", "hr", "cxo"), async (_req, res, next) => {
+  try {
+    const rows = await query(
+      `SELECT
+         sp.id, sp.name, sp.program_type,
+         COUNT(DISTINCT e.id)::int                                                        AS enrollments,
+         COUNT(DISTINCT e.id) FILTER (WHERE e.status = 'completed')::int                 AS completions,
+         COALESCE(ROUND(AVG(e.completion_score)::numeric, 1), 0)                         AS avg_score,
+         COALESCE(ROUND(
+           COUNT(DISTINCT e.id) FILTER (WHERE e.status = 'completed')::numeric
+           / NULLIF(COUNT(DISTINCT e.id), 0) * 100, 1
+         ), 0)                                                                            AS completion_rate,
+         COUNT(DISTINCT pm.module_id)::int                                                AS module_count
+       FROM skill_programs sp
+       LEFT JOIN student_program_enrollments e ON e.program_id = sp.id
+       LEFT JOIN program_modules pm ON pm.program_id = sp.id
+       WHERE sp.is_active = TRUE
+       GROUP BY sp.id, sp.name, sp.program_type
+       ORDER BY completions DESC, enrollments DESC
+       LIMIT 10`
+    );
+    res.json({ success: true, data: rows });
+  } catch (err) { next(err); }
+});
+
+// GET /api/skill-partners/analytics/skills
+router.get("/analytics/skills", authorize("super_admin", "hr", "cxo"), async (_req, res, next) => {
+  try {
+    const rows = await query(
+      `SELECT
+         s.id, s.name, s.skill_level,
+         sc.name AS category_name,
+         COUNT(DISTINCT ss.student_id)::int AS student_count,
+         COALESCE(ROUND(AVG(ss.proficiency_score)::numeric, 1), 0) AS avg_proficiency
+       FROM skills s
+       LEFT JOIN skill_categories sc ON sc.id = s.category_id
+       LEFT JOIN student_skills ss ON ss.skill_id = s.id
+       WHERE s.is_active = TRUE
+       GROUP BY s.id, s.name, s.skill_level, sc.name
+       ORDER BY student_count DESC
+       LIMIT 12`
+    );
+    res.json({ success: true, data: rows });
+  } catch (err) { next(err); }
+});
+
+// GET /api/skill-partners/analytics/trend
+router.get("/analytics/trend", authorize("super_admin", "hr", "cxo"), async (_req, res, next) => {
+  try {
+    const rows = await query(
+      `SELECT
+         TO_CHAR(DATE_TRUNC('month', enrolled_at), 'Mon YY') AS month,
+         DATE_TRUNC('month', enrolled_at)                     AS month_date,
+         COUNT(*)::int                                         AS enrollments,
+         COUNT(*) FILTER (WHERE status = 'completed')::int    AS completions
+       FROM student_program_enrollments
+       WHERE enrolled_at >= NOW() - INTERVAL '6 months'
+       GROUP BY DATE_TRUNC('month', enrolled_at)
+       ORDER BY month_date ASC`
+    );
+    res.json({ success: true, data: rows });
+  } catch (err) { next(err); }
+});
+
+// GET /api/skill-partners/analytics/employability
+router.get("/analytics/employability", authorize("super_admin", "hr", "cxo"), async (_req, res, next) => {
+  try {
+    const rows = await query(
+      `SELECT
+         c.id AS college_id, c.name AS college_name,
+         COUNT(DISTINCT sd.id)::int AS student_count,
+         COUNT(DISTINCT e.id)::int AS enrolled_students,
+         COUNT(DISTINCT e.id) FILTER (WHERE e.status = 'completed')::int AS completed_students,
+         COALESCE(ROUND(AVG(e.completion_score)::numeric, 1), 0) AS avg_score,
+         COALESCE(ROUND(
+           (COUNT(DISTINCT e.id) FILTER (WHERE e.status = 'completed')::float
+            / NULLIF(COUNT(DISTINCT sd.id), 0) * 100)::numeric, 1
+         ), 0) AS employability_index
+       FROM colleges c
+       LEFT JOIN student_details sd ON sd.college_id = c.id
+       LEFT JOIN student_program_enrollments e ON e.student_id = sd.id
+       WHERE c.is_active = TRUE
+       GROUP BY c.id, c.name
+       ORDER BY employability_index DESC`
+    );
+    res.json({ success: true, data: rows });
+  } catch (err) { next(err); }
+});
+
+// =============================================================================
 // DETAIL
 // =============================================================================
 
@@ -187,117 +299,5 @@ router.post(
     } catch (err) { next(err); }
   }
 );
-
-// =============================================================================
-// SKILL-DEV ANALYTICS  (CXO endpoints)
-// =============================================================================
-
-// GET /api/skill-partners/analytics/uplift  — skill uplift metrics for CXO
-router.get("/analytics/uplift", authorize("super_admin", "hr", "cxo"), async (_req, res, next) => {
-  try {
-    const metrics = await queryOne(
-      `SELECT
-         (SELECT COUNT(*)::int FROM skill_programs WHERE is_active = TRUE)         AS active_programs,
-         (SELECT COUNT(*)::int FROM student_program_enrollments)                   AS total_enrollments,
-         (SELECT COUNT(*)::int FROM student_program_enrollments WHERE status = 'completed') AS completions,
-         (SELECT ROUND(AVG(completion_score)::numeric, 1) FROM student_program_enrollments
-          WHERE status = 'completed')                                               AS avg_completion_score,
-         (SELECT COUNT(*)::int FROM learning_modules WHERE is_published = TRUE)    AS published_modules,
-         (SELECT COUNT(*)::int FROM skills WHERE is_active = TRUE)                 AS active_skills,
-         (SELECT COUNT(*)::int FROM skill_dev_partners WHERE is_active = TRUE)     AS active_partners`
-    );
-    res.json({ success: true, data: metrics });
-  } catch (err) { next(err); }
-});
-
-// GET /api/skill-partners/analytics/programs  — top programs by completions & score
-router.get("/analytics/programs", authorize("super_admin", "hr", "cxo"), async (_req, res, next) => {
-  try {
-    const rows = await query(
-      `SELECT
-         sp.id, sp.name, sp.program_type,
-         COUNT(DISTINCT e.id)::int                                                        AS enrollments,
-         COUNT(DISTINCT e.id) FILTER (WHERE e.status = 'completed')::int                 AS completions,
-         COALESCE(ROUND(AVG(e.completion_score)::numeric, 1), 0)                         AS avg_score,
-         COALESCE(ROUND(
-           COUNT(DISTINCT e.id) FILTER (WHERE e.status = 'completed')::numeric
-           / NULLIF(COUNT(DISTINCT e.id), 0) * 100, 1
-         ), 0)                                                                            AS completion_rate,
-         COUNT(DISTINCT pm.module_id)::int                                                AS module_count
-       FROM skill_programs sp
-       LEFT JOIN student_program_enrollments e ON e.program_id = sp.id
-       LEFT JOIN program_modules pm ON pm.program_id = sp.id
-       WHERE sp.is_active = TRUE
-       GROUP BY sp.id, sp.name, sp.program_type
-       ORDER BY completions DESC, enrollments DESC
-       LIMIT 10`
-    );
-    res.json({ success: true, data: rows });
-  } catch (err) { next(err); }
-});
-
-// GET /api/skill-partners/analytics/skills  — top skills by student acquisition
-router.get("/analytics/skills", authorize("super_admin", "hr", "cxo"), async (_req, res, next) => {
-  try {
-    const rows = await query(
-      `SELECT
-         s.id, s.name, s.skill_level,
-         sc.name AS category_name,
-         COUNT(DISTINCT ss.student_id)::int AS student_count,
-         COALESCE(ROUND(AVG(ss.proficiency_score)::numeric, 1), 0) AS avg_proficiency
-       FROM skills s
-       LEFT JOIN skill_categories sc ON sc.id = s.category_id
-       LEFT JOIN student_skills ss ON ss.skill_id = s.id
-       WHERE s.is_active = TRUE
-       GROUP BY s.id, s.name, s.skill_level, sc.name
-       ORDER BY student_count DESC
-       LIMIT 12`
-    );
-    res.json({ success: true, data: rows });
-  } catch (err) { next(err); }
-});
-
-// GET /api/skill-partners/analytics/trend  — monthly enrollment trend (last 6 months)
-router.get("/analytics/trend", authorize("super_admin", "hr", "cxo"), async (_req, res, next) => {
-  try {
-    const rows = await query(
-      `SELECT
-         TO_CHAR(DATE_TRUNC('month', enrolled_at), 'Mon YY') AS month,
-         DATE_TRUNC('month', enrolled_at)                     AS month_date,
-         COUNT(*)::int                                         AS enrollments,
-         COUNT(*) FILTER (WHERE status = 'completed')::int    AS completions
-       FROM student_program_enrollments
-       WHERE enrolled_at >= NOW() - INTERVAL '6 months'
-       GROUP BY DATE_TRUNC('month', enrolled_at)
-       ORDER BY month_date ASC`
-    );
-    res.json({ success: true, data: rows });
-  } catch (err) { next(err); }
-});
-
-// GET /api/skill-partners/analytics/employability  — per-campus employability index
-router.get("/analytics/employability", authorize("super_admin", "hr", "cxo"), async (_req, res, next) => {
-  try {
-    const rows = await query(
-      `SELECT
-         c.id AS college_id, c.name AS college_name,
-         COUNT(DISTINCT sd.id)::int AS student_count,
-         COUNT(DISTINCT e.id)::int AS enrolled_students,
-         COUNT(DISTINCT e.id) FILTER (WHERE e.status = 'completed')::int AS completed_students,
-         COALESCE(ROUND(AVG(e.completion_score)::numeric, 1), 0) AS avg_score,
-         COALESCE(ROUND(
-           (COUNT(DISTINCT e.id) FILTER (WHERE e.status = 'completed')::float
-            / NULLIF(COUNT(DISTINCT sd.id), 0) * 100)::numeric, 1
-         ), 0) AS employability_index
-       FROM colleges c
-       LEFT JOIN student_details sd ON sd.college_id = c.id
-       LEFT JOIN student_program_enrollments e ON e.student_id = sd.id
-       WHERE c.is_active = TRUE
-       GROUP BY c.id, c.name
-       ORDER BY employability_index DESC`
-    );
-    res.json({ success: true, data: rows });
-  } catch (err) { next(err); }
-});
 
 export default router;

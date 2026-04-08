@@ -39,6 +39,12 @@ const navigation: NavItem[] = [
     roles: ["super_admin", "hr", "cxo"],
   },
   {
+    name: "CXO Analytics",
+    href: "/app/cxo-analytics",
+    icon: ChartBarIcon,
+    roles: ["cxo", "super_admin"],
+  },
+  {
     name: "Campuses",
     href: "/app/campuses",
     icon: AcademicCapIcon,
