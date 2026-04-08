@@ -62,6 +62,12 @@ const navigation: NavItem[] = [
     icon: AcademicCapIcon,
     roles: ["student"],
   },
+  {
+    name: "Learning",
+    href: "/app/student-portal?tab=learning",
+    icon: ClipboardDocumentListIcon,
+    roles: ["student"],
+  },
 
   // College / Campus Portal navigation
   {

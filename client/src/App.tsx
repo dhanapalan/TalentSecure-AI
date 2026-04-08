@@ -91,6 +91,8 @@ const ExamInstructionsPage = lazy(() => import("./pages/student/ExamInstructions
 const ExamPlayerPage = lazy(() => import("./pages/student/ExamPlayerPage"));
 const MockExamPlayer = lazy(() => import("./pages/student/MockExamPlayer"));
 const StudentProfile = lazy(() => import("./pages/student/StudentProfile"));
+const StudentProgramPage = lazy(() => import("./pages/student/StudentProgramPage"));
+const ModulePlayerPage = lazy(() => import("./pages/student/ModulePlayerPage"));
 
 const NotAuthorizedPage = lazy(() => import("./pages/NotAuthorizedPage"));
 const StudentOnboardingWizard = lazy(() => import("./components/StudentOnboardingWizard"));
@@ -377,6 +379,22 @@ export default function App() {
                 element={
                   <RoleGuard allowed={["student"]}>
                     <StudentProfile />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="student-portal/programs/:programId"
+                element={
+                  <RoleGuard allowed={["student"]}>
+                    <StudentProgramPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="student-portal/programs/:programId/modules/:moduleId"
+                element={
+                  <RoleGuard allowed={["student"]}>
+                    <ModulePlayerPage />
                   </RoleGuard>
                 }
               />
