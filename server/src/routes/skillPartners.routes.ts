@@ -210,6 +210,71 @@ router.get("/analytics/uplift", authorize("super_admin", "hr", "cxo"), async (_r
   } catch (err) { next(err); }
 });
 
+// GET /api/skill-partners/analytics/programs  — top programs by completions & score
+router.get("/analytics/programs", authorize("super_admin", "hr", "cxo"), async (_req, res, next) => {
+  try {
+    const rows = await query(
+      `SELECT
+         sp.id, sp.name, sp.program_type,
+         COUNT(DISTINCT e.id)::int                                                        AS enrollments,
+         COUNT(DISTINCT e.id) FILTER (WHERE e.status = 'completed')::int                 AS completions,
+         COALESCE(ROUND(AVG(e.completion_score)::numeric, 1), 0)                         AS avg_score,
+         COALESCE(ROUND(
+           COUNT(DISTINCT e.id) FILTER (WHERE e.status = 'completed')::numeric
+           / NULLIF(COUNT(DISTINCT e.id), 0) * 100, 1
+         ), 0)                                                                            AS completion_rate,
+         COUNT(DISTINCT pm.module_id)::int                                                AS module_count
+       FROM skill_programs sp
+       LEFT JOIN student_program_enrollments e ON e.program_id = sp.id
+       LEFT JOIN program_modules pm ON pm.program_id = sp.id
+       WHERE sp.is_active = TRUE
+       GROUP BY sp.id, sp.name, sp.program_type
+       ORDER BY completions DESC, enrollments DESC
+       LIMIT 10`
+    );
+    res.json({ success: true, data: rows });
+  } catch (err) { next(err); }
+});
+
+// GET /api/skill-partners/analytics/skills  — top skills by student acquisition
+router.get("/analytics/skills", authorize("super_admin", "hr", "cxo"), async (_req, res, next) => {
+  try {
+    const rows = await query(
+      `SELECT
+         s.id, s.name, s.skill_level,
+         sc.name AS category_name,
+         COUNT(DISTINCT ss.student_id)::int AS student_count,
+         COALESCE(ROUND(AVG(ss.proficiency_score)::numeric, 1), 0) AS avg_proficiency
+       FROM skills s
+       LEFT JOIN skill_categories sc ON sc.id = s.category_id
+       LEFT JOIN student_skills ss ON ss.skill_id = s.id
+       WHERE s.is_active = TRUE
+       GROUP BY s.id, s.name, s.skill_level, sc.name
+       ORDER BY student_count DESC
+       LIMIT 12`
+    );
+    res.json({ success: true, data: rows });
+  } catch (err) { next(err); }
+});
+
+// GET /api/skill-partners/analytics/trend  — monthly enrollment trend (last 6 months)
+router.get("/analytics/trend", authorize("super_admin", "hr", "cxo"), async (_req, res, next) => {
+  try {
+    const rows = await query(
+      `SELECT
+         TO_CHAR(DATE_TRUNC('month', enrolled_at), 'Mon YY') AS month,
+         DATE_TRUNC('month', enrolled_at)                     AS month_date,
+         COUNT(*)::int                                         AS enrollments,
+         COUNT(*) FILTER (WHERE status = 'completed')::int    AS completions
+       FROM student_program_enrollments
+       WHERE enrolled_at >= NOW() - INTERVAL '6 months'
+       GROUP BY DATE_TRUNC('month', enrolled_at)
+       ORDER BY month_date ASC`
+    );
+    res.json({ success: true, data: rows });
+  } catch (err) { next(err); }
+});
+
 // GET /api/skill-partners/analytics/employability  — per-campus employability index
 router.get("/analytics/employability", authorize("super_admin", "hr", "cxo"), async (_req, res, next) => {
   try {
