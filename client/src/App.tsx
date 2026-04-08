@@ -42,10 +42,10 @@ const MicrosoftCallback = lazy(() => import("./pages/auth/MicrosoftCallback"));
 const HRDashboardPage = lazy(() => import("./pages/hr/HRDashboardPage"));
 const EngineerPanelPage = lazy(() => import("./pages/engineer/EngineerPanelPage"));
 const CXOAnalyticsPage = lazy(() => import("./pages/cxo/CXOAnalyticsPage"));
-const CollegeDashboardPage = lazy(() => import("./pages/college/CollegeDashboardPage"));
-const CampusDrivesListPage = lazy(() => import("./pages/college/DrivesListPage"));
 const CampusDriveDetailPage = lazy(() => import("./pages/college/DriveDetailPage"));
 const UnderConstructionPage = lazy(() => import("./pages/college/UnderConstructionPage"));
+const CollegeInsightsPage = lazy(() => import("./pages/college/CollegeInsightsPage"));
+const CollegeCommunicationsPage = lazy(() => import("./pages/college/CollegeCommunicationsPage"));
 const StudentPortalPage = lazy(() => import("./pages/student/StudentPortalPage"));
 const CampusListPage = lazy(() => import("./pages/hr/CampusListPage"));
 const CampusDetailPage = lazy(() => import("./pages/hr/CampusDetailPage"));
@@ -313,7 +313,7 @@ export default function App() {
                 path="college/insights"
                 element={
                   <RoleGuard allowed={["college_admin", "college", "college_staff"]}>
-                    <UnderConstructionPage title="Campus Insights" />
+                    <CollegeInsightsPage />
                   </RoleGuard>
                 }
               />
@@ -321,7 +321,7 @@ export default function App() {
                 path="college/communications"
                 element={
                   <RoleGuard allowed={["college_admin", "college", "college_staff"]}>
-                    <UnderConstructionPage title="Communications" />
+                    <CollegeCommunicationsPage />
                   </RoleGuard>
                 }
               />

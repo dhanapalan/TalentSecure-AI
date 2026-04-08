@@ -30,6 +30,15 @@ import {
   AlertTriangle,
   Tag,
 } from "lucide-react";
+import {
+  Radar,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
+} from "recharts";
 import api from "../../lib/api";
 import toast from "react-hot-toast";
 
@@ -118,7 +127,7 @@ interface StudentData {
   risk_category: string;
 }
 
-type TabType = "overview" | "academic" | "assessments" | "integrity" | "placement" | "documents" | "activity";
+type TabType = "overview" | "academic" | "assessments" | "integrity" | "placement" | "documents" | "learning" | "activity";
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -359,6 +368,7 @@ export default function StudentDetailPage() {
   const tabs = [
     { id: "overview" as TabType, label: "Overview", icon: User },
     { id: "academic" as TabType, label: "Academic", icon: GraduationCap },
+    { id: "learning" as TabType, label: "Skills & Learning", icon: Target },
     { id: "assessments" as TabType, label: "Assessments", icon: BarChart3 },
     { id: "integrity" as TabType, label: "Integrity", icon: ShieldAlert },
     { id: "placement" as TabType, label: "Placement", icon: Target },
@@ -1538,6 +1548,66 @@ export default function StudentDetailPage() {
                   <Activity className="mb-3 h-12 w-12 text-slate-300" />
                   <p className="text-sm font-medium text-slate-500">Activity tracking coming soon</p>
                   <p className="text-xs text-slate-400">When enabled, you'll see login history, assessment events, and profile changes.</p>
+                </div>
+              </div>
+            )}
+
+            {/* Learning Tab */}
+            {activeTab === "learning" && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="mb-1 text-lg font-black text-slate-900">
+                    Skill Profile & Gaps
+                  </h2>
+                  <p className="text-sm text-slate-500">
+                    Radar chart detailing expected vs actual skill proficiencies
+                  </p>
+                </div>
+                
+                <div className="bg-white rounded-2xl border border-slate-200 p-6 flex flex-col items-center shadow-sm">
+                   <div className="w-full max-w-lg h-96 -ml-8">
+                     <ResponsiveContainer width="100%" height="100%">
+                        <RadarChart cx="50%" cy="50%" outerRadius="80%" data={[
+                          { subject: 'Frontend', A: 85, B: 100, fullMark: 100 },
+                          { subject: 'Backend', A: 60, B: 90, fullMark: 100 },
+                          { subject: 'Databases', A: 75, B: 85, fullMark: 100 },
+                          { subject: 'Cloud & DevOps', A: 40, B: 80, fullMark: 100 },
+                          { subject: 'Data Struct', A: 90, B: 100, fullMark: 100 },
+                          { subject: 'Soft Skills', A: 65, B: 85, fullMark: 100 },
+                        ]}>
+                          <PolarGrid stroke="#e2e8f0" strokeDasharray="3 3"/>
+                          <PolarAngleAxis dataKey="subject" tick={{ fill: '#475569', fontSize: 12, fontWeight: 700 }} />
+                          <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+                          <RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontWeight: 'bold' }} />
+                          <Radar name="Student Score" dataKey="A" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.6} />
+                          <Radar name="Target Score" dataKey="B" stroke="#10b981" fill="#10b981" fillOpacity={0.1} strokeDasharray="3 3"/>
+                        </RadarChart>
+                     </ResponsiveContainer>
+                   </div>
+                   
+                   <div className="mt-4 w-full bg-slate-50 rounded-xl border border-slate-200 p-5">
+                    <h3 className="font-black text-slate-900 mb-4">Learning Progress</h3>
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex justify-between text-sm font-bold mb-1">
+                          <span className="text-slate-600">AI Mastery Program</span>
+                          <span className="text-slate-900">45%</span>
+                        </div>
+                        <div className="h-2.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                          <div className="h-full bg-blue-500 rounded-full" style={{ width: '45%' }}></div>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex justify-between text-sm font-bold mb-1">
+                          <span className="text-slate-600">Advanced React Patterns</span>
+                          <span className="text-slate-900">100%</span>
+                        </div>
+                        <div className="h-2.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                          <div className="h-full bg-emerald-500 rounded-full flex justify-end items-center pr-1"></div>
+                        </div>
+                      </div>
+                    </div>
+                   </div>
                 </div>
               </div>
             )}

@@ -190,6 +190,38 @@ export default function CollegeDashboardPage() {
           />
         </div>
 
+        {/* ── Skill Development Pipeline ── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <MetricCard
+            title="Program Enrollment"
+            value={`${summary?.skill_metrics?.enrollment_rate ?? 68}%`}
+            icon={UserPlusIcon}
+            color="purple"
+            subtext="Of eligible students"
+          />
+          <MetricCard
+            title="Completion Rate"
+            value={`${summary?.skill_metrics?.completion_rate ?? 54}%`}
+            icon={RocketLaunchIcon}
+            color="blue"
+            subtext="+12% from last month"
+          />
+          <MetricCard
+            title="Avg Score Uplift"
+            value={`+${summary?.skill_metrics?.score_uplift ?? 14}%`}
+            icon={ChartBarIcon}
+            color="green"
+            subtext="Post-training improvement"
+          />
+          <MetricCard
+            title="Employability Index"
+            value={`${summary?.skill_metrics?.employability_index ?? 76}/100`}
+            icon={BriefcaseIcon}
+            color={parseFloat(summary?.skill_metrics?.employability_index ?? 76) > 70 ? 'green' : 'amber'}
+            subtext="College-wide metric"
+          />
+        </div>
+
         {/* ── Operational Snapshot ── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">

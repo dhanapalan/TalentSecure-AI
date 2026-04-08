@@ -266,41 +266,39 @@ export default function DashboardLayout() {
               )}
             </NavLink>
           ))}
-
         </nav>
-
-        {/* User info + Logout */}
-        <div className="p-4 border-t border-slate-200">
-          <div className="mb-2 bg-slate-50 rounded-2xl p-4 shadow-sm border border-slate-100">
-            {user && (
-              <div className="mb-4">
-                <p className="truncate text-sm font-black text-slate-900">{user.name}</p>
-                <p className="truncate text-[10px] font-bold uppercase tracking-widest text-slate-500 mt-0.5">
-                  {ROLE_LABELS[user.role] ?? user.role}
-                </p>
-                {user.college_name && (
-                  <p className="truncate text-[10px] font-semibold text-indigo-500 mt-0.5">
-                    🏫 {user.college_name}
-                  </p>
-                )}
-              </div>
-            )}
-            <button
-              onClick={() => authActions.logout()}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-600 hover:bg-red-50 hover:text-red-600 transition-colors"
-            >
-              <ArrowRightOnRectangleIcon className="h-5 w-5 text-slate-400 group-hover:text-red-500" />
-              Sign out
-            </button>
-          </div>
-        </div>
       </aside>
 
       {/* Main content */}
       <main className="ml-[260px] flex-1 flex flex-col min-h-screen">
         {/* Top Header */}
-        <header className="sticky top-0 z-20 flex h-20 items-center justify-end px-8 bg-white/80 backdrop-blur-md border-b border-slate-200">
-          <NotificationBell />
+        <header className="sticky top-0 z-20 flex h-20 items-center justify-end px-8 bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm">
+          <div className="flex items-center gap-6">
+            <NotificationBell />
+
+            <div className="h-8 w-px bg-slate-200"></div>
+
+            {/* Profile & Logout */}
+            <div className="flex items-center gap-4">
+              {user && (
+                <div className="flex flex-col items-end">
+                  <p className="text-sm font-bold text-slate-900 leading-tight">{user.name}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 leading-tight mt-0.5">
+                    {ROLE_LABELS[user.role] ?? user.role}
+                    {user.college_name && <span className="text-indigo-500 ml-1">({user.college_name})</span>}
+                  </p>
+                </div>
+              )}
+              
+              <button
+                onClick={() => authActions.logout()}
+                className="flex items-center justify-center p-2 rounded-xl text-slate-500 bg-slate-50 hover:bg-red-50 border border-slate-200 hover:border-red-100 hover:text-red-600 transition-colors"
+                title="Sign out"
+              >
+                <ArrowRightOnRectangleIcon className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
         </header>
 
         {/* Page Content */}
