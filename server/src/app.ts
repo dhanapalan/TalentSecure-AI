@@ -35,6 +35,7 @@ import learningModulesRoutes from "./routes/learningModules.routes.js";
 import skillProgramsRoutes from "./routes/skillPrograms.routes.js";
 import skillPartnersRoutes from "./routes/skillPartners.routes.js";
 import studentLearningRoutes from "./routes/studentLearning.routes.js";
+import collegeSkillsRoutes from "./routes/collegeSkills.routes.js";
 
 const app = express();
 
@@ -128,6 +129,7 @@ app.use("/api/learning-modules", learningModulesRoutes);
 app.use("/api/skill-programs", skillProgramsRoutes);
 app.use("/api/skill-partners", skillPartnersRoutes);
 app.use("/api/student-learning", studentLearningRoutes);
+app.use("/api/college-skills", collegeSkillsRoutes);
 
 // ── Error Handling ───────────────────────────────────────────────────────────
 app.use(notFoundHandler);

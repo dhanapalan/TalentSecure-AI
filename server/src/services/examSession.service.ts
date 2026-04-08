@@ -5,7 +5,7 @@
 // Operates on drive_students + question_bank tables.
 // =============================================================================
 
-import { query, queryOne } from "../config/database.js";
+import { query, queryOne, pool } from "../config/database.js";
 import { AppError } from "../middleware/errorHandler.js";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -441,6 +441,31 @@ export async function submitExam(driveId: string, studentId: string): Promise<Se
          RETURNING *`,
         [totalScore, ds.id],
     );
+
+    // 4. Auto-update student skills from drive's target_skill_ids
+    try {
+        const drive = await queryOne<any>(
+            `SELECT target_skill_ids, overall_cutoff FROM assessment_drives WHERE id = $1`,
+            [driveId]
+        );
+        const skillIds: string[] = drive?.target_skill_ids || [];
+        if (skillIds.length > 0) {
+            const cutoff = Number(drive?.overall_cutoff || 0);
+            const passed = totalScore >= cutoff;
+            const proficiency = passed ? Math.min(100, Math.round(totalScore)) : Math.round(totalScore * 0.6);
+            const { v4: uuidv4 } = await import("uuid");
+            for (const skillId of skillIds) {
+                await pool.query(`
+                    INSERT INTO student_skills (id, student_id, skill_id, proficiency_score, verified_at)
+                    VALUES ($1, $2, $3, $4, NOW())
+                    ON CONFLICT (student_id, skill_id)
+                    DO UPDATE SET
+                        proficiency_score = GREATEST(student_skills.proficiency_score, EXCLUDED.proficiency_score),
+                        verified_at = NOW()
+                `, [uuidv4(), studentId, skillId, proficiency]);
+            }
+        }
+    } catch (_) { /* non-fatal — don't fail exam submission */ }
 
     return {
         session_id: updated.id,

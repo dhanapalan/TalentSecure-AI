@@ -93,6 +93,7 @@ const MockExamPlayer = lazy(() => import("./pages/student/MockExamPlayer"));
 const StudentProfile = lazy(() => import("./pages/student/StudentProfile"));
 const StudentProgramPage = lazy(() => import("./pages/student/StudentProgramPage"));
 const ModulePlayerPage = lazy(() => import("./pages/student/ModulePlayerPage"));
+const CollegeSkillsPage = lazy(() => import("./pages/college/CollegeSkillsPage"));
 
 const NotAuthorizedPage = lazy(() => import("./pages/NotAuthorizedPage"));
 const StudentOnboardingWizard = lazy(() => import("./components/StudentOnboardingWizard"));
@@ -329,6 +330,14 @@ export default function App() {
                 element={
                   <RoleGuard allowed={["college_admin", "college"]}>
                     <UnderConstructionPage title="Campus Settings" />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="college/skills"
+                element={
+                  <RoleGuard allowed={["college_admin", "college", "college_staff"]}>
+                    <CollegeSkillsPage />
                   </RoleGuard>
                 }
               />

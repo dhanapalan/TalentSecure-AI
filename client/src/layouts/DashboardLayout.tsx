@@ -131,6 +131,12 @@ const navigation: NavItem[] = [
     roles: ["college_admin", "college"],
   },
   {
+    name: "Skills",
+    href: "/app/college/skills",
+    icon: AcademicCapIcon,
+    roles: ["college_admin", "college", "college_staff"],
+  },
+  {
     name: "Settings",
     href: "/app/college/settings",
     icon: Cog6ToothIcon,
