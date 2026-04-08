@@ -11,7 +11,7 @@ router.use(authenticate);
 // ── GET /my-enrollments — list all programs the student is enrolled in ────────
 router.get("/my-enrollments", async (req, res) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.user!.userId;
     const rows = await query(`
       SELECT
         spe.id            AS enrollment_id,
@@ -47,7 +47,7 @@ router.get("/my-enrollments", async (req, res) => {
 // ── GET /my-enrollments/:programId/modules — modules with student progress ────
 router.get("/my-enrollments/:programId/modules", async (req, res) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.user!.userId;
     const { programId } = req.params;
 
     // Verify enrolled
@@ -91,7 +91,7 @@ router.get("/my-enrollments/:programId/modules", async (req, res) => {
 // ── POST /my-enrollments/:programId/modules/:moduleId/start ──────────────────
 router.post("/my-enrollments/:programId/modules/:moduleId/start", async (req, res) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.user!.userId;
     const { programId, moduleId } = req.params;
 
     const enrollment = await queryOne(
@@ -125,7 +125,7 @@ router.post(
   validate(completeSchema),
   async (req, res) => {
     try {
-      const userId = req.user!.id;
+      const userId = req.user!.userId;
       const { programId, moduleId } = req.params;
       const { score } = req.body;
 
@@ -173,7 +173,7 @@ router.post(
 // ── POST /enroll/:programId — self-enroll in a program ───────────────────────
 router.post("/enroll/:programId", async (req, res) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.user!.userId;
     const { programId } = req.params;
 
     const program = await queryOne(`SELECT id, is_active FROM skill_programs WHERE id = $1`, [programId]);
@@ -201,7 +201,7 @@ router.post("/enroll/:programId", async (req, res) => {
 // ── GET /available-programs — active programs student can enroll in ───────────
 router.get("/available-programs", async (req, res) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.user!.userId;
     const rows = await query(`
       SELECT
         sp.id,
