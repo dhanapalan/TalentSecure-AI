@@ -8,6 +8,8 @@ coverage/
 .DS_Store
 Thumbs.db
 __pycache__/
+backups/
+.claude/
 *.pyc
 .venv/
 ai-engine/models/*.h5

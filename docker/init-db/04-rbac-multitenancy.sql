@@ -456,15 +456,15 @@ CREATE POLICY colleges_corporate_select ON colleges
 -- ═════════════════════════════════════════════════════════════════════════════
 -- 6. Seed: enterprise demo users
 -- ═════════════════════════════════════════════════════════════════════════════
--- Passwords: each role + "123" (e.g. hr123, cxo123)
+-- Passwords: gradlogic123 for all users
 
 INSERT INTO users (role, name, email, password, department) VALUES
-  ('hr',       'HR Manager',       'hr@nallastalent.ai',
-   crypt('hr123', gen_salt('bf', 12)),       'Human Resources'),
-  ('engineer', 'Lead Engineer',    'engineer@nallastalent.ai',
-   crypt('engineer123', gen_salt('bf', 12)), 'Engineering'),
-  ('cxo',      'Chief Technology Officer', 'cto@nallastalent.ai',
-   crypt('cxo123', gen_salt('bf', 12)),      'Executive Leadership')
+  ('hr',       'HR Manager',       'hr@gradlogic.com',
+   crypt('gradlogic123', gen_salt('bf', 12)),       'Human Resources'),
+  ('engineer', 'Lead Engineer',    'engineer@gradlogic.com',
+   crypt('gradlogic123', gen_salt('bf', 12)), 'Engineering'),
+  ('cxo',      'Chief Technology Officer', 'cto@gradlogic.com',
+   crypt('gradlogic123', gen_salt('bf', 12)),      'Executive Leadership')
 ON CONFLICT (email) DO NOTHING;
 
 -- ═════════════════════════════════════════════════════════════════════════════

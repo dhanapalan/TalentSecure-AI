@@ -6,12 +6,21 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
+# Allow overriding the API URL at build time.
+# Default is empty so the built app uses relative /api paths,
+# which nginx proxies to the API container — correct for Docker.
+# For external deploys (Vercel, CDN) pass: --build-arg VITE_API_URL=https://api.example.com
 # Install dependencies first (cache layer)
 COPY package.json package-lock.json* ./
 RUN npm install
 
-# Copy source and build
+# Copy source
 COPY . .
+
+# Clear VITE_API_URL so the built app uses relative /api paths proxied by nginx.
+# External deploys (Vercel, CDN) inject this via CI/CD env — not from this file.
+RUN sed -i 's|^VITE_API_URL=.*|VITE_API_URL=|' .env.production
+
 RUN npm run build
 
 # ── Stage 2: Serve with nginx ────────────────────────────────────────────────

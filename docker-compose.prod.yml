@@ -129,7 +129,21 @@ services:
 
 volumes:
   pgdata:
+    external: true
+    name: talentsecure-ai_pgdata
+
   redisdata:
+    external: true
+    name: talentsecure-ai_redisdata
+
   miniodata:
+    external: true
+    name: talentsecure-ai_miniodata
+
   judge0pgdata:
+    external: true
+    name: talentsecure-ai_judge0pgdata
+
   judge0redisdata:
+    external: true
+    name: talentsecure-ai_judge0redisdata

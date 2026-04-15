@@ -55,6 +55,7 @@ services:
     env_file: .env
     environment:
       PG_HOST: postgres
+      PG_PORT: 5432
       REDIS_URL: redis://redis:6379
       S3_ENDPOINT: http://minio:9000
       CLIENT_URL: http://localhost:3000
@@ -101,7 +102,7 @@ services:
 
   # ── Judge0 CE (Code Execution Sandbox) ─────────────────────────────────────
   judge0:
-    image: judge0/judge0-ce:1.13.0
+    image: judge0/judge0:1.13.0
     container_name: talentsecure-judge0
     ports:
       - "2358:2358"
@@ -147,7 +148,21 @@ services:
 
 volumes:
   pgdata:
+    external: true
+    name: talentsecure-ai_pgdata
+
   redisdata:
+    external: true
+    name: talentsecure-ai_redisdata
+
   miniodata:
+    external: true
+    name: talentsecure-ai_miniodata
+
   judge0pgdata:
+    external: true
+    name: talentsecure-ai_judge0pgdata
+
   judge0redisdata:
+    external: true
+    name: talentsecure-ai_judge0redisdata

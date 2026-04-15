@@ -17,7 +17,7 @@ import { test, expect, APIRequestContext } from '@playwright/test';
  *
  * Prerequisites:
  *  - Backend API running at http://localhost:5050
- *  - Admin user `admin@nallastalent.ai` / `admin123` exists
+ *  - Admin user `admin@gradlogic.com` / `admin123` exists
  */
 
 const API_BASE = process.env.API_URL || 'http://localhost:5050/api';
@@ -93,7 +93,7 @@ test.describe.serial('Campus Students CSV Upload — API Tests', () => {
     // ─── Step 1: Create a fresh campus with admin ────────────────────────────────
 
     test('Setup — login as super_admin and create a test campus', async ({ request }) => {
-        adminToken = await loginAndGetToken(request, 'admin@nallastalent.ai', 'admin123');
+        adminToken = await loginAndGetToken(request, 'admin@gradlogic.com', 'admin123');
 
         const res = await request.post(`${API_BASE}/campuses`, {
             headers: { Authorization: `Bearer ${adminToken}` },

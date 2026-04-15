@@ -152,8 +152,8 @@ CREATE TRIGGER trg_marks_scored_updated_at
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- =============================================================================
--- Seed: default admin user (password: admin123 — bcrypt hash)
+-- Seed: default admin user (password: gradlogic123 — bcrypt hash)
 -- =============================================================================
 INSERT INTO users (role, name, email, password) VALUES
-    ('admin', 'Admin User', 'admin@nallastalent.ai',
-     crypt('admin123', gen_salt('bf', 12)));
+    ('admin', 'Admin User', 'admin@gradlogic.com',
+     crypt('gradlogic123', gen_salt('bf', 12)));

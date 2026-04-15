@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
  * Prerequisites:
  *  - The dev server is running at http://localhost:5173
  *  - The backend API is running and connected to a real database
- *  - An admin user `admin@nallastalent.ai` / `admin123` exists
+ *  - An admin user `admin@gradlogic.com` / `admin123` exists
  *
  * This test creates a real campus, reads it, updates it, and toggles
  * its active status (soft-delete). It uses unique names per run so
@@ -45,7 +45,7 @@ test.describe.serial('Campus CRUD E2E — Real Data', () => {
 
         await page.goto('/auth/login');
         await page.waitForSelector('input[type="email"]', { state: 'visible' });
-        await page.fill('input[type="email"]', 'admin@nallastalent.ai');
+        await page.fill('input[type="email"]', 'admin@gradlogic.com');
         await page.fill('input[type="password"]', 'admin123');
 
         const [loginResponse] = await Promise.all([

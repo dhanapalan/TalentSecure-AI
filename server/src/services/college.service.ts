@@ -108,7 +108,7 @@ export async function bulkCreateStudents(input: BulkCreateStudentsInput) {
       const nameParts = name.split(/\s+/).filter(Boolean);
       const firstName = nameParts[0] ?? studentId;
       const lastName = nameParts.slice(1).join(" ") || null;
-      const generatedEmail = `${slugify(studentId)}.${college.college_code.toLowerCase()}@students.nallastalent.ai`;
+      const generatedEmail = `${slugify(studentId)}.${college.college_code.toLowerCase()}@students.gradlogic.com`;
       const email = (row.email?.trim().toLowerCase() || generatedEmail).slice(
         0,
         255,

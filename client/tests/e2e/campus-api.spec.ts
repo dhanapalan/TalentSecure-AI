@@ -8,7 +8,7 @@ import { test, expect } from '@playwright/test';
  *
  * Prerequisites:
  *  - Backend API is running at http://localhost:5050
- *  - Admin user `admin@nallastalent.ai` / `admin123` exists
+ *  - Admin user `admin@gradlogic.com` / `admin123` exists
  */
 
 const API_BASE = process.env.API_URL || 'http://localhost:5050/api';
@@ -29,7 +29,7 @@ const UPDATED_CITY = 'Updated API City';
 async function getAuthToken(request: typeof test extends (name: string, fn: (args: infer T) => void) => void ? T['request'] : any): Promise<string> {
     const loginRes = await request.post(`${API_BASE}/auth/login`, {
         data: {
-            email: 'admin@nallastalent.ai',
+            email: 'admin@gradlogic.com',
             password: 'admin123',
         },
     });

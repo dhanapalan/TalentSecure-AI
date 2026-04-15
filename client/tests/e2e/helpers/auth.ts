@@ -16,7 +16,7 @@ const fetchAdminSession = async (request: APIRequestContext): Promise<AuthSessio
     for (let attempt = 1; attempt <= AUTH_RETRY_ATTEMPTS; attempt++) {
         try {
             const response = await request.post(`${API_BASE}/auth/login`, {
-                data: { email: 'admin@nallastalent.ai', password: 'admin123' },
+                data: { email: 'admin@gradlogic.com', password: 'admin123' },
                 timeout: AUTH_REQUEST_TIMEOUT_MS,
             });
 
