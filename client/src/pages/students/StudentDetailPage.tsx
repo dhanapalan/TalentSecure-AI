@@ -11,7 +11,6 @@ import {
   MapPin,
   GraduationCap,
   Award,
-
   Briefcase,
   FileText,
   TrendingUp,
@@ -25,10 +24,10 @@ import {
   BarChart3,
   ShieldAlert,
   File,
-
   Activity,
   AlertTriangle,
   Tag,
+  Code2,
 } from "lucide-react";
 import api from "../../lib/api";
 import toast from "react-hot-toast";
@@ -118,7 +117,7 @@ interface StudentData {
   risk_category: string;
 }
 
-type TabType = "overview" | "academic" | "assessments" | "integrity" | "placement" | "documents" | "activity";
+type TabType = "overview" | "academic" | "skills" | "assessments" | "integrity" | "placement" | "documents" | "activity";
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -359,6 +358,7 @@ export default function StudentDetailPage() {
   const tabs = [
     { id: "overview" as TabType, label: "Overview", icon: User },
     { id: "academic" as TabType, label: "Academic", icon: GraduationCap },
+    { id: "skills" as TabType, label: "Skills & Development", icon: Code2 },
     { id: "assessments" as TabType, label: "Assessments", icon: BarChart3 },
     { id: "integrity" as TabType, label: "Integrity", icon: ShieldAlert },
     { id: "placement" as TabType, label: "Placement", icon: Target },
@@ -786,22 +786,17 @@ export default function StudentDetailPage() {
               </div>
             )}
 
-            {activeTab === "overview" && (
-              <div className="space-y-6">
-                <div>
-                  <h2 className="mb-1 text-lg font-black text-slate-900">
-                    Skills & Certifications
-                  </h2>
-                  <p className="text-sm text-slate-500">
-                    Technical skills, languages, and certifications
-                  </p>
-                </div>
-
+            {/* Skills & Development Tab (edit mode) */}
+            {activeTab === "skills" && (
+              <div className="space-y-8">
+                {/* Skills & Certifications */}
                 <div className="space-y-5">
                   <div>
-                    <label className="mb-2 block text-sm font-bold text-slate-700">
-                      Technical Skills
-                    </label>
+                    <h2 className="mb-1 text-lg font-black text-slate-900">Skills & Certifications</h2>
+                    <p className="text-sm text-slate-500">Technical skills, languages, and certifications</p>
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-bold text-slate-700">Technical Skills</label>
                     <textarea
                       value={formData.technical_skills}
                       onChange={(e) => handleChange("technical_skills", e.target.value)}
@@ -811,27 +806,19 @@ export default function StudentDetailPage() {
                     />
                     <p className="mt-1 text-xs text-slate-400">Comma-separated skills</p>
                   </div>
-
                   <div>
-                    <label className="mb-2 block text-sm font-bold text-slate-700">
-                      Programming Languages
-                    </label>
+                    <label className="mb-2 block text-sm font-bold text-slate-700">Programming Languages</label>
                     <textarea
                       value={formData.programming_languages}
-                      onChange={(e) =>
-                        handleChange("programming_languages", e.target.value)
-                      }
+                      onChange={(e) => handleChange("programming_languages", e.target.value)}
                       placeholder="e.g., JavaScript, Python, Java, C++, TypeScript"
                       rows={2}
                       className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm transition-all focus:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-100"
                     />
                     <p className="mt-1 text-xs text-slate-400">Comma-separated languages</p>
                   </div>
-
                   <div>
-                    <label className="mb-2 block text-sm font-bold text-slate-700">
-                      Tools & Frameworks
-                    </label>
+                    <label className="mb-2 block text-sm font-bold text-slate-700">Tools & Frameworks</label>
                     <textarea
                       value={formData.tools_frameworks}
                       onChange={(e) => handleChange("tools_frameworks", e.target.value)}
@@ -841,11 +828,8 @@ export default function StudentDetailPage() {
                     />
                     <p className="mt-1 text-xs text-slate-400">Comma-separated tools</p>
                   </div>
-
                   <div>
-                    <label className="mb-2 block text-sm font-bold text-slate-700">
-                      Certifications
-                    </label>
+                    <label className="mb-2 block text-sm font-bold text-slate-700">Certifications</label>
                     <textarea
                       value={formData.certifications}
                       onChange={(e) => handleChange("certifications", e.target.value)}
@@ -853,30 +837,17 @@ export default function StudentDetailPage() {
                       rows={4}
                       className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm transition-all focus:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-100"
                     />
-                    <p className="mt-1 text-xs text-slate-400">
-                      List certifications with issuing authority
-                    </p>
+                    <p className="mt-1 text-xs text-slate-400">List certifications with issuing authority</p>
                   </div>
                 </div>
-              </div>
-            )}
 
-            {activeTab === "overview" && (
-              <div className="space-y-6">
-                <div>
-                  <h2 className="mb-1 text-lg font-black text-slate-900">
-                    Experience & Projects
-                  </h2>
-                  <p className="text-sm text-slate-500">
-                    Internships, work experience, and projects
-                  </p>
-                </div>
-
-                <div className="space-y-5">
+                <div className="border-t border-slate-100 pt-6 space-y-5">
                   <div>
-                    <label className="mb-2 block text-sm font-bold text-slate-700">
-                      Internships & Work Experience
-                    </label>
+                    <h2 className="mb-1 text-lg font-black text-slate-900">Experience & Projects</h2>
+                    <p className="text-sm text-slate-500">Internships, work experience, and projects</p>
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-bold text-slate-700">Internships & Work Experience</label>
                     <textarea
                       value={formData.internships}
                       onChange={(e) => handleChange("internships", e.target.value)}
@@ -884,15 +855,10 @@ export default function StudentDetailPage() {
                       rows={8}
                       className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm transition-all focus:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-100"
                     />
-                    <p className="mt-1 text-xs text-slate-400">
-                      List roles with company name, duration, and responsibilities
-                    </p>
+                    <p className="mt-1 text-xs text-slate-400">List roles with company name, duration, and responsibilities</p>
                   </div>
-
                   <div>
-                    <label className="mb-2 block text-sm font-bold text-slate-700">
-                      Projects
-                    </label>
+                    <label className="mb-2 block text-sm font-bold text-slate-700">Projects</label>
                     <textarea
                       value={formData.projects}
                       onChange={(e) => handleChange("projects", e.target.value)}
@@ -900,9 +866,7 @@ export default function StudentDetailPage() {
                       rows={8}
                       className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm transition-all focus:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-100"
                     />
-                    <p className="mt-1 text-xs text-slate-400">
-                      List projects with tech stack, description, and links
-                    </p>
+                    <p className="mt-1 text-xs text-slate-400">List projects with tech stack, description, and links</p>
                   </div>
                 </div>
               </div>
@@ -1369,17 +1333,29 @@ export default function StudentDetailPage() {
                     </div>
                   </div>
 
-                  {/* Skills */}
-                  {student?.technical_skills && (
-                    <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
-                      <h3 className="mb-4 text-sm font-black text-slate-800">Technical Skills</h3>
-                      <div className="flex flex-wrap gap-2">
-                        {student.technical_skills.split(",").map((skill: string, i: number) => (
-                          <span key={i} className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">{skill.trim()}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  {/* Skills summary — full details in Skills & Development tab */}
+                  <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
+                    <h3 className="mb-4 text-sm font-black text-slate-800 flex items-center gap-2">
+                      <Code2 className="h-4 w-4 text-blue-500" /> Skills Summary
+                    </h3>
+                    {student?.technical_skills ? (
+                      <>
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {student.technical_skills.split(",").slice(0, 5).map((skill: string, i: number) => (
+                            <span key={i} className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">{skill.trim()}</span>
+                          ))}
+                          {student.technical_skills.split(",").length > 5 && (
+                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">+{student.technical_skills.split(",").length - 5} more</span>
+                          )}
+                        </div>
+                        <button onClick={() => setActiveTab("skills")} className="text-xs font-bold text-blue-600 hover:underline">
+                          View all skills & experience →
+                        </button>
+                      </>
+                    ) : (
+                      <p className="text-sm text-slate-400">No skills listed yet.</p>
+                    )}
+                  </div>
 
                   {/* Social Links */}
                   {(student?.linkedin_url || student?.github_url || student?.portfolio_url) && (
@@ -1418,6 +1394,125 @@ export default function StudentDetailPage() {
                     <InfoRow icon={AlertTriangle} label="Active Backlogs" value={student?.active_backlogs != null ? String(student.active_backlogs) : "0"} />
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* ── Skills & Development Tab ─────────────────────────────────── */}
+            {activeTab === "skills" && (
+              <div className="space-y-6">
+                {/* Skills stats */}
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Technical Skills</p>
+                    <p className="mt-1 text-2xl font-black text-blue-600">
+                      {student?.technical_skills ? student.technical_skills.split(",").filter(Boolean).length : 0}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-1">skills listed</p>
+                  </div>
+                  <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Languages</p>
+                    <p className="mt-1 text-2xl font-black text-violet-600">
+                      {student?.programming_languages ? student.programming_languages.split(",").filter(Boolean).length : 0}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-1">languages</p>
+                  </div>
+                  <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Certifications</p>
+                    <p className="mt-1 text-2xl font-black text-emerald-600">
+                      {student?.certifications ? student.certifications.split(",").filter(Boolean).length : 0}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-1">earned</p>
+                  </div>
+                </div>
+
+                <div className="grid gap-6 lg:grid-cols-2">
+                  {/* Technical Skills */}
+                  <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
+                    <h3 className="mb-4 text-sm font-black text-slate-800 flex items-center gap-2">
+                      <Code2 className="h-4 w-4 text-blue-500" /> Technical Skills
+                    </h3>
+                    {student?.technical_skills ? (
+                      <div className="flex flex-wrap gap-2">
+                        {student.technical_skills.split(",").map((s: string, i: number) => s.trim() && (
+                          <span key={i} className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">{s.trim()}</span>
+                        ))}
+                      </div>
+                    ) : <p className="text-sm text-slate-400">No skills listed</p>}
+                  </div>
+
+                  {/* Programming Languages */}
+                  <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
+                    <h3 className="mb-4 text-sm font-black text-slate-800 flex items-center gap-2">
+                      <Code2 className="h-4 w-4 text-violet-500" /> Programming Languages
+                    </h3>
+                    {student?.programming_languages ? (
+                      <div className="flex flex-wrap gap-2">
+                        {student.programming_languages.split(",").map((l: string, i: number) => l.trim() && (
+                          <span key={i} className="rounded-full bg-violet-50 px-3 py-1 text-xs font-bold text-violet-700">{l.trim()}</span>
+                        ))}
+                      </div>
+                    ) : <p className="text-sm text-slate-400">No languages listed</p>}
+                  </div>
+
+                  {/* Tools & Frameworks */}
+                  <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
+                    <h3 className="mb-4 text-sm font-black text-slate-800 flex items-center gap-2">
+                      <Code2 className="h-4 w-4 text-amber-500" /> Tools & Frameworks
+                    </h3>
+                    {student?.tools_frameworks ? (
+                      <div className="flex flex-wrap gap-2">
+                        {student.tools_frameworks.split(",").map((t: string, i: number) => t.trim() && (
+                          <span key={i} className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">{t.trim()}</span>
+                        ))}
+                      </div>
+                    ) : <p className="text-sm text-slate-400">No tools listed</p>}
+                  </div>
+
+                  {/* Certifications */}
+                  <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
+                    <h3 className="mb-4 text-sm font-black text-slate-800 flex items-center gap-2">
+                      <Award className="h-4 w-4 text-emerald-500" /> Certifications
+                    </h3>
+                    {student?.certifications ? (
+                      <div className="space-y-2">
+                        {student.certifications.split(",").map((c: string, i: number) => c.trim() && (
+                          <div key={i} className="flex items-center gap-2">
+                            <CheckCircle className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                            <span className="text-sm text-slate-700">{c.trim()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : <p className="text-sm text-slate-400">No certifications listed</p>}
+                  </div>
+                </div>
+
+                {/* Experience */}
+                {student?.internships && (
+                  <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
+                    <h3 className="mb-4 text-sm font-black text-slate-800 flex items-center gap-2">
+                      <Briefcase className="h-4 w-4 text-indigo-500" /> Internships & Work Experience
+                    </h3>
+                    <pre className="whitespace-pre-wrap text-sm text-slate-700 font-sans leading-relaxed">{student.internships}</pre>
+                  </div>
+                )}
+
+                {/* Projects */}
+                {student?.projects && (
+                  <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
+                    <h3 className="mb-4 text-sm font-black text-slate-800 flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-indigo-500" /> Projects
+                    </h3>
+                    <pre className="whitespace-pre-wrap text-sm text-slate-700 font-sans leading-relaxed">{student.projects}</pre>
+                  </div>
+                )}
+
+                {!student?.technical_skills && !student?.programming_languages && !student?.certifications && !student?.internships && !student?.projects && (
+                  <div className="rounded-2xl bg-white p-10 shadow-sm ring-1 ring-slate-100 text-center">
+                    <Code2 className="h-12 w-12 text-slate-200 mx-auto mb-3" />
+                    <p className="text-sm font-medium text-slate-500">No skill development data yet</p>
+                    <p className="text-xs text-slate-400 mt-1">Edit this profile to add skills, languages, tools, certifications, and projects.</p>
+                  </div>
+                )}
               </div>
             )}
 
