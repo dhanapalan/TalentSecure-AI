@@ -438,7 +438,9 @@ export default function StudentDetailPage() {
                     <Save className="h-4 w-4" />
                     {createMutation.isPending || updateMutation.isPending
                       ? "Saving..."
-                      : "Save Student"}
+                      : isNew
+                        ? "Create Student"
+                        : "Save Changes"}
                   </button>
                 </>
               )}
@@ -1182,27 +1184,6 @@ export default function StudentDetailPage() {
               </div>
             )}
 
-            {/* Save Button (shown on all tabs) */}
-            <div className="mt-8 flex justify-end gap-3 border-t border-slate-100 pt-6">
-              <button
-                onClick={() => navigate(isNew ? "/app/students" : `/app/students/${id}`)}
-                className="rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-bold text-slate-700 transition-all hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={createMutation.isPending || updateMutation.isPending}
-                className="inline-flex items-center gap-2 rounded-xl bg-amber-600 px-6 py-3 text-sm font-bold text-white transition-all hover:bg-amber-700 disabled:opacity-50"
-              >
-                <Save className="h-4 w-4" />
-                {createMutation.isPending || updateMutation.isPending
-                  ? "Saving..."
-                  : isNew
-                    ? "Create Student"
-                    : "Save Changes"}
-              </button>
-            </div>
           </div>
         ) : (
           // View Mode
