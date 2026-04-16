@@ -167,11 +167,16 @@ router.get(
 /**
  * PUT /api/students/:id
  * Update student / profile (HR/Admin/Student)
+ * Accepts optional multipart fields: profile_photo (image) and resume (PDF/DOC)
  */
 router.put(
   "/:id",
   authenticate,
   authorize("super_admin", "admin", "hr", "student"),
+  onboardingUpload.fields([
+    { name: "profile_photo", maxCount: 1 },
+    { name: "resume", maxCount: 1 },
+  ]),
   studentController.update
 );
 

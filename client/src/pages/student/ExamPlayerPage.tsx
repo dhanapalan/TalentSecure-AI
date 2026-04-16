@@ -294,14 +294,20 @@ export default function ExamPlayerPage() {
                     <h1 className="text-3xl font-black text-gray-900 mb-2">Exam Submitted</h1>
                     <p className="text-gray-500 font-medium mb-8">{session.drive_name}</p>
 
-                    {submitMutation.data?.score !== undefined && (
-                        <div className="bg-indigo-50 rounded-2xl p-6 mb-8">
-                            <p className="text-sm font-bold text-indigo-600 uppercase tracking-widest mb-1">Your Score</p>
-                            <p className="text-4xl font-black text-indigo-600">
-                                {submitMutation.data.score} <span className="text-lg text-indigo-400">/ {session.total_marks}</span>
-                            </p>
-                        </div>
-                    )}
+                    {(() => {
+                        // submitMutation.data is only present when the student just submitted
+                        // in this session. For previously-completed sessions fall back to
+                        // session.score which is always populated by the server.
+                        const displayScore = submitMutation.data?.score ?? session.score;
+                        return displayScore !== null && displayScore !== undefined ? (
+                            <div className="bg-indigo-50 rounded-2xl p-6 mb-8">
+                                <p className="text-sm font-bold text-indigo-600 uppercase tracking-widest mb-1">Your Score</p>
+                                <p className="text-4xl font-black text-indigo-600">
+                                    {displayScore} <span className="text-lg text-indigo-400">/ {session.total_marks}</span>
+                                </p>
+                            </div>
+                        ) : null;
+                    })()}
 
                     <div className="grid grid-cols-3 gap-4 mb-8">
                         <div className="bg-gray-50 rounded-xl p-3">
@@ -326,11 +332,12 @@ export default function ExamPlayerPage() {
         );
     }
 
-    // For MCQ multi-select: if options has more than 4 choices or question text hints at multi-select
-    // The server handles grading — client just needs to know the interaction mode
-    // By default treat as single-select; multi-select can be indicated by question text containing keywords
-    const isMultiSelect = currentQuestion?.question_text?.toLowerCase().includes("select all") ||
-        currentQuestion?.question_text?.toLowerCase().includes("multiple") || false;
+    // Use the question's explicit type field to determine interaction mode.
+    // Fall back to keyword scan only if type is missing (legacy data).
+    const isMultiSelect = currentQuestion?.type
+        ? currentQuestion.type.toUpperCase() === "MULTI_SELECT" || currentQuestion.type.toUpperCase() === "MULTIPLE_CORRECT"
+        : (currentQuestion?.question_text?.toLowerCase().includes("select all") ||
+           currentQuestion?.question_text?.toLowerCase().includes("multiple correct") || false);
     const questionAnswer = answers[currentQuestion?.id] || { selected: [], flagged: false };
 
     return (

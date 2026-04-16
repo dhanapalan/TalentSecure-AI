@@ -562,10 +562,16 @@ function InstructionsModal({
           <h3 className="text-lg font-black text-slate-900 mb-4">Exam Guidelines</h3>
           <div className="space-y-3">
             {[
-              "Timed assessment (starts immediately).",
-              "Proctoring enabled. Avoid tab switching.",
-              "Auto-save is active every 5 seconds.",
-              "Resume available if your session disconnects.",
+              `This is a timed assessment — the timer starts the moment you click Start.`,
+              `You have ${session.duration_minutes} minutes to complete ${session.total_questions} questions worth ${session.total_marks} marks.`,
+              "You can navigate freely between questions and flag any for review.",
+              session.negative_marking_enabled
+                ? `Negative marking is enabled: −${session.negative_marking_value} mark(s) deducted per wrong answer.`
+                : "No negative marking — unanswered and wrong answers both score zero.",
+              `Minimum cutoff to pass: ${session.overall_cutoff ?? "—"}%.`,
+              "Your answers are auto-saved every 5 seconds. You can resume if you lose connection.",
+              "The exam auto-submits when the timer reaches zero.",
+              "Proctoring is active: camera, tab switching, copy/paste, and right-click are all monitored.",
             ].map((text, i) => (
               <div key={i} className="flex items-start gap-4 p-4 bg-slate-50/50 rounded-2xl border border-slate-100 font-medium text-slate-700 text-sm">
                 <div className="h-5 w-5 rounded-full bg-white shadow-sm flex items-center justify-center text-[10px] font-black text-indigo-500 shrink-0 mt-0.5 border border-slate-100">
@@ -579,7 +585,14 @@ function InstructionsModal({
           <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex items-start gap-3 mt-4">
             <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
             <p className="text-xs font-bold text-amber-800 leading-relaxed">
-              Ensure a stable internet connection and quiet environment. Once started, you must complete it according to the rules.
+              Once started, the timer cannot be paused. Ensure a stable internet connection and a quiet environment before proceeding.
+            </p>
+          </div>
+
+          <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-start gap-3">
+            <ShieldCheck className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+            <p className="text-xs font-bold text-emerald-800 leading-relaxed">
+              By starting this exam I confirm that I will complete it honestly, without assistance, and in accordance with the assessment rules.
             </p>
           </div>
         </div>
@@ -596,11 +609,16 @@ function InstructionsModal({
             ) : (
               <>
                 {isResume ? <RotateCcw className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-                {isResume ? "Resume My Session" : "I Understand & Start Exam"}
+                {isResume ? "Resume My Session" : "I Agree & Start Exam"}
                 <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
               </>
             )}
           </button>
+          {startMutation.isError && (
+            <p className="text-red-600 text-sm font-bold mt-3 text-center">
+              {(startMutation.error as any)?.response?.data?.error || "Failed to start exam. Please try again."}
+            </p>
+          )}
         </div>
       </div>
     </div>

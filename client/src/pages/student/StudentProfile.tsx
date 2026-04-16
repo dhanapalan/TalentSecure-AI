@@ -3,7 +3,7 @@ import { useAuthStore } from "../../stores/authStore";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "../../lib/api";
 import toast from "react-hot-toast";
-import { ArrowLeft, Edit2, Upload, User, Save, Lock, FileText, CheckCircle2, ShieldCheck, Mail, Phone, BookOpen, GraduationCap, Building2, Calendar } from "lucide-react";
+import { ArrowLeft, Edit2, Upload, User, Save, Lock, FileText, CheckCircle2, ShieldCheck, Mail, Phone, BookOpen, GraduationCap, Building2, Calendar, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 export default function StudentProfile() {
@@ -12,7 +12,10 @@ export default function StudentProfile() {
   const queryClient = useQueryClient();
 
   const [isEditing, setIsEditing] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const resumeInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [uploadingResume, setUploadingResume] = useState(false);
   const [formData, setFormData] = useState<any>({});
 
   const { data: profile, isLoading } = useQuery({
@@ -65,10 +68,66 @@ export default function StudentProfile() {
     updateProfileMutation.mutate({ phone, department, resume_url, avatar_url, degree, specialization, passing_year });
   };
 
-  const handleDocumentUpload = () => {
-    // In a real app we would open a file picker and upload to S3/Cloud
-    // For this mockup, we'll just simulate selecting a file
-    toast.success("File selected (Mockup)");
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user?.id) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file.");
+      return;
+    }
+    setUploadingPhoto(true);
+    try {
+      const fd = new FormData();
+      fd.append("profile_photo", file);
+      const { data } = await api.put(`/students/${user.id}`, fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      const updatedUrl = data?.data?.avatar_url;
+      if (updatedUrl) {
+        setFormData((prev: any) => ({ ...prev, avatar_url: updatedUrl }));
+      }
+      queryClient.invalidateQueries({ queryKey: ["student-profile"] });
+      toast.success("Profile photo updated.");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Failed to upload photo.");
+    } finally {
+      setUploadingPhoto(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleResumeChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user?.id) return;
+    const allowed = ["application/pdf", "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
+    if (!allowed.includes(file.type)) {
+      toast.error("Only PDF or DOC/DOCX files are allowed.");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Resume must be under 2 MB.");
+      return;
+    }
+    setUploadingResume(true);
+    try {
+      const fd = new FormData();
+      fd.append("resume", file);
+      const { data } = await api.put(`/students/${user.id}`, fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      const updatedUrl = data?.data?.resume_url;
+      if (updatedUrl) {
+        setFormData((prev: any) => ({ ...prev, resume_url: updatedUrl }));
+      }
+      queryClient.invalidateQueries({ queryKey: ["student-profile"] });
+      toast.success("Resume uploaded successfully.");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Failed to upload resume.");
+    } finally {
+      setUploadingResume(false);
+      e.target.value = "";
+    }
   };
 
   return (
@@ -133,15 +192,23 @@ export default function StudentProfile() {
                   )}
                 </div>
                 {isEditing && (
-                  <button onClick={() => fileInputRef.current?.click()} className="absolute bottom-0 right-0 h-8 w-8 bg-indigo-600 text-white rounded-full flex items-center justify-center border-2 border-white shadow-md hover:bg-indigo-700 transition-colors">
-                    <Upload className="w-3.5 h-3.5" />
+                  <button
+                    onClick={() => photoInputRef.current?.click()}
+                    disabled={uploadingPhoto}
+                    className="absolute bottom-0 right-0 h-8 w-8 bg-indigo-600 text-white rounded-full flex items-center justify-center border-2 border-white shadow-md hover:bg-indigo-700 transition-colors disabled:opacity-60"
+                  >
+                    {uploadingPhoto
+                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      : <Upload className="w-3.5 h-3.5" />}
                   </button>
                 )}
-                <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => {
-                  if (e.target.files && e.target.files[0]) {
-                    toast.success("Photo uploaded (mockup)");
-                  }
-                }} />
+                <input
+                  type="file"
+                  ref={photoInputRef}
+                  className="hidden"
+                  accept="image/*"
+                  onChange={handlePhotoChange}
+                />
               </div>
 
               <h2 className="text-xl font-bold text-slate-900 group flex items-center gap-1.5 justify-center">
@@ -176,12 +243,27 @@ export default function StudentProfile() {
               <p className="text-xs text-slate-400 mt-1 mb-4">PDF, DOCX up to 5MB</p>
 
               {isEditing ? (
-                <button onClick={handleDocumentUpload} className="w-full text-sm font-semibold text-indigo-600 bg-white border border-indigo-100 rounded-lg py-2 hover:bg-indigo-50 transition-colors shadow-sm">
-                  Upload Resume
-                </button>
+                <>
+                  <button
+                    onClick={() => resumeInputRef.current?.click()}
+                    disabled={uploadingResume}
+                    className="w-full text-sm font-semibold text-indigo-600 bg-white border border-indigo-100 rounded-lg py-2 hover:bg-indigo-50 transition-colors shadow-sm flex items-center justify-center gap-2 disabled:opacity-60"
+                  >
+                    {uploadingResume
+                      ? <><Loader2 className="w-4 h-4 animate-spin" /> Uploading...</>
+                      : <><Upload className="w-4 h-4" /> Upload Resume</>}
+                  </button>
+                  <input
+                    type="file"
+                    ref={resumeInputRef}
+                    className="hidden"
+                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    onChange={handleResumeChange}
+                  />
+                </>
               ) : (
                 <button disabled className="w-full text-sm font-semibold text-slate-400 bg-slate-100 border border-slate-200 rounded-lg py-2 flex items-center justify-center gap-1.5">
-                  {formData.resume_url ? <><CheckCircle2 className="w-4 h-4 text-emerald-500" /> Uploaded</> : "No file found"}
+                  {formData.resume_url ? <><CheckCircle2 className="w-4 h-4 text-emerald-500" /> Uploaded</> : "No file uploaded"}
                 </button>
               )}
             </div>

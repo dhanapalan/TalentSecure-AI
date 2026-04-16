@@ -4,68 +4,104 @@ import {
   AreaChart, Area, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
-import {
-  AcademicCapIcon,
-  UsersIcon,
-  ClipboardDocumentListIcon,
-  ChartBarIcon,
-  ArrowTrendingUpIcon,
-  ShieldCheckIcon,
-  ArrowRightIcon,
-  PlusIcon,
-  SparklesIcon,
-  BellAlertIcon,
-  MapPinIcon,
-} from "@heroicons/react/24/outline";
 import { useAuthStore } from "../../stores/authStore";
 import api from "../../lib/api";
+import {
+  Users,
+  Building2,
+  ClipboardList,
+  TrendingUp,
+  ShieldAlert,
+  BarChart3,
+  Plus,
+  MapPin,
+  Sparkles,
+  Shield,
+  ArrowRight,
+  RefreshCw,
+  Trophy,
+  Star,
+} from "lucide-react";
 
-// ── Data ──────────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
-const trendData = [
-  { month: "Oct", students: 320, hired: 38 },
-  { month: "Nov", students: 480, hired: 55 },
-  { month: "Dec", students: 210, hired: 28 },
-  { month: "Jan", students: 620, hired: 74 },
-  { month: "Feb", students: 780, hired: 91 },
-  { month: "Mar", students: 550, hired: 66 },
-];
+interface HRStats {
+  campus_count: number;
+  student_count: number;
+  active_exams: number;
+  critical_violations: number;
+  pass_ratio: number;
+  avg_score: number;
+  new_students_this_month: number;
+}
 
-const campusData = [
-  { name: "IIT Delhi", score: 82, students: 450 },
-  { name: "BITS Pilani", score: 78, students: 290 },
-  { name: "NIT Trichy", score: 74, students: 380 },
-  { name: "VIT Vellore", score: 70, students: 520 },
-  { name: "Manipal", score: 68, students: 360 },
-];
+interface TrendPoint {
+  month: string;
+  students: number;
+  screened: number;
+}
 
-const ACTIVITY_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
-  campus: { bg: "bg-violet-50", text: "text-violet-600", dot: "bg-violet-400" },
-  assessment: { bg: "bg-blue-50", text: "text-blue-600", dot: "bg-blue-400" },
-  security: { bg: "bg-rose-50", text: "text-rose-600", dot: "bg-rose-400" },
-  student: { bg: "bg-emerald-50", text: "text-emerald-600", dot: "bg-emerald-400" },
+interface Campus {
+  id: string;
+  name: string;
+  avg_score: number;
+  student_count: number;
+  incident_count: number;
+}
+
+interface Activity {
+  id: string;
+  text: string;
+  time: string;
+  type: string;
+}
+
+interface Exam {
+  id: string;
+  title: string;
+  is_active: boolean;
+  duration_minutes: number;
+  total_marks: number;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function formatRelativeTime(ts: string): string {
+  const diff = Date.now() - new Date(ts).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
+const ACTIVITY_CFG: Record<string, { bg: string; text: string; icon: string }> = {
+  campus:     { bg: "bg-violet-50",  text: "text-violet-600",  icon: "🏛️" },
+  assessment: { bg: "bg-blue-50",    text: "text-blue-600",    icon: "📋" },
+  security:   { bg: "bg-rose-50",    text: "text-rose-600",    icon: "🔐" },
+  student:    { bg: "bg-emerald-50", text: "text-emerald-600", icon: "🎓" },
 };
-
-const ACTIVITY_EMOJI: Record<string, string> = {
-  campus: "🏛️", assessment: "📋", security: "🔐", student: "🎓",
-};
-
-// ── Tooltip ───────────────────────────────────────────────────────────────────
 
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-xl bg-white px-3 py-2 shadow-xl ring-1 ring-black/5">
-      <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">{label}</p>
+    <div className="rounded-xl bg-white px-3 py-2.5 shadow-xl ring-1 ring-black/5">
+      <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">{label}</p>
       {payload.map((p: any) => (
-        <div key={p.dataKey} className="flex items-center gap-2">
-          <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: p.color }} />
+        <div key={p.dataKey} className="flex items-center gap-2 mb-0.5">
+          <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
           <p className="text-xs text-slate-500">{p.name}:</p>
-          <p className="text-xs font-bold text-slate-800">{p.value}</p>
+          <p className="text-xs font-bold text-slate-800">{p.value.toLocaleString()}</p>
         </div>
       ))}
     </div>
   );
+}
+
+function SkeletonLine({ w = "w-full", h = "h-4" }: { w?: string; h?: string }) {
+  return <div className={`${w} ${h} rounded-lg bg-slate-100 animate-pulse`} />;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -73,7 +109,7 @@ function CustomTooltip({ active, payload, label }: any) {
 export default function HRDashboardPage() {
   const user = useAuthStore((s) => s.user);
 
-  const { data: stats } = useQuery({
+  const { data: stats, isLoading: statsLoading, refetch: refetchStats, isFetching: statsFetching } = useQuery<HRStats>({
     queryKey: ["hr-stats"],
     queryFn: async () => {
       const { data } = await api.get("/hr/stats");
@@ -81,320 +117,452 @@ export default function HRDashboardPage() {
     },
   });
 
-  const { data: activity = [] } = useQuery({
+  const { data: trend = [], isLoading: trendLoading } = useQuery<TrendPoint[]>({
+    queryKey: ["hr-trend"],
+    queryFn: async () => {
+      const { data } = await api.get("/hr/trend");
+      return (data as any).data as TrendPoint[];
+    },
+  });
+
+  const { data: campuses = [], isLoading: campusesLoading } = useQuery<Campus[]>({
+    queryKey: ["campuses-list"],
+    queryFn: async () => {
+      const { data } = await api.get("/campuses");
+      return (data as any).data as Campus[];
+    },
+  });
+
+  const { data: activity = [], isLoading: activityLoading } = useQuery<Activity[]>({
     queryKey: ["hr-activity"],
     queryFn: async () => {
       const { data } = await api.get("/hr/activity");
-      return (data as any).data as { id: string; text: string; time: string; type: string }[];
+      return (data as any).data as Activity[];
+    },
+    refetchInterval: 30000,
+  });
+
+  const { data: activeExams = [], isLoading: examsLoading } = useQuery<Exam[]>({
+    queryKey: ["exams-active"],
+    queryFn: async () => {
+      const { data } = await api.get("/exams/active");
+      return (data as any).data as Exam[];
     },
   });
+
+  // Top 5 campuses by avg_score
+  const topCampuses = [...campuses]
+    .sort((a, b) => (b.avg_score ?? 0) - (a.avg_score ?? 0))
+    .slice(0, 5);
+
+  const maxCampusScore = topCampuses[0]?.avg_score || 100;
 
   const kpis = [
     {
       label: "Partner Campuses",
-      value: stats?.campus_count ?? 6,
-      change: "+2 this quarter",
-      up: true,
-      icon: AcademicCapIcon,
-      iconBg: "bg-blue-100",
-      iconColor: "text-blue-600",
-      valuColor: "text-blue-700",
+      value: stats?.campus_count,
+      sub: `${campuses.filter(c => (c.student_count ?? 0) > 0).length} active`,
+      icon: Building2,
+      color: "text-blue-600",
+      bg: "bg-blue-50",
+      border: "border-blue-100",
+      badge: null,
     },
     {
       label: "Registered Students",
-      value: stats?.student_count ?? 2400,
-      change: "+312 this month",
-      up: true,
-      icon: UsersIcon,
-      iconBg: "bg-violet-100",
-      iconColor: "text-violet-600",
-      valuColor: "text-violet-700",
+      value: stats?.student_count?.toLocaleString(),
+      sub: stats?.new_students_this_month != null
+        ? `+${stats.new_students_this_month} this month`
+        : null,
+      icon: Users,
+      color: "text-violet-600",
+      bg: "bg-violet-50",
+      border: "border-violet-100",
+      badge: "up",
     },
     {
       label: "Active Assessments",
-      value: stats?.active_exams ?? 2,
-      change: "3 scheduled",
-      up: null,
-      icon: ClipboardDocumentListIcon,
-      iconBg: "bg-amber-100",
-      iconColor: "text-amber-600",
-      valuColor: "text-amber-700",
+      value: stats?.active_exams,
+      sub: activeExams.length > 0 ? `${activeExams.length} live now` : "None running",
+      icon: ClipboardList,
+      color: "text-amber-600",
+      bg: "bg-amber-50",
+      border: "border-amber-100",
+      badge: null,
     },
     {
-      label: "Overall Pass Ratio",
-      value: stats ? `${stats.pass_ratio}%` : "74%",
-      change: "+4% from last drive",
-      up: true,
-      icon: ChartBarIcon,
-      iconBg: "bg-emerald-100",
-      iconColor: "text-emerald-600",
-      valuColor: "text-emerald-700",
+      label: "Pass Ratio",
+      value: stats?.pass_ratio != null ? `${stats.pass_ratio}%` : null,
+      sub: stats?.avg_score != null ? `Avg score ${stats.avg_score}` : null,
+      icon: TrendingUp,
+      color: "text-emerald-600",
+      bg: "bg-emerald-50",
+      border: "border-emerald-100",
+      badge: "up",
+    },
+    {
+      label: "Critical Violations",
+      value: stats?.critical_violations,
+      sub: "Risk score ≥ 70",
+      icon: ShieldAlert,
+      color: "text-rose-600",
+      bg: "bg-rose-50",
+      border: "border-rose-100",
+      badge: (stats?.critical_violations ?? 0) > 0 ? "warn" : null,
     },
   ];
 
   const quickActions = [
-    { label: "New Assessment", to: "/app/assessments/blueprint", icon: PlusIcon, color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-100" },
-    { label: "Add Campus", to: "/app/campuses", icon: MapPinIcon, color: "text-violet-600", bg: "bg-violet-50", border: "border-violet-100" },
-    { label: "Analytics", to: "/app/analytics", icon: ArrowTrendingUpIcon, color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100" },
-    { label: "AI Segments", to: "/app/segmentation", icon: SparklesIcon, color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-100" },
-    { label: "Proctoring", to: "/app/proctoring", icon: ShieldCheckIcon, color: "text-rose-600", bg: "bg-rose-50", border: "border-rose-100" },
-    { label: "Students", to: "/app/students", icon: UsersIcon, color: "text-teal-600", bg: "bg-teal-50", border: "border-teal-100" },
+    { label: "New Assessment", to: "/app/assessments/blueprint", icon: Plus, color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-100" },
+    { label: "Add Campus", to: "/app/campuses", icon: MapPin, color: "text-violet-600", bg: "bg-violet-50", border: "border-violet-100" },
+    { label: "Analytics", to: "/app/analytics", icon: BarChart3, color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100" },
+    { label: "AI Segments", to: "/app/segmentation", icon: Sparkles, color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-100" },
+    { label: "Live Monitoring", to: "/app/admin/monitoring", icon: Shield, color: "text-rose-600", bg: "bg-rose-50", border: "border-rose-100" },
+    { label: "Students", to: "/app/students", icon: Users, color: "text-teal-600", bg: "bg-teal-50", border: "border-teal-100" },
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50/50 px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl space-y-6 pb-8">
+    <div className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl space-y-6 pb-10">
 
-        {/* ── Hero Banner ─────────────────────────────────────────────────────── */}
-        <div
-          className="relative overflow-hidden rounded-2xl sm:rounded-3xl"
-          style={{ background: "linear-gradient(135deg, #EEF2FF 0%, #F0FDF4 50%, #FFF7ED 100%)" }}
-        >
-          {/* Decorative blobs */}
-          <div className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-blue-200/40 blur-3xl sm:-right-20 sm:-top-20 sm:h-64 sm:w-64" />
-          <div className="pointer-events-none absolute -left-10 bottom-0 h-32 w-32 rounded-full bg-violet-200/30 blur-2xl sm:-left-16 sm:h-48 sm:w-48" />
-
-          <div className="relative px-5 py-6 sm:px-8 sm:py-8">
-            <div className="space-y-4">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-500 shadow-sm ring-1 ring-black/5 sm:text-[11px]">
+        {/* ── Header ──────────────────────────────────────────────────────────── */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-emerald-700">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Campus Hiring · Season 2025
+                Live
               </span>
-              <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl lg:text-4xl">
-                Welcome back, {user?.name?.split(" ")[0] ?? "Admin"} 👋
-              </h1>
-              <p className="max-w-2xl text-sm text-slate-600 sm:text-base">
-                Your recruitment operations at a glance. Everything you need to run efficient campus hiring drives.
-              </p>
-
-              {/* Action Buttons */}
-              <div className="flex flex-wrap gap-2 pt-2 sm:gap-2.5">
-                <Link
-                  to="/app/assessments/blueprint"
-                  className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-slate-800 transition-all hover:shadow-lg sm:px-5 sm:text-sm"
-                >
-                  <PlusIcon className="h-4 w-4" /> New Drive
-                </Link>
-                <Link
-                  to="/app/campuses"
-                  className="inline-flex items-center gap-2 rounded-xl bg-white/80 px-4 py-2.5 text-xs font-bold text-slate-700 shadow-sm ring-1 ring-black/5 hover:bg-white transition-colors sm:px-5 sm:text-sm"
-                >
-                  <AcademicCapIcon className="h-4 w-4" /> Campuses
-                </Link>
-                <Link
-                  to="/app/proctoring"
-                  className="inline-flex items-center gap-2 rounded-xl bg-white/80 px-4 py-2.5 text-xs font-bold text-slate-700 shadow-sm ring-1 ring-black/5 hover:bg-white transition-colors sm:px-5 sm:text-sm"
-                >
-                  <ShieldCheckIcon className="h-4 w-4" /> Proctoring
-                </Link>
-              </div>
+              <span className="text-xs text-slate-400 font-medium">
+                {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+              </span>
             </div>
+            <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
+              Welcome back, {user?.name?.split(" ")[0] ?? "—"}
+            </h1>
+            <p className="text-sm text-slate-500 mt-0.5">Your campus hiring operations at a glance.</p>
+          </div>
 
-            {/* Stat Pills - Hidden on mobile, shown on larger screens */}
-            <div className="mt-6 hidden gap-3 lg:flex lg:absolute lg:right-8 lg:top-8 lg:mt-0 lg:flex-col">
-              <div className="flex items-center gap-3 rounded-2xl bg-white/70 px-4 py-3 shadow-sm ring-1 ring-black/5 backdrop-blur-sm">
-                <div className="h-8 w-8 rounded-lg bg-blue-100 flex items-center justify-center">
-                  <UsersIcon className="h-4 w-4 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400">Total Pool</p>
-                  <p className="text-lg font-black text-slate-900">{stats?.student_count ?? "2,400"}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 rounded-2xl bg-white/70 px-4 py-3 shadow-sm ring-1 ring-black/5 backdrop-blur-sm">
-                <div className="h-8 w-8 rounded-lg bg-emerald-100 flex items-center justify-center">
-                  <ChartBarIcon className="h-4 w-4 text-emerald-600" />
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400">Pass Ratio</p>
-                  <p className="text-lg font-black text-slate-900">{stats ? `${stats.pass_ratio}%` : "74%"}</p>
-                </div>
-              </div>
-            </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => refetchStats()}
+              disabled={statsFetching}
+              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-600 shadow-sm hover:bg-slate-50 transition-all"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${statsFetching ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
+            <Link
+              to="/app/assessments/blueprint"
+              className="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-slate-800 transition-all"
+            >
+              <Plus className="h-3.5 w-3.5" /> New Drive
+            </Link>
+            <Link
+              to="/app/admin/monitoring"
+              className="flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-rose-700 transition-all"
+            >
+              <Shield className="h-3.5 w-3.5" /> Live Monitoring
+            </Link>
           </div>
         </div>
 
-        {/* ── KPI Cards ──────────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {/* ── KPI Strip ───────────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {kpis.map((k) => (
             <div
               key={k.label}
-              className="group flex flex-col gap-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-100 hover:shadow-md hover:ring-slate-200 transition-all sm:gap-4 sm:rounded-2xl sm:p-5"
+              className={`rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100 hover:shadow-md transition-all ${k.border}`}
             >
-              <div className="flex items-start justify-between">
-                <div className={`h-10 w-10 rounded-xl ${k.iconBg} flex items-center justify-center sm:h-11 sm:w-11`}>
-                  <k.icon className={`h-5 w-5 ${k.iconColor} sm:h-5.5 sm:w-5.5`} />
+              <div className="flex items-center justify-between mb-3">
+                <div className={`h-9 w-9 rounded-xl ${k.bg} flex items-center justify-center`}>
+                  <k.icon className={`h-4.5 w-4.5 ${k.color}`} style={{ width: 18, height: 18 }} />
                 </div>
-                {k.up !== null && (
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${k.up ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"}`}>
-                    {k.up ? "↑" : "→"}
-                  </span>
+                {k.badge === "up" && (
+                  <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600">↑</span>
+                )}
+                {k.badge === "warn" && (
+                  <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-600 animate-pulse">!</span>
                 )}
               </div>
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 sm:text-[11px]">{k.label}</p>
-                <p className={`mt-1 text-2xl font-black ${k.valuColor} tabular-nums sm:text-3xl`}>{k.value}</p>
-                <p className="mt-1 text-[10px] text-slate-400 sm:text-[11px]">{k.change}</p>
-              </div>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">{k.label}</p>
+              {statsLoading ? (
+                <div className="space-y-1.5">
+                  <SkeletonLine h="h-7" w="w-16" />
+                  <SkeletonLine h="h-3" w="w-20" />
+                </div>
+              ) : (
+                <>
+                  <p className={`text-2xl font-black tabular-nums ${k.color} sm:text-3xl`}>
+                    {k.value ?? "—"}
+                  </p>
+                  {k.sub && <p className="mt-0.5 text-[10px] text-slate-400">{k.sub}</p>}
+                </>
+              )}
             </div>
           ))}
         </div>
 
-        {/* ── Charts ─────────────────────────────────────────────────────────── */}
+        {/* ── Charts Row ──────────────────────────────────────────────────────── */}
         <div className="grid gap-4 lg:grid-cols-3 lg:gap-5">
 
-          {/* Area chart */}
-          <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-100 sm:rounded-2xl sm:p-6 lg:col-span-2">
+          {/* Trend Chart */}
+          <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100 sm:p-6 lg:col-span-2">
             <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h3 className="text-sm font-bold text-slate-800 sm:text-base">Recruitment Trend</h3>
-                <p className="mt-0.5 text-xs text-slate-400">Students screened vs hired — last 6 months</p>
+                <p className="mt-0.5 text-xs text-slate-400">Students registered vs screened in assessments — last 6 months</p>
               </div>
               <div className="flex gap-4 text-[10px] text-slate-400 sm:text-[11px]">
                 <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-blue-400" /> Screened
+                  <span className="h-2 w-2 rounded-full bg-blue-400" /> Registered
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400" /> Hired
+                  <span className="h-2 w-2 rounded-full bg-violet-400" /> Screened
                 </span>
               </div>
             </div>
+
             <div className="mt-4 h-48 sm:h-56 lg:h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={trendData} width={500} height={300} margin={{ left: -20, right: 4, top: 4, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorStudents" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.15} />
-                      <stop offset="95%" stopColor="#60a5fa" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="colorHired" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#34d399" stopOpacity={0.2} />
-                      <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="4 4" stroke="#f1f5f9" vertical={false} />
-                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Area type="monotone" dataKey="students" name="Screened" stroke="#60a5fa" strokeWidth={2.5} fill="url(#colorStudents)" dot={false} activeDot={{ r: 5, strokeWidth: 0 }} />
-                  <Area type="monotone" dataKey="hired" name="Hired" stroke="#34d399" strokeWidth={2.5} fill="url(#colorHired)" dot={false} activeDot={{ r: 5, strokeWidth: 0 }} />
-                </AreaChart>
-              </ResponsiveContainer>
+              {trendLoading ? (
+                <div className="h-full flex items-end gap-2 px-2">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="flex-1 flex flex-col justify-end gap-1">
+                      <div className="w-full bg-slate-100 animate-pulse rounded" style={{ height: `${30 + (i * 11)}%` }} />
+                    </div>
+                  ))}
+                </div>
+              ) : trend.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-sm text-slate-400">
+                  No trend data available yet
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={trend} margin={{ left: -20, right: 4, top: 4, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="gradRegistered" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.18} />
+                        <stop offset="95%" stopColor="#60a5fa" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="gradScreened" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#a78bfa" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="#a78bfa" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="4 4" stroke="#f1f5f9" vertical={false} />
+                    <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Area type="monotone" dataKey="students" name="Registered" stroke="#60a5fa" strokeWidth={2.5} fill="url(#gradRegistered)" dot={false} activeDot={{ r: 5, strokeWidth: 0 }} />
+                    <Area type="monotone" dataKey="screened" name="Screened" stroke="#a78bfa" strokeWidth={2.5} fill="url(#gradScreened)" dot={false} activeDot={{ r: 5, strokeWidth: 0 }} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
 
-          {/* Campus scores */}
-          <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-100 sm:rounded-2xl sm:p-6">
-            <h3 className="text-sm font-bold text-slate-800 sm:text-base">Campus Performance</h3>
-            <p className="mt-0.5 text-xs text-slate-400 mb-5">Average assessment scores</p>
+          {/* Campus Performance */}
+          <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100 sm:p-6">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-sm font-bold text-slate-800 sm:text-base">Campus Performance</h3>
+              <Trophy className="h-4 w-4 text-amber-400" />
+            </div>
+            <p className="text-xs text-slate-400 mb-5">Top campuses by avg. assessment score</p>
 
-            <div className="space-y-3">
-              {campusData.map((c, i) => {
-                const pct = c.score;
-                const barColors = ["bg-blue-400", "bg-violet-400", "bg-teal-400", "bg-amber-400", "bg-rose-400"];
-                return (
-                  <div key={c.name}>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="font-semibold text-slate-600 truncate">{c.name}</span>
-                      <span className="font-bold text-slate-800 ml-2">{c.score}</span>
+            {campusesLoading ? (
+              <div className="space-y-4">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="space-y-1.5">
+                    <div className="flex justify-between">
+                      <SkeletonLine w="w-28" h="h-3" />
+                      <SkeletonLine w="w-8" h="h-3" />
                     </div>
-                    <div className="h-1.5 w-full rounded-full bg-slate-100">
-                      <div
-                        className={`h-full rounded-full ${barColors[i % barColors.length]} transition-all duration-700`}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
+                    <SkeletonLine h="h-1.5" />
                   </div>
-                );
-              })}
-            </div>
+                ))}
+              </div>
+            ) : topCampuses.length === 0 ? (
+              <p className="text-sm text-slate-400 text-center py-8">No campus data yet</p>
+            ) : (
+              <div className="space-y-3.5">
+                {topCampuses.map((c, i) => {
+                  const pct = maxCampusScore > 0 ? (c.avg_score / maxCampusScore) * 100 : 0;
+                  const barColors = ["bg-blue-500", "bg-violet-500", "bg-teal-500", "bg-amber-500", "bg-rose-500"];
+                  return (
+                    <div key={c.id}>
+                      <div className="flex justify-between items-center text-xs mb-1.5">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          {i === 0 && <Star className="h-3 w-3 text-amber-400 shrink-0" />}
+                          <span className="font-semibold text-slate-700 truncate">{c.name}</span>
+                        </div>
+                        <span className="font-black text-slate-900 ml-2 tabular-nums">
+                          {c.avg_score != null ? Math.round(c.avg_score) : "—"}
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full rounded-full bg-slate-100">
+                        <div
+                          className={`h-full rounded-full ${barColors[i % barColors.length]} transition-all duration-700`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <p className="mt-0.5 text-[10px] text-slate-400">{c.student_count ?? 0} students</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
-            <div className="mt-5 rounded-xl bg-slate-50 p-4 flex items-center gap-3">
-              <div className="h-8 w-8 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
-                <AcademicCapIcon className="h-4 w-4 text-blue-600" />
+            {!campusesLoading && campuses.length > 0 && (
+              <div className="mt-5 rounded-xl bg-slate-50 p-3.5 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-slate-700">{campuses.length} Partner Colleges</p>
+                  <p className="text-[11px] text-slate-400">
+                    {campuses.length > 0 && stats?.avg_score != null
+                      ? `Platform avg: ${stats.avg_score}`
+                      : "Scores loading…"}
+                  </p>
+                </div>
+                <Link to="/app/campuses" className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1">
+                  All <ArrowRight className="h-3 w-3" />
+                </Link>
               </div>
-              <div className="min-w-0">
-                <p className="text-xs font-bold text-slate-700">6 Partner Colleges</p>
-                <p className="text-[11px] text-slate-400">Avg score: 74 / 100</p>
-              </div>
-            </div>
+            )}
           </div>
         </div>
 
-        {/* ── Bottom Row ─────────────────────────────────────────────────────── */}
+        {/* ── Bottom Row ──────────────────────────────────────────────────────── */}
         <div className="grid gap-4 lg:grid-cols-3 lg:gap-5">
 
           {/* Recent Activity */}
-          <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-100 sm:rounded-2xl sm:p-6 lg:col-span-2">
+          <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100 sm:p-6 lg:col-span-2">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-sm font-bold text-slate-800 sm:text-base">Recent Activity</h3>
-                <p className="mt-0.5 text-xs text-slate-400">What's happened on the platform</p>
+                <p className="mt-0.5 text-xs text-slate-400">Latest platform events</p>
               </div>
-              <div className="flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1">
-                <BellAlertIcon className="h-3.5 w-3.5 text-rose-400" />
-                <span className="text-[11px] font-bold text-rose-500">{activity.length}</span>
-              </div>
+              {activity.length > 0 && (
+                <span className="flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-500">
+                  {activity.length}
+                </span>
+              )}
             </div>
 
-            <div className="divide-y divide-slate-50">
-              {activity.map((a) => {
-                const cfg = ACTIVITY_COLORS[a.type] ?? { bg: "bg-slate-100", text: "text-slate-600", dot: "bg-slate-400" };
-                return (
-                  <div key={a.id} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0 sm:gap-4">
-                    <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-base ${cfg.bg} sm:h-9 sm:w-9`}>
-                      {ACTIVITY_EMOJI[a.type] ?? "📌"}
+            {activityLoading ? (
+              <div className="space-y-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex items-start gap-3">
+                    <SkeletonLine w="w-8 shrink-0" h="h-8 rounded-xl" />
+                    <div className="flex-1 space-y-1.5">
+                      <SkeletonLine h="h-4" />
+                      <SkeletonLine w="w-24" h="h-3" />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-slate-700 leading-snug">{a.text}</p>
-                      <div className="mt-1 flex flex-wrap items-center gap-2">
-                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${cfg.bg} ${cfg.text}`}>
-                          {a.type}
-                        </span>
-                        <span className="text-[11px] text-slate-400">{a.time}</span>
+                  </div>
+                ))}
+              </div>
+            ) : activity.length === 0 ? (
+              <p className="text-sm text-slate-400 py-6 text-center">No recent activity</p>
+            ) : (
+              <div className="divide-y divide-slate-50">
+                {activity.slice(0, 8).map((a) => {
+                  const cfg = ACTIVITY_CFG[a.type] ?? { bg: "bg-slate-100", text: "text-slate-600", icon: "📌" };
+                  return (
+                    <div key={a.id} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0 sm:gap-4">
+                      <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-sm ${cfg.bg}`}>
+                        {cfg.icon}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-slate-700 leading-snug truncate">{a.text}</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${cfg.bg} ${cfg.text}`}>
+                            {a.type}
+                          </span>
+                          <span className="text-[11px] text-slate-400">
+                            {typeof a.time === "string" && /^\d{4}/.test(a.time)
+                              ? formatRelativeTime(a.time)
+                              : a.time}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
-          {/* Quick Actions */}
-          <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-100 sm:rounded-2xl sm:p-6">
-            <h3 className="text-sm font-bold text-slate-800 mb-1 sm:text-base">Quick Actions</h3>
-            <p className="text-xs text-slate-400 mb-4">Jump into key workflows</p>
+          {/* Right Column: Quick Actions + Active Assessments */}
+          <div className="flex flex-col gap-4">
 
-            <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
-              {quickActions.map((action) => (
-                <Link
-                  key={action.label}
-                  to={action.to}
-                  className={`group flex flex-col items-center justify-center gap-2 rounded-xl border ${action.border} ${action.bg} px-3 py-4 text-center transition-all hover:shadow-md hover:scale-[1.02] active:scale-100`}
-                >
-                  <div className={`h-9 w-9 rounded-lg bg-white shadow-sm flex items-center justify-center ${action.color}`}>
-                    <action.icon className="h-5 w-5" />
-                  </div>
-                  <span className="text-[11px] font-bold text-slate-600 leading-tight">{action.label}</span>
-                </Link>
-              ))}
+            {/* Quick Actions */}
+            <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100 sm:p-6">
+              <h3 className="text-sm font-bold text-slate-800 mb-1 sm:text-base">Quick Actions</h3>
+              <p className="text-xs text-slate-400 mb-4">Jump into key workflows</p>
+
+              <div className="grid grid-cols-3 gap-2">
+                {quickActions.map((action) => (
+                  <Link
+                    key={action.label}
+                    to={action.to}
+                    className={`group flex flex-col items-center justify-center gap-1.5 rounded-xl border ${action.border} ${action.bg} px-2 py-3 text-center transition-all hover:shadow-md hover:scale-[1.02] active:scale-100`}
+                  >
+                    <div className={`h-8 w-8 rounded-lg bg-white shadow-sm flex items-center justify-center ${action.color}`}>
+                      <action.icon className="h-4 w-4" />
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-600 leading-tight">{action.label}</span>
+                  </Link>
+                ))}
+              </div>
             </div>
 
-            {/* Upcoming Drive */}
-            <div
-              className="mt-4 rounded-xl p-4 overflow-hidden relative"
-              style={{ background: "linear-gradient(135deg, #dbeafe 0%, #ede9fe 100%)" }}
-            >
-              <div className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white/30 blur-xl" />
-              <p className="text-[10px] font-bold uppercase tracking-widest text-blue-600 mb-1 sm:text-[11px]">Next Drive</p>
-              <p className="text-sm font-bold text-slate-800">IIT Delhi · Mar 15</p>
-              <p className="text-[11px] text-slate-500 mt-0.5 mb-3">450 students eligible</p>
-              <Link
-                to="/app/campuses"
-                className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 hover:text-blue-900 transition-colors"
-              >
-                View details <ArrowRightIcon className="h-3 w-3" />
-              </Link>
+            {/* Active Assessments */}
+            <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100 sm:p-6 flex-1">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-bold text-slate-800">Active Assessments</h3>
+                <Link to="/app/assessments" className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1">
+                  All <ArrowRight className="h-3 w-3" />
+                </Link>
+              </div>
+
+              {examsLoading ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="rounded-xl border border-slate-100 p-3 space-y-1.5">
+                      <SkeletonLine h="h-3.5" />
+                      <SkeletonLine w="w-24" h="h-3" />
+                    </div>
+                  ))}
+                </div>
+              ) : activeExams.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 p-4 text-center">
+                  <p className="text-xs text-slate-400 mb-2">No active assessments</p>
+                  <Link
+                    to="/app/assessments/blueprint"
+                    className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Create one
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {activeExams.slice(0, 4).map((exam) => (
+                    <Link
+                      key={exam.id}
+                      to={`/app/assessments/${exam.id}`}
+                      className="block rounded-xl border border-slate-100 bg-slate-50 p-3 hover:border-blue-200 hover:bg-blue-50/40 transition-all"
+                    >
+                      <p className="text-xs font-bold text-slate-800 truncate">{exam.title}</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        {exam.duration_minutes}min · {exam.total_marks} marks
+                      </p>
+                    </Link>
+                  ))}
+                  {activeExams.length > 4 && (
+                    <p className="text-[11px] text-slate-400 text-center pt-1">
+                      +{activeExams.length - 4} more
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -45,7 +45,12 @@ const CXOAnalyticsPage = lazy(() => import("./pages/cxo/CXOAnalyticsPage"));
 const CollegeDashboardPage = lazy(() => import("./pages/college/CollegeDashboardPage"));
 const CampusDrivesListPage = lazy(() => import("./pages/college/DrivesListPage"));
 const CampusDriveDetailPage = lazy(() => import("./pages/college/DriveDetailPage"));
-const UnderConstructionPage = lazy(() => import("./pages/college/UnderConstructionPage"));
+const CampusResultsPage = lazy(() => import("./pages/college/ResultsPage"));
+const CampusInsightsPage = lazy(() => import("./pages/college/InsightsPage"));
+const CampusIntegrityPage = lazy(() => import("./pages/college/IntegrityPage"));
+const CampusCommunicationsPage = lazy(() => import("./pages/college/CommunicationsPage"));
+const CampusAdminsPage = lazy(() => import("./pages/college/CampusAdminsPage"));
+const CampusSettingsPage = lazy(() => import("./pages/college/SettingsPage"));
 const StudentPortalPage = lazy(() => import("./pages/student/StudentPortalPage"));
 const CampusListPage = lazy(() => import("./pages/hr/CampusListPage"));
 const CampusDetailPage = lazy(() => import("./pages/hr/CampusDetailPage"));
@@ -60,7 +65,6 @@ const ChangePasswordPage = lazy(() => import("./pages/admin/ChangePasswordPage")
 
 const AssessmentStudioPage = lazy(() => import("./pages/assessments/AssessmentStudioPage"));
 const AssessmentTakePage = lazy(() => import("./pages/assessments/AssessmentTakePage"));
-const ExamInterfacePage = lazy(() => import("./pages/assessments/ExamInterfacePage"));
 const QuestionWizard = lazy(() => import("./pages/assessments/QuestionWizard"));
 const CodeEditor = lazy(() => import("./pages/assessments/CodeEditor"));
 const AssessmentBlueprintWizard = lazy(() => import("./pages/assessments/AssessmentBlueprintWizard"));
@@ -128,12 +132,6 @@ function RootRedirect() {
 
 
 
-function LegacyStudentExamRedirect() {
-  const { id } = useParams<{ id: string }>();
-  if (!id) return <Navigate to="/app/student-portal" replace />;
-  return <Navigate to={`/student/exams/${id}/take`} replace />;
-}
-
 function RouteLoadingFallback() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50">
@@ -187,20 +185,7 @@ export default function App() {
               }
             />
 
-            {/* ── Exam interface (full-screen, outside dashboard) ─────── */}
-            <Route
-              path="/student/exams/:id/take"
-              element={
-                <ProtectedRoute>
-                  <RoleGuard allowed={["student"]}>
-                    <ExamInterfacePage />
-                  </RoleGuard>
-                </ProtectedRoute>
-              }
-            />
-            <Route path="/exams/:id/take" element={<LegacyStudentExamRedirect />} />
-
-            {/* ── New Exam Player (drive-based, full-screen) ─────── */}
+            {/* ── Exam Player (drive-based, full-screen) ─────────────── */}
             <Route
               path="/app/student-portal/exam/:driveId/play"
               element={
@@ -295,7 +280,7 @@ export default function App() {
                 path="college/results"
                 element={
                   <RoleGuard allowed={["college_admin", "college", "college_staff"]}>
-                    <UnderConstructionPage title="Results & Reports" />
+                    <CampusResultsPage />
                   </RoleGuard>
                 }
               />
@@ -303,7 +288,7 @@ export default function App() {
                 path="college/insights"
                 element={
                   <RoleGuard allowed={["college_admin", "college", "college_staff"]}>
-                    <UnderConstructionPage title="Campus Insights" />
+                    <CampusInsightsPage />
                   </RoleGuard>
                 }
               />
@@ -311,7 +296,7 @@ export default function App() {
                 path="college/communications"
                 element={
                   <RoleGuard allowed={["college_admin", "college", "college_staff"]}>
-                    <UnderConstructionPage title="Communications" />
+                    <CampusCommunicationsPage />
                   </RoleGuard>
                 }
               />
@@ -319,7 +304,7 @@ export default function App() {
                 path="college/settings"
                 element={
                   <RoleGuard allowed={["college_admin", "college"]}>
-                    <UnderConstructionPage title="Campus Settings" />
+                    <CampusSettingsPage />
                   </RoleGuard>
                 }
               />
@@ -327,7 +312,7 @@ export default function App() {
                 path="college/integrity"
                 element={
                   <RoleGuard allowed={["college_admin", "college", "college_staff"]}>
-                    <UnderConstructionPage title="Integrity" />
+                    <CampusIntegrityPage />
                   </RoleGuard>
                 }
               />
@@ -335,7 +320,7 @@ export default function App() {
                 path="college/campus-admins"
                 element={
                   <RoleGuard allowed={["college_admin", "college"]}>
-                    <UnderConstructionPage title="Campus Admins" />
+                    <CampusAdminsPage />
                   </RoleGuard>
                 }
               />
@@ -388,7 +373,7 @@ export default function App() {
               <Route
                 path="admin/monitoring"
                 element={
-                  <RoleGuard allowed={["college_admin", "super_admin"]}>
+                  <RoleGuard allowed={["college_admin", "super_admin", "hr", "cxo", "engineer"]}>
                     <LiveMonitoringDashboard />
                   </RoleGuard>
                 }
@@ -396,7 +381,7 @@ export default function App() {
               <Route
                 path="admin/monitoring/live/:driveId"
                 element={
-                  <RoleGuard allowed={["college_admin", "super_admin"]}>
+                  <RoleGuard allowed={["college_admin", "super_admin", "hr", "cxo", "engineer"]}>
                     <LiveMonitoringDashboard />
                   </RoleGuard>
                 }
@@ -404,7 +389,7 @@ export default function App() {
               <Route
                 path="admin/monitoring/session/:sessionId"
                 element={
-                  <RoleGuard allowed={["college_admin", "super_admin"]}>
+                  <RoleGuard allowed={["college_admin", "super_admin", "hr", "cxo", "engineer"]}>
                     <StudentSessionDetail />
                   </RoleGuard>
                 }

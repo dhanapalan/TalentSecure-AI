@@ -1,7 +1,0 @@
-.progress-bar-width {
-  width: var(--progress-bar-width, 100%);
-}
-/* Accessibility and style fixes for ExamInterfacePage */
-.custom-scroll-area {
-  height: calc(100% - 37px);
-}

@@ -95,6 +95,8 @@ const updateCampusSchema = createCampusSchema.omit({
   is_suspended: z.boolean().optional(),
 
   internal_notes: z.string().optional().nullable(),
+  address: z.string().optional().nullable(),
+  website: z.string().url().optional().nullable(),
 });
 
 const createAdminSchema = z.object({
@@ -237,7 +239,7 @@ const ALLOWED_CAMPUS_UPDATE_KEYS = new Set([
   "naac_grade", "nirf_rank", "is_active", "agreement_start_date",
   "agreement_end_date", "sla", "mou_url", "contract_status",
   "eligible_for_hiring", "eligible_for_tier1", "is_blacklisted",
-  "is_suspended", "internal_notes",
+  "is_suspended", "internal_notes", "address", "website",
 ]);
 
 /**
@@ -528,6 +530,243 @@ router.post(
       }).catch(() => { });
 
       res.json({ success: true, message: `Bulk ${action} completed successfully`, count: campusIds.length });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * GET /api/campuses/:id/students
+ * Paginated student list for a specific campus
+ */
+router.get(
+  "/:id/students",
+  authenticate,
+  authorize("super_admin", "admin", "hr", "cxo"),
+  async (req, res, next) => {
+    try {
+      const id = getParamAsString(req.params.id);
+      const page = parseInt(String(req.query.page)) || 1;
+      const limit = parseInt(String(req.query.limit)) || 30;
+      const offset = (page - 1) * limit;
+      const search = String(req.query.search || "").trim();
+
+      let whereClauses = ["COALESCE(u.college_id, sd.college_id) = $1"];
+      const params: any[] = [id];
+      let paramIdx = 2;
+
+      if (search) {
+        whereClauses.push(
+          `(u.name ILIKE $${paramIdx} OR u.email ILIKE $${paramIdx} OR sd.roll_number ILIKE $${paramIdx})`
+        );
+        params.push(`%${search}%`);
+        paramIdx++;
+      }
+
+      const whereSQL = "WHERE " + whereClauses.join(" AND ");
+
+      const students = await query(
+        `SELECT u.id, u.name, u.email, u.is_active,
+                sd.first_name, sd.last_name, sd.roll_number, sd.degree,
+                sd.passing_year, sd.cgpa, sd.percentage,
+                COALESCE(ms.final_score, 0)::float as latest_score,
+                sd.created_at
+         FROM users u
+         LEFT JOIN student_details sd ON sd.user_id = u.id
+         LEFT JOIN LATERAL (
+           SELECT final_score FROM marks_scored WHERE student_id = u.id ORDER BY created_at DESC LIMIT 1
+         ) ms ON true
+         ${whereSQL}
+         ORDER BY u.name ASC
+         LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
+        [...params, limit, offset]
+      );
+
+      const countResult = await query(
+        `SELECT COUNT(*)::int as total
+         FROM users u
+         LEFT JOIN student_details sd ON sd.user_id = u.id
+         ${whereSQL}`,
+        params
+      );
+      const total = countResult[0]?.total ?? 0;
+
+      res.json({
+        success: true,
+        data: students,
+        pagination: { total, page, limit, pages: Math.ceil(total / limit) },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * GET /api/campuses/:id/assessments
+ * Assessments assigned to this campus
+ */
+router.get(
+  "/:id/assessments",
+  authenticate,
+  authorize("super_admin", "admin", "hr", "cxo"),
+  async (req, res, next) => {
+    try {
+      const id = getParamAsString(req.params.id);
+
+      const assessments = await query(
+        `SELECT e.id, e.title, e.description, e.duration_minutes, e.total_marks,
+                e.cutoff_score, e.is_active, e.created_at,
+                COUNT(DISTINCT es.student_id)::int as attempts,
+                COALESCE(AVG(ms.final_score), 0)::float as avg_score,
+                COALESCE(
+                  100.0 * COUNT(ms.id) FILTER (WHERE ms.final_score >= e.cutoff_score)
+                  / NULLIF(COUNT(ms.id), 0), 0
+                )::float as pass_rate
+         FROM exam_colleges ec
+         JOIN exams e ON e.id = ec.exam_id
+         LEFT JOIN exam_sessions es ON es.exam_id = e.id
+           AND es.student_id IN (
+             SELECT u.id FROM users u
+             LEFT JOIN student_details sd ON sd.user_id = u.id
+             WHERE COALESCE(u.college_id, sd.college_id) = $1
+           )
+         LEFT JOIN marks_scored ms ON ms.exam_id = e.id
+           AND ms.student_id IN (
+             SELECT u.id FROM users u
+             LEFT JOIN student_details sd ON sd.user_id = u.id
+             WHERE COALESCE(u.college_id, sd.college_id) = $1
+           )
+         WHERE ec.college_id = $1
+         GROUP BY e.id
+         ORDER BY e.created_at DESC`,
+        [id]
+      );
+
+      res.json({ success: true, data: assessments });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * GET /api/campuses/:id/performance
+ * Score distribution + pass rate for students of this campus
+ */
+router.get(
+  "/:id/performance",
+  authenticate,
+  authorize("super_admin", "admin", "hr", "cxo"),
+  async (req, res, next) => {
+    try {
+      const id = getParamAsString(req.params.id);
+
+      // Score buckets: 0-20, 21-40, 41-60, 61-80, 81-100
+      const distribution = await query(
+        `SELECT
+           width_bucket(ms.final_score, 0, 100, 5) as bucket,
+           COUNT(*)::int as count
+         FROM marks_scored ms
+         JOIN users u ON u.id = ms.student_id
+         LEFT JOIN student_details sd ON sd.user_id = u.id
+         WHERE COALESCE(u.college_id, sd.college_id) = $1
+           AND ms.final_score IS NOT NULL
+         GROUP BY bucket
+         ORDER BY bucket`,
+        [id]
+      );
+
+      const bucketLabels = ["0–20", "21–40", "41–60", "61–80", "81–100"];
+      const dist = bucketLabels.map((label, i) => {
+        const row = distribution.find((r: any) => r.bucket === i + 1);
+        return { range: label, count: row?.count ?? 0 };
+      });
+
+      // Monthly trend for this campus
+      const trend = await query(
+        `SELECT
+           TO_CHAR(DATE_TRUNC('month', ms.created_at), 'Mon') as month,
+           ROUND(AVG(ms.final_score))::int as avg_score,
+           COUNT(*)::int as attempts
+         FROM marks_scored ms
+         JOIN users u ON u.id = ms.student_id
+         LEFT JOIN student_details sd ON sd.user_id = u.id
+         WHERE COALESCE(u.college_id, sd.college_id) = $1
+           AND ms.created_at >= NOW() - INTERVAL '6 months'
+         GROUP BY DATE_TRUNC('month', ms.created_at)
+         ORDER BY DATE_TRUNC('month', ms.created_at)`,
+        [id]
+      );
+
+      // Top performers
+      const topPerformers = await query(
+        `SELECT u.id, u.name, u.email,
+                sd.degree, sd.passing_year,
+                ROUND(MAX(ms.final_score))::int as best_score,
+                COUNT(ms.id)::int as attempts
+         FROM marks_scored ms
+         JOIN users u ON u.id = ms.student_id
+         LEFT JOIN student_details sd ON sd.user_id = u.id
+         WHERE COALESCE(u.college_id, sd.college_id) = $1
+         GROUP BY u.id, u.name, u.email, sd.degree, sd.passing_year
+         ORDER BY best_score DESC
+         LIMIT 5`,
+        [id]
+      );
+
+      res.json({ success: true, data: { distribution: dist, trend, topPerformers } });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * GET /api/campuses/:id/integrity
+ * Proctoring incidents for students of this campus
+ */
+router.get(
+  "/:id/integrity",
+  authenticate,
+  authorize("super_admin", "admin", "hr", "cxo"),
+  async (req, res, next) => {
+    try {
+      const id = getParamAsString(req.params.id);
+
+      const incidents = await query(
+        `SELECT cl.id, cl.event_type, cl.risk_score, cl.description,
+                cl.created_at, u.name as student_name, u.email as student_email,
+                e.title as exam_title
+         FROM cheating_logs cl
+         JOIN users u ON u.id = cl.student_id
+         LEFT JOIN student_details sd ON sd.user_id = u.id
+         LEFT JOIN exams e ON e.id = cl.exam_id
+         WHERE COALESCE(u.college_id, sd.college_id) = $1
+         ORDER BY cl.created_at DESC
+         LIMIT 50`,
+        [id]
+      );
+
+      const summary = await query(
+        `SELECT
+           COUNT(*)::int as total_incidents,
+           COUNT(*) FILTER (WHERE risk_score >= 70)::int as critical,
+           COUNT(*) FILTER (WHERE risk_score >= 40 AND risk_score < 70)::int as moderate,
+           COUNT(*) FILTER (WHERE risk_score < 40)::int as low,
+           COALESCE(ROUND(AVG(risk_score))::int, 0) as avg_risk_score
+         FROM cheating_logs cl
+         JOIN users u ON u.id = cl.student_id
+         LEFT JOIN student_details sd ON sd.user_id = u.id
+         WHERE COALESCE(u.college_id, sd.college_id) = $1`,
+        [id]
+      );
+
+      res.json({
+        success: true,
+        data: { incidents, summary: summary[0] ?? { total_incidents: 0, critical: 0, moderate: 0, low: 0, avg_risk_score: 0 } },
+      });
     } catch (err) {
       next(err);
     }
