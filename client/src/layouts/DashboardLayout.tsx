@@ -204,6 +204,14 @@ const navigation: NavItem[] = [
     roles: ["student"],
   },
 
+  // ── Mentor Portal ─────────────────────────────────────────────────────────────
+  {
+    name: "My Students",
+    href: "/app/mentor",
+    icon: UserGroupIcon,
+    roles: ["mentor"],
+  },
+
   // ── Instructor Portal ────────────────────────────────────────────────────────
   {
     name: "Course Builder",

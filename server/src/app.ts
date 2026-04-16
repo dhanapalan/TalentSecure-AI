@@ -34,6 +34,7 @@ import lmsRoutes from "./routes/lms.routes.js";
 import practiceRoutes from "./routes/practice.routes.js";
 import developmentRoutes from "./routes/development.routes.js";
 import gamificationRoutes from "./routes/gamification.routes.js";
+import mentorRoutes from "./routes/mentor.routes.js";
 import skillsRoutes from "./routes/skills.routes.js";
 import learningModulesRoutes from "./routes/learningModules.routes.js";
 import skillProgramsRoutes from "./routes/skillPrograms.routes.js";
@@ -131,6 +132,7 @@ app.use("/api/lms", lmsRoutes);
 app.use("/api/practice", practiceRoutes);
 app.use("/api/development", developmentRoutes);
 app.use("/api/gamification", gamificationRoutes);
+app.use("/api/mentor", mentorRoutes);
 // ── Skill Development Layer ───────────────────────────────────────────────────
 app.use("/api/skills", skillsRoutes);
 app.use("/api/learning-modules", learningModulesRoutes);

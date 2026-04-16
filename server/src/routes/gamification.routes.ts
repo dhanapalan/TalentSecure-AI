@@ -6,6 +6,7 @@
 import { Router } from "express";
 import { authenticate, authorize } from "../middleware/auth.js";
 import { query, queryOne } from "../config/database.js";
+import { sendNotification } from "../services/notification.service.js";
 
 const router = Router();
 router.use(authenticate);
@@ -79,7 +80,7 @@ export async function checkAndAwardBadges(
   // Auto-award by trigger slug (milestone badges)
   if (context.triggerSlug) {
     const badge = await queryOne(
-      "SELECT id, xp_reward FROM badge_definitions WHERE slug = $1 AND is_active = TRUE",
+      "SELECT id, name, icon, xp_reward FROM badge_definitions WHERE slug = $1 AND is_active = TRUE",
       [context.triggerSlug]
     );
     if (badge) {
@@ -106,6 +107,18 @@ export async function checkAndAwardBadges(
           `, [reward, studentId]);
         }
         awarded.push(context.triggerSlug);
+
+        // Notify student
+        const icon = (badge as any).icon || "🏅";
+        const name = (badge as any).name as string;
+        await sendNotification(
+          studentId,
+          `Badge Unlocked: ${name}`,
+          reward > 0
+            ? `You earned the "${name}" badge ${icon} and received +${reward} XP!`
+            : `You earned the "${name}" badge ${icon}`,
+          "success"
+        );
       }
     }
   }
@@ -113,7 +126,7 @@ export async function checkAndAwardBadges(
   // Auto XP threshold badges
   if (context.newXp !== undefined) {
     const xpBadges = await query(
-      "SELECT id, slug, xp_reward FROM badge_definitions WHERE criteria_type = 'auto_xp' AND criteria_value <= $1 AND is_active = TRUE",
+      "SELECT id, slug, name, icon FROM badge_definitions WHERE criteria_type = 'auto_xp' AND criteria_value <= $1 AND is_active = TRUE",
       [context.newXp]
     );
     for (const badge of xpBadges) {
@@ -126,6 +139,8 @@ export async function checkAndAwardBadges(
           INSERT INTO student_badges (student_id, badge_id) VALUES ($1, $2) ON CONFLICT DO NOTHING
         `, [studentId, (badge as any).id]);
         awarded.push((badge as any).slug);
+        await sendNotification(studentId, `Badge Unlocked: ${(badge as any).name}`,
+          `You earned the "${(badge as any).name}" badge ${(badge as any).icon || "⭐"} for your XP milestone!`, "success");
       }
     }
   }
@@ -133,7 +148,7 @@ export async function checkAndAwardBadges(
   // Auto score badges
   if (context.scorePercent !== undefined) {
     const scoreBadges = await query(
-      "SELECT id, slug FROM badge_definitions WHERE criteria_type = 'auto_score' AND criteria_value <= $1 AND is_active = TRUE",
+      "SELECT id, slug, name, icon FROM badge_definitions WHERE criteria_type = 'auto_score' AND criteria_value <= $1 AND is_active = TRUE",
       [context.scorePercent]
     );
     for (const badge of scoreBadges) {
@@ -146,6 +161,8 @@ export async function checkAndAwardBadges(
           INSERT INTO student_badges (student_id, badge_id) VALUES ($1, $2) ON CONFLICT DO NOTHING
         `, [studentId, (badge as any).id]);
         awarded.push((badge as any).slug);
+        await sendNotification(studentId, `Badge Unlocked: ${(badge as any).name}`,
+          `You earned the "${(badge as any).name}" badge ${(badge as any).icon || "🏆"} for your score!`, "success");
       }
     }
   }
@@ -153,7 +170,7 @@ export async function checkAndAwardBadges(
   // Auto streak badges
   if (context.streakDays !== undefined) {
     const streakBadges = await query(
-      "SELECT id, slug, xp_reward FROM badge_definitions WHERE criteria_type = 'auto_streak' AND criteria_value <= $1 AND is_active = TRUE",
+      "SELECT id, slug, name, icon, xp_reward FROM badge_definitions WHERE criteria_type = 'auto_streak' AND criteria_value <= $1 AND is_active = TRUE",
       [context.streakDays]
     );
     for (const badge of streakBadges) {
@@ -166,6 +183,8 @@ export async function checkAndAwardBadges(
           INSERT INTO student_badges (student_id, badge_id) VALUES ($1, $2) ON CONFLICT DO NOTHING
         `, [studentId, (badge as any).id]);
         awarded.push((badge as any).slug);
+        await sendNotification(studentId, `Badge Unlocked: ${(badge as any).name}`,
+          `You earned the "${(badge as any).name}" badge ${(badge as any).icon || "🔥"} for your streak!`, "success");
       }
     }
   }

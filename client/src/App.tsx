@@ -96,6 +96,7 @@ const StudentProfile = lazy(() => import("./pages/student/StudentProfile"));
 const PracticePage = lazy(() => import("./pages/student/PracticePage"));
 const DevelopmentPage = lazy(() => import("./pages/student/DevelopmentPage"));
 const GamificationPage = lazy(() => import("./pages/student/GamificationPage"));
+const MentorDashboardPage = lazy(() => import("./pages/mentor/MentorDashboardPage"));
 
 const StudentLearningPage = lazy(() => import("./pages/lms/StudentLearningPage"));
 const CourseDetailPage = lazy(() =>
@@ -399,6 +400,14 @@ export default function App() {
                 element={
                   <RoleGuard allowed={["student"]}>
                     <GamificationPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="mentor"
+                element={
+                  <RoleGuard allowed={["mentor", "super_admin", "hr"]}>
+                    <MentorDashboardPage />
                   </RoleGuard>
                 }
               />

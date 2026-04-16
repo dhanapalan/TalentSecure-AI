@@ -8,6 +8,7 @@ import { authenticate, authorize } from "../middleware/auth.js";
 import { query, queryOne } from "../config/database.js";
 import { env } from "../config/env.js";
 import { awardXP, checkAndAwardBadges, XP_VALUES } from "./gamification.routes.js";
+import { sendNotification } from "../services/notification.service.js";
 
 const router = Router();
 router.use(authenticate);
@@ -218,6 +219,14 @@ router.post("/plans/generate", authorize("student"), async (req, res, next) => {
       [studentId, (plan as any).id]
     );
     if (!prevPlan) await checkAndAwardBadges(studentId, { triggerSlug: "plan_generated", sourceId: (plan as any).id });
+
+    // Notify student
+    await sendNotification(
+      studentId,
+      "Development Plan Ready",
+      `Your AI development plan for "${driveTitle}" has been generated. Check it out!`,
+      "info"
+    );
 
     res.status(201).json({ success: true, data: plan });
   } catch (err) { next(err); }
