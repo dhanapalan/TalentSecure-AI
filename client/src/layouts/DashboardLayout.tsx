@@ -23,6 +23,7 @@ import {
   PuzzlePieceIcon,
   SparklesIcon,
   VideoCameraIcon,
+  TrophyIcon,
 } from "@heroicons/react/24/outline";
 
 // ── Sidebar navigation items with role access control ────────────────────────
@@ -194,6 +195,12 @@ const navigation: NavItem[] = [
     name: "Development",
     href: "/app/student-portal/development",
     icon: SparklesIcon,
+    roles: ["student"],
+  },
+  {
+    name: "Achievements",
+    href: "/app/student-portal/gamification",
+    icon: TrophyIcon,
     roles: ["student"],
   },
 

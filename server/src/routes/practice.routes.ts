@@ -7,6 +7,7 @@ import { Router } from "express";
 import { authenticate, authorize } from "../middleware/auth.js";
 import { query, queryOne } from "../config/database.js";
 import { executeCode, runTestCases } from "../services/codeExecution.service.js";
+import { awardXP, checkAndAwardBadges, updateStreak, XP_VALUES } from "./gamification.routes.js";
 
 const router = Router();
 router.use(authenticate);
@@ -155,6 +156,23 @@ router.put("/sessions/:sessionId/complete", async (req, res, next) => {
       RETURNING *
     `, [correct, score, (stats as any)?.time_spent || 0, sessionId, studentId]);
 
+    // ── Award XP & badges ─────────────────────────────────────────────────────
+    const xpToAward = XP_VALUES.practice_session_completed
+      + (score >= 100 ? XP_VALUES.practice_perfect_score : score >= 90 ? XP_VALUES.practice_high_score : 0);
+
+    await awardXP(studentId, xpToAward, "practice_session", "Practice session completed", sessionId);
+    await updateStreak(studentId);
+
+    // First practice badge (awarded once)
+    const isFirstSession = (await queryOne(
+      "SELECT id FROM practice_sessions WHERE student_id = $1 AND status = 'completed' AND id != $2 LIMIT 1",
+      [studentId, sessionId]
+    )) === null;
+    if (isFirstSession) await checkAndAwardBadges(studentId, { triggerSlug: "first_practice", sourceId: sessionId });
+
+    // Score-based badges
+    await checkAndAwardBadges(studentId, { scorePercent: score, sourceId: sessionId });
+
     res.json({ success: true, data: session });
   } catch (err) { next(err); }
 });
@@ -267,6 +285,24 @@ router.post("/coding/submit", async (req, res, next) => {
       VALUES ($1,$2,$3,$4,$5,$6,$7)
       RETURNING *
     `, [req.user!.userId, question_id, language, source_code, status, passed, total]);
+
+    // ── Award XP for coding ───────────────────────────────────────────────────
+    await awardXP(req.user!.userId, XP_VALUES.coding_submission, "coding_submission", "Coding submission", question_id);
+    if (status === "accepted") {
+      await awardXP(req.user!.userId, XP_VALUES.coding_accepted, "coding_accepted", "Accepted coding solution", question_id);
+      // First accepted solution badge
+      const prevAccepted = await queryOne(
+        "SELECT id FROM coding_submissions WHERE student_id = $1 AND status = 'accepted' AND question_id != $2 LIMIT 1",
+        [req.user!.userId, question_id]
+      );
+      if (!prevAccepted) await checkAndAwardBadges(req.user!.userId, { triggerSlug: "code_accepted", sourceId: question_id });
+    }
+    // First ever submission badge
+    const prevSubmission = await queryOne(
+      "SELECT id FROM coding_submissions WHERE student_id = $1 AND id != $2 LIMIT 1",
+      [req.user!.userId, (submission as any).id]
+    );
+    if (!prevSubmission) await checkAndAwardBadges(req.user!.userId, { triggerSlug: "first_code_submit", sourceId: question_id });
 
     res.json({
       success: true,

@@ -32,12 +32,20 @@ git pull origin main
 # ── 3. Run DB migrations ──────────────────────────────────────────────────────
 echo "[3/5] Running database migrations..."
 
-if [ -f "server/migrations/phase1_lms_practice_development.sql" ]; then
-  echo "  → Running Phase 1 migration (LMS, Practice, Development)..."
-  docker exec -i "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" \
-    < server/migrations/phase1_lms_practice_development.sql
-  echo "  ✓ Phase 1 migration done"
-else
+run_migration() {
+  local file="$1"
+  local label="$2"
+  if [ -f "$file" ]; then
+    echo "  → Running $label..."
+    docker exec -i "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$file"
+    echo "  ✓ $label done"
+  fi
+}
+
+run_migration "server/migrations/phase1_lms_practice_development.sql" "Phase 1 (LMS, Practice, Development)"
+run_migration "server/migrations/phase2_gamification.sql"              "Phase 2 (Gamification)"
+
+if [ ! -f "server/migrations/phase1_lms_practice_development.sql" ] && [ ! -f "server/migrations/phase2_gamification.sql" ]; then
   echo "  ⚠ No new migrations found, skipping."
 fi
 

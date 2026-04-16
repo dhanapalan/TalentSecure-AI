@@ -95,6 +95,7 @@ const MockExamPlayer = lazy(() => import("./pages/student/MockExamPlayer"));
 const StudentProfile = lazy(() => import("./pages/student/StudentProfile"));
 const PracticePage = lazy(() => import("./pages/student/PracticePage"));
 const DevelopmentPage = lazy(() => import("./pages/student/DevelopmentPage"));
+const GamificationPage = lazy(() => import("./pages/student/GamificationPage"));
 
 const StudentLearningPage = lazy(() => import("./pages/lms/StudentLearningPage"));
 const CourseDetailPage = lazy(() =>
@@ -390,6 +391,14 @@ export default function App() {
                 element={
                   <RoleGuard allowed={["student"]}>
                     <DevelopmentPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="student-portal/gamification"
+                element={
+                  <RoleGuard allowed={["student"]}>
+                    <GamificationPage />
                   </RoleGuard>
                 }
               />

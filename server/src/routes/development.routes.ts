@@ -7,6 +7,7 @@ import { Router } from "express";
 import { authenticate, authorize } from "../middleware/auth.js";
 import { query, queryOne } from "../config/database.js";
 import { env } from "../config/env.js";
+import { awardXP, checkAndAwardBadges, XP_VALUES } from "./gamification.routes.js";
 
 const router = Router();
 router.use(authenticate);
@@ -207,6 +208,16 @@ router.post("/plans/generate", authorize("student"), async (req, res, next) => {
       JSON.stringify(aiResult.milestones || []),
       score,
     ]);
+
+    // ── Award XP for plan generation ─────────────────────────────────────────
+    await awardXP(studentId, XP_VALUES.dev_plan_generated, "dev_plan_generated", "AI development plan generated", (plan as any).id);
+
+    // First plan badge
+    const prevPlan = await queryOne(
+      "SELECT id FROM student_development_plans WHERE student_id = $1 AND id != $2 LIMIT 1",
+      [studentId, (plan as any).id]
+    );
+    if (!prevPlan) await checkAndAwardBadges(studentId, { triggerSlug: "plan_generated", sourceId: (plan as any).id });
 
     res.status(201).json({ success: true, data: plan });
   } catch (err) { next(err); }
