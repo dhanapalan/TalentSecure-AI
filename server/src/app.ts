@@ -30,6 +30,9 @@ import driveRoutes from "./routes/drive.routes.js";
 import examSessionRoutes from "./routes/examSession.routes.js";
 import { proctoringRoutes } from "./routes/proctoring.routes.js";
 import notificationRoutes from "./routes/notification.routes.js";
+import lmsRoutes from "./routes/lms.routes.js";
+import practiceRoutes from "./routes/practice.routes.js";
+import developmentRoutes from "./routes/development.routes.js";
 
 const app = express();
 
@@ -117,6 +120,9 @@ app.use("/api/drives", driveRoutes);
 app.use("/api/exam-sessions", examSessionRoutes);
 app.use("/api/proctoring", proctoringRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/lms", lmsRoutes);
+app.use("/api/practice", practiceRoutes);
+app.use("/api/development", developmentRoutes);
 
 // ── Error Handling ───────────────────────────────────────────────────────────
 app.use(notFoundHandler);

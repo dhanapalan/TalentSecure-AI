@@ -93,6 +93,17 @@ const ExamInstructionsPage = lazy(() => import("./pages/student/ExamInstructions
 const ExamPlayerPage = lazy(() => import("./pages/student/ExamPlayerPage"));
 const MockExamPlayer = lazy(() => import("./pages/student/MockExamPlayer"));
 const StudentProfile = lazy(() => import("./pages/student/StudentProfile"));
+const PracticePage = lazy(() => import("./pages/student/PracticePage"));
+const DevelopmentPage = lazy(() => import("./pages/student/DevelopmentPage"));
+
+const StudentLearningPage = lazy(() => import("./pages/lms/StudentLearningPage"));
+const CourseDetailPage = lazy(() =>
+  import("./pages/lms/StudentLearningPage").then((m) => ({ default: m.CourseDetailPage }))
+);
+const CourseBuilderPage = lazy(() => import("./pages/lms/CourseBuilderPage"));
+const CourseDetailBuilder = lazy(() =>
+  import("./pages/lms/CourseBuilderPage").then((m) => ({ default: m.CourseDetailBuilder }))
+);
 
 const NotAuthorizedPage = lazy(() => import("./pages/NotAuthorizedPage"));
 const StudentOnboardingWizard = lazy(() => import("./components/StudentOnboardingWizard"));
@@ -353,6 +364,58 @@ export default function App() {
                 element={
                   <RoleGuard allowed={["student"]}>
                     <StudentProfile />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="student-portal/practice"
+                element={
+                  <RoleGuard allowed={["student"]}>
+                    <PracticePage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="student-portal/development"
+                element={
+                  <RoleGuard allowed={["student"]}>
+                    <DevelopmentPage />
+                  </RoleGuard>
+                }
+              />
+
+              {/* LMS — Student */}
+              <Route
+                path="lms/catalog"
+                element={
+                  <RoleGuard allowed={["student", "mentor", "super_admin", "hr", "college_admin", "instructor"]}>
+                    <StudentLearningPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="lms/courses/:courseId"
+                element={
+                  <RoleGuard allowed={["student", "mentor", "super_admin", "hr", "college_admin", "instructor"]}>
+                    <CourseDetailPage />
+                  </RoleGuard>
+                }
+              />
+
+              {/* LMS — Instructor / Admin */}
+              <Route
+                path="lms/builder"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "instructor"]}>
+                    <CourseBuilderPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="lms/builder/:courseId"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "instructor"]}>
+                    <CourseDetailBuilder />
                   </RoleGuard>
                 }
               />

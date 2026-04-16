@@ -14,7 +14,9 @@ export type UserRole =
   | "hr"
   | "engineer"
   | "cxo"
-  | "student";
+  | "student"
+  | "instructor"     // creates & manages courses, grades assignments
+  | "mentor";        // views assigned students, conducts mock interviews
 
 export type ViolationType =
   | "face_not_detected"

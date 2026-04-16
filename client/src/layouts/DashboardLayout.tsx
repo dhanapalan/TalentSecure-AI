@@ -19,6 +19,10 @@ import {
   Cog6ToothIcon,
   ShieldCheckIcon,
   UserGroupIcon,
+  BookOpenIcon,
+  PuzzlePieceIcon,
+  SparklesIcon,
+  VideoCameraIcon,
 } from "@heroicons/react/24/outline";
 
 // ── Sidebar navigation items with role access control ────────────────────────
@@ -168,6 +172,60 @@ const navigation: NavItem[] = [
     icon: AcademicCapIcon,
     roles: ["student"],
   },
+  {
+    name: "My Learning",
+    href: "/app/lms/catalog",
+    icon: BookOpenIcon,
+    roles: ["student"],
+  },
+  {
+    name: "Practice Arena",
+    href: "/app/student-portal/practice",
+    icon: PuzzlePieceIcon,
+    roles: ["student"],
+  },
+  {
+    name: "Development",
+    href: "/app/student-portal/development",
+    icon: SparklesIcon,
+    roles: ["student"],
+  },
+
+  // ── Instructor Portal ────────────────────────────────────────────────────────
+  {
+    name: "Course Builder",
+    href: "/app/lms/builder",
+    icon: BookOpenIcon,
+    roles: ["instructor"],
+  },
+  {
+    name: "Course Catalog",
+    href: "/app/lms/catalog",
+    icon: BookOpenIcon,
+    roles: ["instructor"],
+  },
+
+  // ── Mentor Portal ────────────────────────────────────────────────────────────
+  {
+    name: "My Students",
+    href: "/app/mentor/students",
+    icon: UsersIcon,
+    roles: ["mentor"],
+  },
+  {
+    name: "Mock Interviews",
+    href: "/app/mentor/interviews",
+    icon: VideoCameraIcon,
+    roles: ["mentor"],
+  },
+
+  // ── LMS management (HR/Admin) ────────────────────────────────────────────────
+  {
+    name: "Course Builder",
+    href: "/app/lms/builder",
+    icon: BookOpenIcon,
+    roles: ["super_admin", "hr"],
+  },
 ];
 
 // ── Formatted role label ─────────────────────────────────────────────────────
@@ -182,6 +240,8 @@ const ROLE_LABELS: Record<string, string> = {
   college: "College",
   college_staff: "College Staff",
   student: "Student",
+  instructor: "Instructor",
+  mentor: "Mentor",
 };
 
 export default function DashboardLayout() {
