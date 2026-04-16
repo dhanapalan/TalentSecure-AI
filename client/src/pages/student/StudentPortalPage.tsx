@@ -27,7 +27,7 @@ import {
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useRef } from "react";
 
-type PortalTab = "dashboard" | "exams";
+type PortalTab = "dashboard" | "exams" | "learning";
 
 export default function StudentPortalPage() {
   const user = useAuthStore((s) => s.user);
@@ -44,6 +44,9 @@ export default function StudentPortalPage() {
     }
     if (searchParams.get("tab") === "exams") {
       setActiveTab("exams");
+    }
+    if (searchParams.get("tab") === "learning") {
+      setActiveTab("learning");
     }
   }, [searchParams]);
 
@@ -62,6 +65,18 @@ export default function StudentPortalPage() {
       const { data } = await api.get("/exam-sessions/my-drives");
       return data.data;
     },
+    enabled: !!user?.id,
+  });
+
+  const { data: enrollments = [], isLoading: loadingEnrollments } = useQuery<any[]>({
+    queryKey: ["student-enrollments"],
+    queryFn: async () => (await api.get("/student-learning/my-enrollments")).data.data,
+    enabled: !!user?.id,
+  });
+
+  const { data: availablePrograms = [] } = useQuery<any[]>({
+    queryKey: ["student-available-programs"],
+    queryFn: async () => (await api.get("/student-learning/available-programs")).data.data,
     enabled: !!user?.id,
   });
 
@@ -130,6 +145,7 @@ export default function StudentPortalPage() {
   const tabs: { id: PortalTab; label: string; icon: any }[] = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "exams", label: "Exams", icon: GraduationCap },
+    { id: "learning", label: "Learning", icon: BookOpen },
   ];
 
   return (
@@ -474,6 +490,100 @@ export default function StudentPortalPage() {
                     </tbody>
                   </table>
                 </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      {/* ── Learning Tab ── */}
+      {activeTab === "learning" && (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {/* Enrolled Programs */}
+          <div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center border border-indigo-100">
+                <BookOpen className="h-4 w-4 text-indigo-500" />
+              </div>
+              <h2 className="text-lg font-black text-slate-900">My Programs</h2>
+            </div>
+            {loadingEnrollments ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="h-6 w-6 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent" />
+              </div>
+            ) : enrollments.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center">
+                <GraduationCap className="h-10 w-10 text-slate-300 mx-auto mb-3" />
+                <p className="font-bold text-slate-400">No programs enrolled yet</p>
+                <p className="text-sm text-slate-300 mt-1">Browse available programs below</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {enrollments.map((e: any) => {
+                  const pct = e.total_modules > 0 ? Math.round((e.completed_modules / e.total_modules) * 100) : 0;
+                  const isDone = e.status === "completed";
+                  return (
+                    <Link key={e.enrollment_id} to={`/app/student-portal/programs/${e.program_id}`}
+                      className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition-all group">
+                      <div className="flex items-start justify-between mb-3">
+                        <span className="text-xs font-bold px-2 py-1 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100 capitalize">
+                          {e.program_type?.replace("_", " ")}
+                        </span>
+                        {isDone && (
+                          <span className="flex items-center gap-1 text-xs font-bold text-emerald-600">
+                            <CheckCircle2 className="h-3.5 w-3.5" /> Completed
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="font-black text-slate-900 mb-1 group-hover:text-indigo-600 transition-colors">{e.program_name}</h3>
+                      {e.program_description && (
+                        <p className="text-xs text-slate-400 line-clamp-2 mb-3">{e.program_description}</p>
+                      )}
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between text-xs text-slate-500 font-bold">
+                          <span>{e.completed_modules} / {e.total_modules} modules</span>
+                          <span>{pct}%</span>
+                        </div>
+                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full transition-all ${isDone ? "bg-emerald-500" : "bg-indigo-500"}`}
+                            style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                      {e.avg_score != null && (
+                        <p className="text-xs text-slate-400 mt-2">Avg score: <span className="font-bold text-slate-600">{e.avg_score}%</span></p>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Available Programs to Explore */}
+          {availablePrograms.filter((p: any) => !p.is_enrolled).length > 0 && (
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-8 w-8 rounded-lg bg-emerald-50 flex items-center justify-center border border-emerald-100">
+                  <Trophy className="h-4 w-4 text-emerald-500" />
+                </div>
+                <h2 className="text-lg font-black text-slate-900">Explore Programs</h2>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {availablePrograms.filter((p: any) => !p.is_enrolled).map((p: any) => (
+                  <Link key={p.id} to={`/app/student-portal/programs/${p.id}`}
+                    className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition-all group">
+                    <div className="flex items-start justify-between mb-3">
+                      <span className="text-xs font-bold px-2 py-1 rounded-full bg-slate-100 text-slate-600 capitalize">
+                        {p.program_type?.replace("_", " ")}
+                      </span>
+                      <span className="text-xs text-slate-400">{p.module_count} modules</span>
+                    </div>
+                    <h3 className="font-black text-slate-900 mb-1 group-hover:text-indigo-600 transition-colors">{p.name}</h3>
+                    {p.description && <p className="text-xs text-slate-400 line-clamp-2 mb-3">{p.description}</p>}
+                    <div className="flex items-center gap-2 text-xs text-indigo-600 font-bold mt-3">
+                      <Play className="h-3 w-3" /> Enroll & Start Learning
+                    </div>
+                  </Link>
+                ))}
               </div>
             </div>
           )}

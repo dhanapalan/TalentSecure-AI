@@ -7,6 +7,13 @@ const router = Router();
 // Apply auth middleware to all routes
 router.use(authenticate);
 
+// Admin endpoint (event stream)
+router.get(
+  "/events",
+  authorize("super_admin", "admin", "hr", "engineer", "cxo", "college_admin", "college"),
+  proctoringController.getEvents,
+);
+
 // Student endpoint (event logging)
 router.post("/events", authorize("student"), proctoringController.logEvent);
 

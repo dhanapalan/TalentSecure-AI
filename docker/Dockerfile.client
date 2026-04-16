@@ -14,14 +14,9 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm install
 
-# Copy source
+# Copy source and build
 COPY . .
-
-# Clear VITE_API_URL so the built app uses relative /api paths proxied by nginx.
-# External deploys (Vercel, CDN) inject this via CI/CD env — not from this file.
-RUN sed -i 's|^VITE_API_URL=.*|VITE_API_URL=|' .env.production
-
-RUN npm run build
+RUN npx vite build
 
 # ── Stage 2: Serve with nginx ────────────────────────────────────────────────
 FROM nginx:1.25-alpine

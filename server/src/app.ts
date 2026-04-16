@@ -33,6 +33,12 @@ import notificationRoutes from "./routes/notification.routes.js";
 import lmsRoutes from "./routes/lms.routes.js";
 import practiceRoutes from "./routes/practice.routes.js";
 import developmentRoutes from "./routes/development.routes.js";
+import skillsRoutes from "./routes/skills.routes.js";
+import learningModulesRoutes from "./routes/learningModules.routes.js";
+import skillProgramsRoutes from "./routes/skillPrograms.routes.js";
+import skillPartnersRoutes from "./routes/skillPartners.routes.js";
+import studentLearningRoutes from "./routes/studentLearning.routes.js";
+import collegeSkillsRoutes from "./routes/collegeSkills.routes.js";
 
 const app = express();
 
@@ -123,6 +129,13 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/lms", lmsRoutes);
 app.use("/api/practice", practiceRoutes);
 app.use("/api/development", developmentRoutes);
+// ── Skill Development Layer ───────────────────────────────────────────────────
+app.use("/api/skills", skillsRoutes);
+app.use("/api/learning-modules", learningModulesRoutes);
+app.use("/api/skill-programs", skillProgramsRoutes);
+app.use("/api/skill-partners", skillPartnersRoutes);
+app.use("/api/student-learning", studentLearningRoutes);
+app.use("/api/college-skills", collegeSkillsRoutes);
 
 // ── Error Handling ───────────────────────────────────────────────────────────
 app.use(notFoundHandler);

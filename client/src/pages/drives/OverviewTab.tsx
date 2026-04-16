@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     Clock, FileText, Users, Save, Loader2,
-    Settings, Shield, ToggleLeft, ToggleRight, Pencil, X,
+    Settings, Shield, ToggleLeft, ToggleRight, Pencil, X, Zap, Plus, Trash2,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "../../lib/api";
@@ -302,6 +302,128 @@ export default function OverviewTab({ drive, snapshot }: { drive: any; snapshot:
                             </div>
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* ── Target Skills ── */}
+            <SkillsSection drive={drive} />
+        </div>
+    );
+}
+
+// ── Skills Section (Option C) ─────────────────────────────────────────────────
+function SkillsSection({ drive }: { drive: any }) {
+    const qc = useQueryClient();
+    const [adding, setAdding] = useState(false);
+    const [selectedSkillId, setSelectedSkillId] = useState("");
+
+    const { data: allSkills = [] } = useQuery<any[]>({
+        queryKey: ["skills-active"],
+        queryFn: async () => (await api.get("/skills?active=true")).data.data,
+    });
+
+    const { data: driveSkills = [] } = useQuery<any[]>({
+        queryKey: ["drive-skills", drive.id],
+        queryFn: async () => {
+            const ids: string[] = drive.target_skill_ids || [];
+            if (!ids.length) return [];
+            return allSkills.filter((s: any) => ids.includes(s.id));
+        },
+        enabled: allSkills.length > 0,
+    });
+
+    const addMutation = useMutation({
+        mutationFn: (skillId: string) => {
+            const current: string[] = drive.target_skill_ids || [];
+            if (current.includes(skillId)) return Promise.resolve();
+            return api.put(`/drives/${drive.id}`, { target_skill_ids: [...current, skillId] });
+        },
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ["drive", drive.id] });
+            qc.invalidateQueries({ queryKey: ["drive-skills", drive.id] });
+            setAdding(false);
+            setSelectedSkillId("");
+            toast.success("Skill linked to drive");
+        },
+        onError: () => toast.error("Failed to link skill"),
+    });
+
+    const removeMutation = useMutation({
+        mutationFn: (skillId: string) => {
+            const current: string[] = drive.target_skill_ids || [];
+            return api.put(`/drives/${drive.id}`, { target_skill_ids: current.filter(id => id !== skillId) });
+        },
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ["drive", drive.id] });
+            qc.invalidateQueries({ queryKey: ["drive-skills", drive.id] });
+            toast.success("Skill removed");
+        },
+        onError: () => toast.error("Failed to remove skill"),
+    });
+
+    const unlinked = allSkills.filter((s: any) => !(drive.target_skill_ids || []).includes(s.id));
+    const isReadOnly = ["completed", "cancelled"].includes(drive.status?.toLowerCase());
+
+    return (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                    <Zap className="h-5 w-5 text-indigo-500" />
+                    <h3 className="font-black text-slate-900">Target Skills</h3>
+                    <span className="text-xs text-slate-400 font-medium">— students acquire these when they pass this drive</span>
+                </div>
+                {!isReadOnly && !adding && (
+                    <button onClick={() => setAdding(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-600 border border-indigo-100 hover:bg-indigo-100 transition-colors">
+                        <Plus className="h-3.5 w-3.5" /> Link Skill
+                    </button>
+                )}
+            </div>
+
+            {adding && (
+                <div className="flex items-center gap-2 mb-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <select value={selectedSkillId} onChange={e => setSelectedSkillId(e.target.value)}
+                        className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white" aria-label="Select skill">
+                        <option value="">— Select a skill —</option>
+                        {unlinked.map((s: any) => (
+                            <option key={s.id} value={s.id}>{s.name} · {s.category_name}</option>
+                        ))}
+                    </select>
+                    <button onClick={() => selectedSkillId && addMutation.mutate(selectedSkillId)}
+                        disabled={!selectedSkillId || addMutation.isPending}
+                        className="px-3 py-2 rounded-xl bg-indigo-500 text-white text-xs font-bold hover:bg-indigo-600 disabled:opacity-50">
+                        {addMutation.isPending ? "..." : "Add"}
+                    </button>
+                    <button type="button" title="Cancel" onClick={() => { setAdding(false); setSelectedSkillId(""); }}
+                        className="p-2 rounded-xl text-slate-400 hover:bg-slate-200">
+                        <X className="h-4 w-4" />
+                    </button>
+                </div>
+            )}
+
+            {driveSkills.length === 0 ? (
+                <div className="flex items-center gap-3 py-4 text-slate-300">
+                    <Zap className="h-8 w-8" />
+                    <div>
+                        <p className="font-bold text-sm text-slate-400">No skills linked yet</p>
+                        <p className="text-xs text-slate-300">Link skills so students automatically earn them when they pass</p>
+                    </div>
+                </div>
+            ) : (
+                <div className="flex flex-wrap gap-2">
+                    {driveSkills.map((s: any) => (
+                        <div key={s.id} className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 border border-indigo-100 rounded-xl group">
+                            <Zap className="h-3.5 w-3.5 text-indigo-500" />
+                            <span className="text-xs font-bold text-indigo-700">{s.name}</span>
+                            <span className="text-[10px] text-indigo-400">{s.category_name}</span>
+                            {!isReadOnly && (
+                                <button type="button" title="Remove skill" onClick={() => removeMutation.mutate(s.id)}
+                                    className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-indigo-400 hover:text-red-500 transition-all">
+                                    <Trash2 className="h-3 w-3" />
+                                </button>
+                            )}
+                        </div>
+                    ))}
                 </div>
             )}
         </div>

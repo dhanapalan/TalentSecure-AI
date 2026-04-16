@@ -132,7 +132,7 @@ export default function ContactPage() {
                                         </div>
                                         <div>
                                             <p className="text-sm font-bold text-slate-900">Email</p>
-                                            <a href="mailto:hello@nallasconnect.com" className="text-sm text-indigo-600 hover:underline">hello@nallasconnect.com</a>
+                                            <a href="mailto:hello@gradlogic.com" className="text-sm text-indigo-600 hover:underline">hello@gradlogic.com</a>
                                         </div>
                                     </li>
                                     <li className="flex items-start gap-4">

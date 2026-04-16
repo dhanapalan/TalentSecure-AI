@@ -38,8 +38,8 @@ export default function PrivacyPage() {
                         <h2 className="text-lg font-bold text-slate-900">Contact</h2>
                         <p className="mt-2 text-sm leading-relaxed text-slate-600">
                             For privacy requests, email{" "}
-                            <a className="font-semibold text-indigo-600 hover:text-indigo-700" href="mailto:hello@nallasconnect.com">
-                                hello@nallasconnect.com
+                            <a className="font-semibold text-indigo-600 hover:text-indigo-700" href="mailto:hello@gradlogic.com">
+                                hello@gradlogic.com
                             </a>
                             .
                         </p>

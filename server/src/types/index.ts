@@ -76,7 +76,11 @@ export type AdminAuditAction =
   | "QUESTION_DELETED"
   | "STUDENTS_BULK_ADDED"
   | "USER_STATUS_CHANGED"
-  | "USER_PASSWORD_RESET";
+  | "USER_PASSWORD_RESET"
+  | "CAMPUS_MOU_UPLOADED"
+  | "CAMPUS_BULK_SUSPEND"
+  | "CAMPUS_BULK_ACTIVATE"
+  | "CAMPUS_BULK_BLACKLIST";
 
 // ── Row Types ────────────────────────────────────────────────────────────────
 

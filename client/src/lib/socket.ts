@@ -1,14 +1,15 @@
 import { io, Socket } from "socket.io-client";
 
+const API_BASE = import.meta.env.VITE_API_URL || "https://api.gradlogic.atherasys.com";
+
 let proctoringSocket: Socket | null = null;
 
 export function connectProctoringSocket(): Socket {
   if (proctoringSocket?.connected) return proctoringSocket;
 
-  proctoringSocket = io("/proctoring", {
-    transports: ["websocket"],
+  proctoringSocket = io(`${API_BASE}/proctoring`, {
     auth: {
-      token: localStorage.getItem("accessToken"),
+      token: sessionStorage.getItem("accessToken"),
     },
   });
 
@@ -31,10 +32,9 @@ let generalSocket: Socket | null = null;
 export function connectGeneralSocket(): Socket {
   if (generalSocket?.connected) return generalSocket;
 
-  generalSocket = io("/", {
-    transports: ["websocket"],
+  generalSocket = io(API_BASE, {
     auth: {
-      token: localStorage.getItem("accessToken"),
+      token: sessionStorage.getItem("accessToken"),
     },
   });
 

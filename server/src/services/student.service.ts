@@ -384,7 +384,12 @@ export async function getExamScheduleForStudent(studentUserId: string) {
 // 3. Student profile list + update
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function listStudents(limit = 50, offset = 0, collegeId?: string) {
+export async function listStudents(
+  limit = 50,
+  offset = 0,
+  collegeId?: string,
+  filters?: { search?: string; placementStatus?: string; riskLevel?: string; status?: string },
+) {
   let sql = `
     SELECT
         u.id as user_id,
@@ -454,12 +459,54 @@ export async function listStudents(limit = 50, offset = 0, collegeId?: string) {
   const countParams: any[] = [];
   let countSql = `SELECT COUNT(*) FROM users u LEFT JOIN student_details sd ON sd.user_id = u.id WHERE LOWER(u.role::text) = 'student'`;
 
+  // $1 = limit, $2 = offset — dynamic params start at $3
   const params: any[] = [limit, offset];
+  let paramIdx = 3;
+  let countParamIdx = 1;
+
   if (collegeId) {
-    sql += ` AND COALESCE(u.college_id, sd.college_id) = $3 `;
+    sql += ` AND COALESCE(u.college_id, sd.college_id) = $${paramIdx} `;
     params.push(collegeId);
-    countSql += ` AND COALESCE(u.college_id, sd.college_id) = $1 `;
+    paramIdx++;
+    countSql += ` AND COALESCE(u.college_id, sd.college_id) = $${countParamIdx} `;
     countParams.push(collegeId);
+    countParamIdx++;
+  }
+
+  if (filters?.search) {
+    sql += ` AND (u.name ILIKE $${paramIdx} OR u.email ILIKE $${paramIdx} OR sd.student_identifier ILIKE $${paramIdx})`;
+    params.push(`%${filters.search}%`);
+    paramIdx++;
+    countSql += ` AND (u.name ILIKE $${countParamIdx} OR u.email ILIKE $${countParamIdx} OR sd.student_identifier ILIKE $${countParamIdx})`;
+    countParams.push(`%${filters.search}%`);
+    countParamIdx++;
+  }
+
+  if (filters?.placementStatus) {
+    sql += ` AND sd.placement_status = $${paramIdx}`;
+    params.push(filters.placementStatus);
+    paramIdx++;
+    countSql += ` AND sd.placement_status = $${countParamIdx}`;
+    countParams.push(filters.placementStatus);
+    countParamIdx++;
+  }
+
+  if (filters?.riskLevel) {
+    sql += ` AND sd.risk_category = $${paramIdx}`;
+    params.push(filters.riskLevel);
+    paramIdx++;
+    countSql += ` AND sd.risk_category = $${countParamIdx}`;
+    countParams.push(filters.riskLevel);
+    countParamIdx++;
+  }
+
+  if (filters?.status) {
+    sql += ` AND u.is_active = $${paramIdx}`;
+    params.push(filters.status === "active");
+    paramIdx++;
+    countSql += ` AND u.is_active = $${countParamIdx}`;
+    countParams.push(filters.status === "active");
+    countParamIdx++;
   }
 
   const countResult = await queryOne(countSql, countParams);

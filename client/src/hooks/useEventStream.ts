@@ -12,9 +12,17 @@ export function useEventStream() {
 
     function fetchEvents() {
       fetch("/api/proctoring/events?limit=100")
-        .then((res) => res.json())
+        .then((res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const ct = res.headers.get("content-type") || "";
+          if (!ct.includes("application/json")) throw new Error("Non-JSON response");
+          return res.json();
+        })
         .then((data) => {
-          if (!stopped) setEvents(data.data || []);
+          if (!stopped) {
+            setEvents(data.data || []);
+            setError(null);
+          }
         })
         .catch((err) => {
           if (!stopped) setError(err.message || "Failed to fetch events");
@@ -23,7 +31,7 @@ export function useEventStream() {
 
     try {
       wsRef.current = new WebSocket(
-        `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/proctoring/events`
+        `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/api/proctoring/events`
       );
       wsRef.current.onopen = () => setWsConnected(true);
       wsRef.current.onclose = () => setWsConnected(false);

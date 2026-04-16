@@ -42,6 +42,31 @@ async function assertCollegeScope(req: Request, sessionId: string): Promise<void
 
 export const proctoringController = {
   /**
+   * GET /api/proctoring/events
+   * Retrieve recent proctoring events for the admin Event Stream tab
+   */
+  async getEvents(req: Request, res: Response, next: NextFunction) {
+    try {
+      const limit = Math.min(parseInt(String(req.query.limit)) || 100, 500);
+
+      const events = await query(
+        `SELECT pe.id, pe.session_id, pe.event_type, pe.metadata, pe.created_at as timestamp
+         FROM proctoring_events pe
+         ORDER BY pe.created_at DESC
+         LIMIT $1`,
+        [limit],
+      ).catch(() => {
+        // Table may not exist yet — return empty gracefully
+        return [];
+      });
+
+      res.json({ success: true, data: events });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
    * POST /api/proctoring/events
    * Log a proctoring event from the client
    */

@@ -104,9 +104,19 @@ const CourseBuilderPage = lazy(() => import("./pages/lms/CourseBuilderPage"));
 const CourseDetailBuilder = lazy(() =>
   import("./pages/lms/CourseBuilderPage").then((m) => ({ default: m.CourseDetailBuilder }))
 );
+const StudentProgramPage = lazy(() => import("./pages/student/StudentProgramPage"));
+const ModulePlayerPage = lazy(() => import("./pages/student/ModulePlayerPage"));
+const CollegeSkillsPage = lazy(() => import("./pages/college/CollegeSkillsPage"));
 
 const NotAuthorizedPage = lazy(() => import("./pages/NotAuthorizedPage"));
 const StudentOnboardingWizard = lazy(() => import("./components/StudentOnboardingWizard"));
+
+// ── Skill Development Layer ───────────────────────────────────────────────────
+const SkillsTaxonomyPage = lazy(() => import("./pages/skills/SkillsTaxonomyPage"));
+const LearningModulesPage = lazy(() => import("./pages/skills/LearningModulesPage"));
+const SkillProgramsPage = lazy(() => import("./pages/skills/SkillProgramsPage"));
+const ProgramDetailPage = lazy(() => import("./pages/skills/ProgramDetailPage"));
+const SkillPartnersPage = lazy(() => import("./pages/skills/SkillPartnersPage"));
 
 // ── QueryClient ───────────────────────────────────────────────────────────────
 const queryClient = new QueryClient({
@@ -380,6 +390,22 @@ export default function App() {
                 element={
                   <RoleGuard allowed={["student"]}>
                     <DevelopmentPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="student-portal/programs/:programId"
+                element={
+                  <RoleGuard allowed={["student"]}>
+                    <StudentProgramPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="student-portal/programs/:programId/modules/:moduleId"
+                element={
+                  <RoleGuard allowed={["student"]}>
+                    <ModulePlayerPage />
                   </RoleGuard>
                 }
               />
@@ -706,6 +732,64 @@ export default function App() {
                 element={
                   <RoleGuard allowed={["super_admin", "hr", "cxo", "engineer"]}>
                     <AnalyticsPage />
+                  </RoleGuard>
+                }
+              />
+
+              {/* Skill Development Layer */}
+              <Route
+                path="skills"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "cxo"]}>
+                    <SkillsTaxonomyPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="learning-modules"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "cxo"]}>
+                    <LearningModulesPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="skill-programs"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "cxo"]}>
+                    <SkillProgramsPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="skill-programs/new"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "cxo"]}>
+                    <ProgramDetailPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="skill-programs/:id"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "cxo"]}>
+                    <ProgramDetailPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="skill-programs/:id/edit"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "cxo"]}>
+                    <ProgramDetailPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="skill-partners"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "cxo"]}>
+                    <SkillPartnersPage />
                   </RoleGuard>
                 }
               />

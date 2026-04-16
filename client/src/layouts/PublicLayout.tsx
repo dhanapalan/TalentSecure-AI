@@ -133,7 +133,7 @@ export default function PublicLayout({ children }: { children?: ReactNode }) {
             </main>
 
             {/* ── Footer ──────────────────────────────────────────────────── */}
-            <footer className="bg-slate-950 text-white">
+            <footer className="bg-indigo-950 text-white">
                 <div className="mx-auto max-w-7xl px-6 py-16 lg:px-8">
                     <div className="grid grid-cols-1 gap-12 md:grid-cols-2 lg:grid-cols-4">
                         {/* Brand */}
@@ -183,10 +183,10 @@ export default function PublicLayout({ children }: { children?: ReactNode }) {
 
                         {/* Connect */}
                         <div>
-                            <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500">Connect</h4>
+                            <h4 className="text-xs font-bold uppercase tracking-widest text-indigo-300">Connect</h4>
                             <ul className="mt-4 space-y-3">
-                                <li><a href="mailto:hello@nallasconnect.com" className="text-sm text-slate-400 hover:text-white transition-colors">hello@nallasconnect.com</a></li>
-                                <li><a href="tel:+919876543210" className="text-sm text-slate-400 hover:text-white transition-colors">+91 98765 43210</a></li>
+                                <li><a href="mailto:hello@gradlogic.com" className="text-sm text-indigo-200 hover:text-white transition-colors">hello@gradlogic.com</a></li>
+                                <li><a href="tel:+919876543210" className="text-sm text-indigo-200 hover:text-white transition-colors">+91 98765 43210</a></li>
                             </ul>
                             <div className="mt-6 flex flex-wrap gap-3">
                                 <Link to="/contact" className="rounded-lg bg-white/5 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-white/10 hover:text-white transition-colors">
