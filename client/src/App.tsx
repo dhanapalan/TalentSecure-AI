@@ -88,7 +88,6 @@ const EditUserPage = lazy(() => import("./pages/admin/EditUserPage"));
 
 const AddQuestionPage = lazy(() => import("./pages/assessments/AddQuestionPage"));
 
-const AddStudentPage = lazy(() => import("./pages/students/AddStudentPage"));
 
 const ExamInstructionsPage = lazy(() => import("./pages/student/ExamInstructionsPage"));
 const ExamPlayerPage = lazy(() => import("./pages/student/ExamPlayerPage"));
