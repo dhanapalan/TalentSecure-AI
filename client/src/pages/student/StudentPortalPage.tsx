@@ -108,8 +108,11 @@ export default function StudentPortalPage() {
 
   const now = new Date();
   const activeDrives = (drives || []).filter((d: any) => {
-    const isStatusActive = (d.session_status === "assigned" || d.session_status === "registered" || d.session_status === "in_progress") &&
-      (d.drive_status && ["PUBLISHED", "ACTIVE", "COMPLETED", "SCHEDULED"].includes(d.drive_status.toUpperCase()));
+    const driveStatus = d.drive_status?.toUpperCase();
+    const canStartDrive = ["PUBLISHED", "ACTIVE", "SCHEDULED"].includes(driveStatus);
+    const isStatusActive =
+      d.session_status === "in_progress" || // always show in-progress regardless of drive status
+      ((d.session_status === "assigned" || d.session_status === "registered") && canStartDrive);
     const isNotExpired = !d.scheduled_end || new Date(d.scheduled_end) > now;
     return isStatusActive && isNotExpired;
   });

@@ -240,7 +240,7 @@ export default function StudentProfile() {
                 <FileText className="w-5 h-5" />
               </div>
               <p className="text-sm font-medium text-slate-700">Resume / CV</p>
-              <p className="text-xs text-slate-400 mt-1 mb-4">PDF, DOCX up to 5MB</p>
+              <p className="text-xs text-slate-400 mt-1 mb-4">PDF, DOCX up to 2MB</p>
 
               {isEditing ? (
                 <>

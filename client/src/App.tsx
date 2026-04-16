@@ -435,15 +435,6 @@ export default function App() {
                   </RoleGuard>
                 }
               />
-              <Route
-                path="students/new"
-                element={
-                  <RoleGuard allowed={["super_admin", "hr", "cxo", "college_admin"]}>
-                    <AddStudentPage />
-                  </RoleGuard>
-                }
-              />
-
               {/* Administration */}
               <Route
                 path="administration"

@@ -119,8 +119,6 @@ export default function ExamPlayerPage() {
             setTimeLeft((prev) => {
                 if (prev <= 1) {
                     clearInterval(interval);
-                    // Auto-submit
-                    handleSubmit(true);
                     return 0;
                 }
                 return prev - 1;
@@ -129,6 +127,13 @@ export default function ExamPlayerPage() {
 
         return () => clearInterval(interval);
     }, [submitted, timeLeft > 0]); // eslint-disable-line
+
+    // Auto-submit when timer reaches zero
+    useEffect(() => {
+        if (timeLeft === 0 && !submitted) {
+            submitMutation.mutate();
+        }
+    }, [timeLeft]); // eslint-disable-line
 
     // ── Auto-Save ────────────────────────────────────────────────────────────
 
