@@ -6,13 +6,10 @@
 import { Router } from "express";
 import { authenticate, authorize } from "../middleware/auth.js";
 import { query, queryOne } from "../config/database.js";
-import OpenAI from "openai";
 import { env } from "../config/env.js";
 
 const router = Router();
 router.use(authenticate);
-
-const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
 
 // ── Helper: Generate development plan via AI ──────────────────────────────────
 
@@ -53,14 +50,22 @@ Respond ONLY with valid JSON in this exact structure:
 Provide 3-5 skill gaps, 5-8 recommended actions, and 3 milestones (30/60/90 days).
 `.trim();
 
-  const response = await openai.chat.completions.create({
-    model: env.OPENAI_MODEL || "gpt-4o-mini",
-    messages: [{ role: "user", content: prompt }],
-    response_format: { type: "json_object" },
-    temperature: 0.4,
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${env.OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: env.OPENAI_MODEL || "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
+      temperature: 0.4,
+    }),
   });
 
-  return JSON.parse(response.choices[0].message.content || "{}");
+  const json = await response.json() as any;
+  return JSON.parse(json.choices[0].message.content || "{}");
 }
 
 // =============================================================================
@@ -220,7 +225,7 @@ router.put("/plans/:id/action/:actionIndex", authorize("student"), async (req, r
     if (!plan) return res.status(404).json({ error: "Plan not found" });
 
     const actions = (plan as any).recommended_actions as any[];
-    const idx = parseInt(req.params.actionIndex);
+    const idx = parseInt(String(req.params.actionIndex));
     if (idx < 0 || idx >= actions.length) return res.status(400).json({ error: "Invalid action index" });
 
     actions[idx].completed = true;

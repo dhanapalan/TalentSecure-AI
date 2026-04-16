@@ -252,12 +252,13 @@ router.post("/coding/submit", async (req, res, next) => {
     if (!question) return res.status(404).json({ error: "Problem not found" });
 
     const testCases = (question as any).test_cases || [];
-    const gradeResult = await runTestCases({ sourceCode: source_code, language }, testCases);
+    const gradeResult = await runTestCases(source_code, language, testCases);
 
-    const passed = gradeResult.filter((r: any) => r.passed).length;
-    const total  = gradeResult.length;
+    const passed = gradeResult.passed;
+    const total  = gradeResult.totalTestCases;
+    const hasTLE = gradeResult.testResults.some((r: any) => r.error === "TLE");
     const status = passed === total ? "accepted"
-                 : gradeResult.some((r: any) => r.error === "TLE") ? "time_limit_exceeded"
+                 : hasTLE ? "time_limit_exceeded"
                  : "wrong_answer";
 
     const submission = await queryOne(`
@@ -269,7 +270,7 @@ router.post("/coding/submit", async (req, res, next) => {
 
     res.json({
       success: true,
-      data: { submission, test_results: gradeResult, passed, total, status },
+      data: { submission, test_results: gradeResult.testResults, passed, total, status },
     });
   } catch (err) { next(err); }
 });
