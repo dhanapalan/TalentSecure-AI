@@ -253,8 +253,9 @@ router.get("/funnel", authorize(...ADMIN_ROLES, "cxo"), async (req, res, next) =
   try {
     const { college_id } = req.query as Record<string, string>;
 
+    const funnelParams: any[] = [];
     const collegeFilter = college_id
-      ? `AND COALESCE(u.college_id, sd.college_id) = '${college_id}'`
+      ? (funnelParams.push(college_id), `AND COALESCE(u.college_id, sd.college_id) = $${funnelParams.length}`)
       : "";
 
     const funnel = await queryOne(`
@@ -271,7 +272,7 @@ router.get("/funnel", authorize(...ADMIN_ROLES, "cxo"), async (req, res, next) =
       LEFT JOIN student_details sd2 ON sd2.user_id = ds.student_id
       LEFT JOIN placement_records pr ON pr.student_id = ds.student_id
       WHERE u.role = 'student' ${collegeFilter}
-    `);
+    `, funnelParams);
 
     res.json({ success: true, data: funnel });
   } catch (err) { next(err); }

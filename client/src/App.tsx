@@ -512,7 +512,7 @@ export default function App() {
               <Route
                 path="students"
                 element={
-                  <RoleGuard allowed={["super_admin", "hr", "cxo", "college_admin"]}>
+                  <RoleGuard allowed={["super_admin", "hr", "cxo", "college_admin", "college", "college_staff"]}>
                     <StudentListPage />
                   </RoleGuard>
                 }
@@ -528,7 +528,7 @@ export default function App() {
               <Route
                 path="students/:id"
                 element={
-                  <RoleGuard allowed={["super_admin", "hr", "cxo", "college_admin"]}>
+                  <RoleGuard allowed={["super_admin", "hr", "cxo", "college_admin", "college", "college_staff"]}>
                     <StudentDetailPage />
                   </RoleGuard>
                 }

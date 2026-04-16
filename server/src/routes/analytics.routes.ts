@@ -66,8 +66,9 @@ router.get("/drives", authorize(...ADMIN_ROLES), async (req, res, next) => {
   try {
     const { college_id } = req.query as Record<string, string>;
 
+    const params: any[] = [];
     const collegeFilter = college_id
-      ? `AND COALESCE(u.college_id, sd.college_id) = '${college_id}'`
+      ? (params.push(college_id), `AND COALESCE(u.college_id, sd.college_id) = $${params.length}`)
       : "";
 
     const rows = await query(`
@@ -92,7 +93,7 @@ router.get("/drives", authorize(...ADMIN_ROLES), async (req, res, next) => {
       GROUP BY ad.id, ad.name, ad.status, ad.scheduled_at, ad.cutoff_score
       ORDER BY ad.scheduled_at DESC
       LIMIT 50
-    `);
+    `, params);
 
     res.json({ success: true, data: rows });
   } catch (err) { next(err); }
@@ -190,15 +191,16 @@ router.get("/cohort", authorize(...ADMIN_ROLES), async (req, res, next) => {
     let groupExpr = "";
     let labelExpr = "";
 
-    if (group_by === "college") {
-      groupExpr = "c.id::text";
-      labelExpr = "COALESCE(c.name, 'Unknown') AS label";
-    } else if (group_by === "degree") {
+    if (group_by === "degree") {
       groupExpr = "COALESCE(sd.degree, 'Unspecified')";
       labelExpr = "COALESCE(sd.degree, 'Unspecified') AS label";
     } else if (group_by === "year") {
       groupExpr = "COALESCE(sd.passing_year::text, 'Unknown')";
       labelExpr = "COALESCE(sd.passing_year::text, 'Unknown') AS label";
+    } else {
+      // Default: group by college
+      groupExpr = "c.id::text";
+      labelExpr = "COALESCE(c.name, 'Unknown') AS label";
     }
 
     const rows = await query(`
@@ -241,8 +243,9 @@ router.get("/skill-heatmap", authorize(...ADMIN_ROLES), async (req, res, next) =
   try {
     const { college_id } = req.query as Record<string, string>;
 
+    const heatParams: any[] = [];
     const collegeJoin = college_id
-      ? `JOIN student_details sd ON sd.user_id = ps.student_id AND sd.college_id = '${college_id}'`
+      ? (heatParams.push(college_id), `JOIN student_details sd ON sd.user_id = ps.student_id AND sd.college_id = $${heatParams.length}`)
       : "";
 
     const rows = await query(`
@@ -260,7 +263,7 @@ router.get("/skill-heatmap", authorize(...ADMIN_ROLES), async (req, res, next) =
       WHERE ps.status = 'completed'
       GROUP BY qb.category, qb.difficulty_level
       ORDER BY qb.category, qb.difficulty_level
-    `);
+    `, heatParams);
 
     // Pivot into heatmap format: {category → {easy, medium, hard} → accuracy}
     const heatmap: Record<string, Record<string, number>> = {};
@@ -286,9 +289,14 @@ router.get("/readiness", authorize(...ADMIN_ROLES), async (req, res, next) => {
   try {
     const { college_id, limit = "50", offset = "0" } = req.query as Record<string, string>;
 
+    const readinessParams: any[] = [];
     const collegeFilter = college_id
-      ? `AND COALESCE(u.college_id, sd.college_id) = '${college_id}'`
+      ? (readinessParams.push(college_id), `AND COALESCE(u.college_id, sd.college_id) = $${readinessParams.length}`)
       : "";
+
+    readinessParams.push(parseInt(limit), parseInt(offset));
+    const limitIdx = readinessParams.length - 1;
+    const offsetIdx = readinessParams.length;
 
     const rows = await query(`
       SELECT
@@ -322,16 +330,18 @@ router.get("/readiness", authorize(...ADMIN_ROLES), async (req, res, next) => {
       WHERE u.role = 'student' ${collegeFilter}
       GROUP BY u.id, u.name, sd.degree, sd.passing_year, c.name, sx.total_xp, sx.level
       ORDER BY readiness_score DESC NULLS LAST
-      LIMIT $1 OFFSET $2
-    `, [parseInt(limit), parseInt(offset)]);
+      LIMIT $${limitIdx} OFFSET $${offsetIdx}
+    `, readinessParams);
 
-    // Count total for pagination
+    // Count total for pagination (reuse college param only, no limit/offset)
+    const countParams = college_id ? [college_id] : [];
+    const countFilter = college_id ? `AND COALESCE(u.college_id, sd.college_id) = $1` : "";
     const countRow = await queryOne(`
       SELECT COUNT(DISTINCT u.id)::int AS total
       FROM users u
       LEFT JOIN student_details sd ON sd.user_id = u.id
-      WHERE u.role = 'student' ${collegeFilter}
-    `);
+      WHERE u.role = 'student' ${countFilter}
+    `, countParams);
 
     res.json({
       success: true,

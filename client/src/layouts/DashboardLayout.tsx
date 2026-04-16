@@ -22,7 +22,6 @@ import {
   BookOpenIcon,
   PuzzlePieceIcon,
   SparklesIcon,
-  VideoCameraIcon,
   TrophyIcon,
 } from "@heroicons/react/24/outline";
 
@@ -218,7 +217,6 @@ const navigation: NavItem[] = [
     icon: UserGroupIcon,
     roles: ["mentor"],
   },
-
   // ── Instructor Portal ────────────────────────────────────────────────────────
   {
     name: "Course Builder",
@@ -233,19 +231,6 @@ const navigation: NavItem[] = [
     roles: ["instructor"],
   },
 
-  // ── Mentor Portal ────────────────────────────────────────────────────────────
-  {
-    name: "My Students",
-    href: "/app/mentor/students",
-    icon: UsersIcon,
-    roles: ["mentor"],
-  },
-  {
-    name: "Mock Interviews",
-    href: "/app/mentor/interviews",
-    icon: VideoCameraIcon,
-    roles: ["mentor"],
-  },
 
   // ── Skill Development Layer (HR/Admin) ───────────────────────────────────────
   {
