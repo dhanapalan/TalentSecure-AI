@@ -9,7 +9,7 @@ set -e  # exit on any error
 DEPLOY_DIR="/opt/talentsecure"
 COMPOSE_FILE="docker-compose.prod.yml"
 DB_CONTAINER="talentsecure-postgres"
-DB_USER="postgres"
+DB_USER="talentsecure"
 DB_NAME="talentsecure"
 
 echo ""
