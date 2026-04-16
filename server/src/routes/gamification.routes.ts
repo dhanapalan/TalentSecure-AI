@@ -7,6 +7,7 @@ import { Router } from "express";
 import { authenticate, authorize } from "../middleware/auth.js";
 import { query, queryOne } from "../config/database.js";
 import { sendNotification } from "../services/notification.service.js";
+import { sendBadgeEarnedEmail } from "../services/email.service.js";
 
 const router = Router();
 router.use(authenticate);
@@ -111,6 +112,7 @@ export async function checkAndAwardBadges(
         // Notify student
         const icon = (badge as any).icon || "🏅";
         const name = (badge as any).name as string;
+        const desc = (badge as any).description as string || "";
         await sendNotification(
           studentId,
           `Badge Unlocked: ${name}`,
@@ -119,6 +121,13 @@ export async function checkAndAwardBadges(
             : `You earned the "${name}" badge ${icon}`,
           "success"
         );
+        // Send badge email (fire-and-forget — look up student email)
+        queryOne("SELECT name, email FROM users WHERE id = $1", [studentId]).then(u => {
+          if (u) sendBadgeEarnedEmail({
+            studentName: (u as any).name, studentEmail: (u as any).email, studentId,
+            badgeName: name, badgeIcon: icon, badgeDescription: desc, xpReward: reward,
+          }).catch(() => {});
+        }).catch(() => {});
       }
     }
   }

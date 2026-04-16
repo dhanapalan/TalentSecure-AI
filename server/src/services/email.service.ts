@@ -1,38 +1,55 @@
+// =============================================================================
+// GradLogic — Email Service
+// Nodemailer + all transactional email templates
+// =============================================================================
+
 import nodemailer from "nodemailer";
 import { env } from "../config/env.js";
 import { logger } from "../config/logger.js";
+import { queryOne } from "../config/database.js";
 
 const transporter = nodemailer.createTransport({
   host: env.SMTP_HOST,
   port: env.SMTP_PORT,
-  secure: env.SMTP_PORT === 465, // true for 465, false for other ports
-  auth: {
-    user: env.SMTP_USER,
-    pass: env.SMTP_PASS,
-  },
+  secure: env.SMTP_PORT === 465,
+  auth: { user: env.SMTP_USER, pass: env.SMTP_PASS },
 });
 
-/**
- * Send an email using the configured SMTP server.
- * Falls back to logging in development if credentials are missing.
- */
+// =============================================================================
+// CORE SEND + AUDIT LOG
+// =============================================================================
+
 export async function sendEmail({
   to,
   subject,
   text,
   html,
+  template = "generic",
+  recipientId,
+  refId,
 }: {
   to: string;
   subject: string;
   text: string;
   html?: string;
+  template?: string;
+  recipientId?: string;
+  refId?: string;
 }) {
+  // Audit log (best-effort — don't fail if table not ready)
+  try {
+    await queryOne(
+      `INSERT INTO email_logs (recipient_id, to_email, subject, template, ref_id, status)
+       VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING`,
+      [recipientId || null, to, subject, template, refId || null, "sent"]
+    );
+  } catch { /* table may not exist yet in older deploys */ }
+
   if (!env.SMTP_USER || !env.SMTP_PASS) {
     logger.info("── SIMULATED EMAIL ──");
     logger.info(`To:      ${to}`);
     logger.info(`Subject: ${subject}`);
     logger.info(`Body:    ${text}`);
-    if (html) logger.debug(`HTML:    Available`);
     logger.info("─────────────────────");
     return;
   }
@@ -45,71 +62,263 @@ export async function sendEmail({
       text,
       html,
     });
-    logger.info(`Email sent: ${info.messageId}`);
+    logger.info(`Email sent [${template}]: ${info.messageId}`);
     return info;
   } catch (error) {
-    logger.error("Failed to send email:", error);
-    throw error;
+    logger.error(`Failed to send email [${template}] to ${to}:`, error);
+    // Log failure but don't throw — email should never crash a request
   }
 }
 
-/**
- * Send a welcome email to a new campus admin.
- */
+// =============================================================================
+// SHARED HTML WRAPPER
+// =============================================================================
+
+function emailHtml(title: string, body: string, ctaUrl?: string, ctaLabel?: string) {
+  const cta = ctaUrl
+    ? `<a href="${ctaUrl}" style="display:inline-block;background:#4f46e5;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:bold;margin:20px 0;">${ctaLabel || "Open Portal"}</a>`
+    : "";
+  return `
+<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;border:1px solid #e2e8f0;border-radius:12px;color:#1e293b;">
+  <div style="margin-bottom:20px;">
+    <span style="font-size:22px;font-weight:800;color:#4f46e5;">GradLogic</span>
+  </div>
+  <h2 style="margin:0 0 16px;font-size:20px;color:#0f172a;">${title}</h2>
+  ${body}
+  ${cta}
+  <hr style="border:none;border-top:1px solid #e2e8f0;margin:28px 0 16px;">
+  <p style="font-size:12px;color:#94a3b8;margin:0;">
+    You're receiving this because you're registered on GradLogic.
+    Log in at <a href="${env.CLIENT_URL}" style="color:#4f46e5;">${env.CLIENT_URL}</a>
+  </p>
+</div>`.trim();
+}
+
+// =============================================================================
+// CAMPUS ADMIN INVITATION (existing)
+// =============================================================================
+
 export async function sendCampusAdminInvitation({
-  adminName,
-  adminEmail,
-  campusName,
-  temporaryPassword,
-}: {
-  adminName: string;
-  adminEmail: string;
-  campusName: string;
-  temporaryPassword: string;
-}) {
+  adminName, adminEmail, campusName, temporaryPassword,
+}: { adminName: string; adminEmail: string; campusName: string; temporaryPassword: string }) {
   const loginUrl = `${env.CLIENT_URL}/login`;
-
   const subject = `Welcome to GradLogic — ${campusName}`;
-  const text = `
-    Hi ${adminName},
+  const text = `Hi ${adminName}, you have been appointed Campus Admin for ${campusName}. Email: ${adminEmail}, Password: ${temporaryPassword}. Login: ${loginUrl}`;
+  const html = emailHtml(
+    `Welcome to GradLogic`,
+    `<p>Hi <strong>${adminName}</strong>,</p>
+     <p>You have been appointed as the Campus Admin for <strong>${campusName}</strong>.</p>
+     <div style="background:#f8fafc;padding:16px;border-radius:8px;margin:16px 0;">
+       <p style="margin:0;font-size:13px;color:#64748b;">Login credentials:</p>
+       <p style="margin:8px 0 0;"><strong>Email:</strong> ${adminEmail}</p>
+       <p style="margin:4px 0 0;"><strong>Temporary Password:</strong> <code style="background:#e2e8f0;padding:2px 6px;border-radius:4px;">${temporaryPassword}</code></p>
+     </div>
+     <p style="font-size:13px;color:#64748b;">You will be asked to change your password on first login.</p>`,
+    loginUrl, "Access Campus Portal"
+  );
+  return sendEmail({ to: adminEmail, subject, text, html, template: "campus_admin_invite" });
+}
 
-    Welcome to GradLogic! You have been appointed as the Campus Admin for ${campusName}.
+// =============================================================================
+// DRIVE INVITE
+// =============================================================================
 
-    Your login credentials:
-    Email: ${adminEmail}
-    Temporary Password: ${temporaryPassword}
+export async function sendDriveInviteEmail({
+  studentName, studentEmail, studentId,
+  driveName, driveDate, companyName, driveId,
+}: {
+  studentName: string; studentEmail: string; studentId: string;
+  driveName: string; driveDate?: string; companyName?: string; driveId: string;
+}) {
+  const portalUrl = `${env.CLIENT_URL}/app/student-portal`;
+  const subject = `You're invited: ${driveName}`;
+  const text = `Hi ${studentName}, you have been invited to participate in "${driveName}"${companyName ? ` by ${companyName}` : ""}${driveDate ? ` scheduled for ${driveDate}` : ""}. Log in to your portal to view details: ${portalUrl}`;
+  const html = emailHtml(
+    `Assessment Invite: ${driveName}`,
+    `<p>Hi <strong>${studentName}</strong>,</p>
+     <p>You have been selected to participate in an upcoming assessment drive.</p>
+     <div style="background:#f0f4ff;padding:16px;border-radius:8px;margin:16px 0;border-left:4px solid #4f46e5;">
+       <p style="margin:0;font-weight:600;font-size:16px;">${driveName}</p>
+       ${companyName ? `<p style="margin:6px 0 0;color:#4f46e5;">📋 ${companyName}</p>` : ""}
+       ${driveDate ? `<p style="margin:6px 0 0;color:#64748b;">📅 ${new Date(driveDate).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>` : ""}
+     </div>
+     <p>Log in to your student portal to view the drive details, instructions, and prepare accordingly.</p>`,
+    portalUrl, "Go to My Portal"
+  );
+  return sendEmail({ to: studentEmail, subject, text, html, template: "drive_invite", recipientId: studentId, refId: driveId });
+}
 
-    Please log in here to complete your setup: ${loginUrl}
+// =============================================================================
+// SHORTLIST NOTIFICATION
+// =============================================================================
 
-    For security reasons, you will be required to change your password upon your first login.
+export async function sendShortlistEmail({
+  studentName, studentEmail, studentId,
+  driveName, companyName, driveId,
+}: {
+  studentName: string; studentEmail: string; studentId: string;
+  driveName: string; companyName?: string; driveId: string;
+}) {
+  const portalUrl = `${env.CLIENT_URL}/app/student-portal`;
+  const subject = `Congratulations! You've been shortlisted — ${driveName}`;
+  const text = `Hi ${studentName}, great news! You have been shortlisted for ${driveName}${companyName ? ` at ${companyName}` : ""}. Log in to your portal for next steps: ${portalUrl}`;
+  const html = emailHtml(
+    `You've been Shortlisted! 🎉`,
+    `<p>Hi <strong>${studentName}</strong>,</p>
+     <p>Congratulations! You have been <strong>shortlisted</strong> for the following drive:</p>
+     <div style="background:#f0fdf4;padding:16px;border-radius:8px;margin:16px 0;border-left:4px solid #22c55e;">
+       <p style="margin:0;font-weight:600;font-size:16px;">${driveName}</p>
+       ${companyName ? `<p style="margin:6px 0 0;color:#22c55e;">🏢 ${companyName}</p>` : ""}
+     </div>
+     <p>Keep an eye on your portal for interview scheduling and further updates.</p>`,
+    portalUrl, "View My Status"
+  );
+  return sendEmail({ to: studentEmail, subject, text, html, template: "shortlist", recipientId: studentId, refId: driveId });
+}
 
-    Best regards,
-    The GradLogic Team
-  `.trim();
+// =============================================================================
+// INTERVIEW SCHEDULED
+// =============================================================================
 
-  const html = `
-    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
-      <h2 style="color: #4f46e5;">Welcome to GradLogic</h2>
-      <p>Hi <strong>${adminName}</strong>,</p>
-      <p>You have been appointed as the Campus Admin for <strong>${campusName}</strong>.</p>
-      
-      <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
-        <p style="margin: 0; font-size: 14px; color: #64748b;">Your login credentials:</p>
-        <p style="margin: 10px 0 0 0;"><strong>Email:</strong> ${adminEmail}</p>
-        <p style="margin: 5px 0 0 0;"><strong>Temporary Password:</strong> <code style="background: #e2e8f0; padding: 2px 4px; border-radius: 4px;">${temporaryPassword}</code></p>
-      </div>
+export async function sendInterviewScheduledEmail({
+  studentName, studentEmail, studentId,
+  driveName, companyName, interviewDate, driveId,
+}: {
+  studentName: string; studentEmail: string; studentId: string;
+  driveName: string; companyName?: string; interviewDate: string; driveId: string;
+}) {
+  const portalUrl = `${env.CLIENT_URL}/app/student-portal`;
+  const subject = `Interview Scheduled — ${companyName || driveName}`;
+  const text = `Hi ${studentName}, your interview for ${driveName}${companyName ? ` at ${companyName}` : ""} has been scheduled for ${interviewDate}. Log in to your portal for details: ${portalUrl}`;
+  const html = emailHtml(
+    `Interview Scheduled 📅`,
+    `<p>Hi <strong>${studentName}</strong>,</p>
+     <p>Your interview has been scheduled. Here are the details:</p>
+     <div style="background:#fffbeb;padding:16px;border-radius:8px;margin:16px 0;border-left:4px solid #f59e0b;">
+       <p style="margin:0;font-weight:600;">${driveName}</p>
+       ${companyName ? `<p style="margin:6px 0 0;">🏢 ${companyName}</p>` : ""}
+       <p style="margin:6px 0 0;font-size:15px;font-weight:600;color:#d97706;">📅 ${interviewDate}</p>
+     </div>
+     <p>Make sure to prepare well. Check your portal for any additional instructions.</p>`,
+    portalUrl, "Prepare Now"
+  );
+  return sendEmail({ to: studentEmail, subject, text, html, template: "interview_scheduled", recipientId: studentId, refId: driveId });
+}
 
-      <p>Please log in to complete your institution's profile and start managing your students.</p>
-      
-      <a href="${loginUrl}" style="display: inline-block; background-color: #4f46e5; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 10px 0;">
-        Access Campus Portal
-      </a>
+// =============================================================================
+// OFFER RELEASED
+// =============================================================================
 
-      <p style="font-size: 12px; color: #94a3b8; margin-top: 30px;">
-        Note: You will be required to change your password upon your first login.
-      </p>
-    </div>
-  `;
+export async function sendOfferEmail({
+  studentName, studentEmail, studentId,
+  driveName, companyName, driveId,
+}: {
+  studentName: string; studentEmail: string; studentId: string;
+  driveName: string; companyName?: string; driveId: string;
+}) {
+  const portalUrl = `${env.CLIENT_URL}/app/student-portal`;
+  const subject = `Offer Released — ${companyName || driveName} 🎊`;
+  const text = `Hi ${studentName}, congratulations! An offer has been released for you from ${companyName || driveName}. Log in to your portal to view details: ${portalUrl}`;
+  const html = emailHtml(
+    `Offer Released — Congratulations! 🎊`,
+    `<p>Hi <strong>${studentName}</strong>,</p>
+     <p>We are thrilled to inform you that an <strong>offer has been released</strong> for you!</p>
+     <div style="background:#fdf4ff;padding:16px;border-radius:8px;margin:16px 0;border-left:4px solid #a855f7;">
+       ${companyName ? `<p style="margin:0;font-weight:700;font-size:18px;color:#7e22ce;">🏢 ${companyName}</p>` : ""}
+       <p style="margin:6px 0 0;">${driveName}</p>
+     </div>
+     <p>Please log in to your portal to view the full offer details and next steps.</p>
+     <p style="font-size:13px;color:#64748b;">Congratulations on this achievement — your hard work paid off!</p>`,
+    portalUrl, "View My Offer"
+  );
+  return sendEmail({ to: studentEmail, subject, text, html, template: "offer_released", recipientId: studentId, refId: driveId });
+}
 
-  return sendEmail({ to: adminEmail, subject, text, html });
+// =============================================================================
+// PLACEMENT CONFIRMED
+// =============================================================================
+
+export async function sendPlacementConfirmedEmail({
+  studentName, studentEmail, studentId,
+  companyName, roleTitle, packageLpa, placementId,
+}: {
+  studentName: string; studentEmail: string; studentId: string;
+  companyName: string; roleTitle?: string; packageLpa?: number; placementId: string;
+}) {
+  const portalUrl = `${env.CLIENT_URL}/app/student-portal`;
+  const subject = `Placement Confirmed — ${companyName} 🎓`;
+  const text = `Hi ${studentName}, your placement at ${companyName}${roleTitle ? ` as ${roleTitle}` : ""}${packageLpa ? ` with a package of ₹${packageLpa} LPA` : ""} has been recorded. Congratulations!`;
+  const html = emailHtml(
+    `Placement Confirmed 🎓`,
+    `<p>Hi <strong>${studentName}</strong>,</p>
+     <p>Congratulations! Your placement has been officially confirmed and recorded.</p>
+     <div style="background:#f0fdf4;padding:20px;border-radius:8px;margin:16px 0;border-left:4px solid #16a34a;text-align:center;">
+       <p style="margin:0;font-size:22px;font-weight:800;color:#15803d;">🎊 ${companyName}</p>
+       ${roleTitle ? `<p style="margin:8px 0 0;font-size:15px;color:#166534;">${roleTitle}</p>` : ""}
+       ${packageLpa ? `<p style="margin:6px 0 0;font-size:18px;font-weight:700;color:#16a34a;">₹${packageLpa} LPA</p>` : ""}
+     </div>
+     <p>Wishing you the very best in your new role. Keep in touch!</p>`,
+    portalUrl, "My Portal"
+  );
+  return sendEmail({ to: studentEmail, subject, text, html, template: "placement_confirmed", recipientId: studentId, refId: placementId });
+}
+
+// =============================================================================
+// BADGE EARNED
+// =============================================================================
+
+export async function sendBadgeEarnedEmail({
+  studentName, studentEmail, studentId,
+  badgeName, badgeIcon, badgeDescription, xpReward,
+}: {
+  studentName: string; studentEmail: string; studentId: string;
+  badgeName: string; badgeIcon: string; badgeDescription: string; xpReward: number;
+}) {
+  const portalUrl = `${env.CLIENT_URL}/app/student-portal/gamification`;
+  const subject = `New Badge Unlocked: ${badgeName} ${badgeIcon}`;
+  const text = `Hi ${studentName}, you just earned the "${badgeName}" badge! ${badgeDescription}${xpReward > 0 ? ` You received +${xpReward} XP.` : ""} View your achievements: ${portalUrl}`;
+  const html = emailHtml(
+    `New Badge Unlocked! ${badgeIcon}`,
+    `<p>Hi <strong>${studentName}</strong>,</p>
+     <p>You just earned a new badge on GradLogic — keep it up!</p>
+     <div style="background:#f5f3ff;padding:24px;border-radius:12px;margin:16px 0;text-align:center;border:2px solid #e0d9ff;">
+       <div style="font-size:48px;">${badgeIcon}</div>
+       <p style="margin:8px 0 0;font-size:18px;font-weight:700;color:#4f46e5;">${badgeName}</p>
+       <p style="margin:6px 0 0;color:#64748b;font-size:13px;">${badgeDescription}</p>
+       ${xpReward > 0 ? `<p style="margin:10px 0 0;font-size:15px;font-weight:600;color:#7c3aed;">+${xpReward} XP Bonus</p>` : ""}
+     </div>`,
+    portalUrl, "View Achievements"
+  );
+  return sendEmail({ to: studentEmail, subject, text, html, template: "badge_earned", recipientId: studentId });
+}
+
+// =============================================================================
+// MENTOR FEEDBACK
+// =============================================================================
+
+export async function sendMentorFeedbackEmail({
+  studentName, studentEmail, studentId,
+  mentorName, feedback, actionItems,
+}: {
+  studentName: string; studentEmail: string; studentId: string;
+  mentorName: string; feedback: string; actionItems?: { task: string; due_date?: string }[];
+}) {
+  const portalUrl = `${env.CLIENT_URL}/app/student-portal/development`;
+  const subject = `Session Feedback from ${mentorName}`;
+  const actionHtml = actionItems?.length
+    ? `<div style="margin-top:12px;"><p style="margin:0;font-weight:600;font-size:13px;color:#374151;">Action Items:</p><ul style="margin:8px 0 0;padding-left:20px;">${actionItems.map(a => `<li style="margin:4px 0;font-size:13px;">${a.task}${a.due_date ? ` <span style="color:#94a3b8;">(by ${a.due_date})</span>` : ""}</li>`).join("")}</ul></div>`
+    : "";
+  const text = `Hi ${studentName}, your mentor ${mentorName} shared feedback: ${feedback}${actionItems?.length ? ` Action items: ${actionItems.map(a => a.task).join(", ")}` : ""}`;
+  const html = emailHtml(
+    `Mentor Feedback`,
+    `<p>Hi <strong>${studentName}</strong>,</p>
+     <p>Your mentor <strong>${mentorName}</strong> has shared feedback from your recent session.</p>
+     <div style="background:#f8fafc;padding:16px;border-radius:8px;margin:16px 0;border-left:4px solid #4f46e5;">
+       <p style="margin:0;font-style:italic;color:#374151;">"${feedback}"</p>
+       ${actionHtml}
+     </div>
+     <p style="font-size:13px;color:#64748b;">Keep working on the action items to stay on track!</p>`,
+    portalUrl, "View My Development Plan"
+  );
+  return sendEmail({ to: studentEmail, subject, text, html, template: "mentor_feedback", recipientId: studentId });
 }

@@ -2,6 +2,12 @@ import { query, queryOne } from "../config/database.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { generateDynamicAssessment } from "./llm.service.js";
 import { sendNotification } from "./notification.service.js";
+import {
+  sendDriveInviteEmail,
+  sendShortlistEmail,
+  sendInterviewScheduledEmail,
+  sendOfferEmail,
+} from "./email.service.js";
 import { logger } from "../config/logger.js";
 import { env } from "../config/env.js";
 
@@ -1106,7 +1112,28 @@ export async function addDriveStudent(driveId: string, studentId: string) {
          RETURNING *`,
         [driveId, studentId, eligibilityStatus],
     );
-    if (result) await syncDriveStudentCount(driveId);
+    if (result) {
+      await syncDriveStudentCount(driveId);
+
+      // Send invite email + in-app notification (fire-and-forget)
+      try {
+        const [studentRow, driveRow] = await Promise.all([
+          queryOne("SELECT name, email FROM users WHERE id = $1", [studentId]),
+          queryOne("SELECT name, scheduled_at FROM assessment_drives WHERE id = $1", [driveId]),
+        ]);
+        if (studentRow && driveRow) {
+          const s = studentRow as any;
+          const d = driveRow as any;
+          sendDriveInviteEmail({
+            studentName: s.name, studentEmail: s.email, studentId,
+            driveName: d.name, driveDate: d.scheduled_at, driveId,
+          }).catch(() => {});
+          sendNotification(studentId, "Drive Invite",
+            `You have been invited to participate in "${d.name}". Check your portal for details.`, "info"
+          ).catch(() => {});
+        }
+      } catch { /* don't block on notification failure */ }
+    }
     return result;
 }
 
@@ -1349,20 +1376,30 @@ async function syncDriveStudentCount(driveId: string) {
 // ── Recruitment Workflow (Shortlist, Interview, Offer) ───────────────────────
 
 export async function shortlistDriveStudent(driveId: string, studentId: string) {
-    // Verify drive and student exist in drive_students
     const student = await queryOne(
         `SELECT * FROM drive_students WHERE drive_id = $1 AND student_id = $2`,
         [driveId, studentId]
     );
     if (!student) throw new AppError("Student not found in this drive", 404);
 
-    // Update student_details
     await query(
-        `UPDATE student_details 
-         SET is_shortlisted = true, placement_status = 'Shortlisted'
-         WHERE user_id = $1`,
+        `UPDATE student_details SET is_shortlisted = true, placement_status = 'Shortlisted' WHERE user_id = $1`,
         [studentId]
     );
+
+    // Email + in-app notification
+    try {
+      const [studentRow, driveRow] = await Promise.all([
+        queryOne("SELECT name, email FROM users WHERE id = $1", [studentId]),
+        queryOne("SELECT name FROM assessment_drives WHERE id = $1", [driveId]),
+      ]);
+      if (studentRow && driveRow) {
+        const s = studentRow as any;
+        const d = driveRow as any;
+        sendShortlistEmail({ studentName: s.name, studentEmail: s.email, studentId, driveName: d.name, driveId }).catch(() => {});
+        sendNotification(studentId, "You've been Shortlisted! 🎉", `Congratulations! You have been shortlisted for "${d.name}".`, "success").catch(() => {});
+      }
+    } catch { /* ignore */ }
 
     return { student_id: studentId, status: 'Shortlisted' };
 }
@@ -1375,11 +1412,23 @@ export async function scheduleDriveInterview(driveId: string, studentId: string,
     if (!student) throw new AppError("Student not found in this drive", 404);
 
     await query(
-        `UPDATE student_details 
-         SET interview_status = $1, placement_status = 'Interviewed'
-         WHERE user_id = $2`,
+        `UPDATE student_details SET interview_status = $1, placement_status = 'Interviewed' WHERE user_id = $2`,
         [`Scheduled: ${interviewDate}`, studentId]
     );
+
+    // Email + in-app notification
+    try {
+      const [studentRow, driveRow] = await Promise.all([
+        queryOne("SELECT name, email FROM users WHERE id = $1", [studentId]),
+        queryOne("SELECT name FROM assessment_drives WHERE id = $1", [driveId]),
+      ]);
+      if (studentRow && driveRow) {
+        const s = studentRow as any;
+        const d = driveRow as any;
+        sendInterviewScheduledEmail({ studentName: s.name, studentEmail: s.email, studentId, driveName: d.name, interviewDate, driveId }).catch(() => {});
+        sendNotification(studentId, "Interview Scheduled 📅", `Your interview for "${d.name}" has been scheduled for ${interviewDate}.`, "info").catch(() => {});
+      }
+    } catch { /* ignore */ }
 
     return { student_id: studentId, status: 'Interview Scheduled' };
 }
@@ -1409,11 +1458,23 @@ export async function releaseDriveOffer(driveId: string, studentId: string) {
     if (!student) throw new AppError("Student not found in this drive", 404);
 
     await query(
-        `UPDATE student_details 
-         SET offer_released = true, placement_status = 'Offered'
-         WHERE user_id = $1`,
+        `UPDATE student_details SET offer_released = true, placement_status = 'Offered' WHERE user_id = $1`,
         [studentId]
     );
+
+    // Email + in-app notification
+    try {
+      const [studentRow, driveRow] = await Promise.all([
+        queryOne("SELECT name, email FROM users WHERE id = $1", [studentId]),
+        queryOne("SELECT name FROM assessment_drives WHERE id = $1", [driveId]),
+      ]);
+      if (studentRow && driveRow) {
+        const s = studentRow as any;
+        const d = driveRow as any;
+        sendOfferEmail({ studentName: s.name, studentEmail: s.email, studentId, driveName: d.name, driveId }).catch(() => {});
+        sendNotification(studentId, "Offer Released! 🎊", `Congratulations! An offer has been released for you from "${d.name}".`, "success").catch(() => {});
+      }
+    } catch { /* ignore */ }
 
     return { student_id: studentId, status: 'Offer Released' };
 }

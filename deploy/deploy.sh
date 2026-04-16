@@ -45,10 +45,12 @@ run_migration() {
 run_migration "server/migrations/phase1_lms_practice_development.sql" "Phase 1 (LMS, Practice, Development)"
 run_migration "server/migrations/phase2_gamification.sql"              "Phase 2 (Gamification)"
 run_migration "server/migrations/phase3_analytics_mentor.sql"          "Phase 3 (Analytics, Mentor)"
+run_migration "server/migrations/phase4_placement_email.sql"            "Phase 4 (Placements, Email Logs)"
 
 if [ ! -f "server/migrations/phase1_lms_practice_development.sql" ] && \
    [ ! -f "server/migrations/phase2_gamification.sql" ] && \
-   [ ! -f "server/migrations/phase3_analytics_mentor.sql" ]; then
+   [ ! -f "server/migrations/phase3_analytics_mentor.sql" ] && \
+   [ ! -f "server/migrations/phase4_placement_email.sql" ]; then
   echo "  ⚠ No new migrations found, skipping."
 fi
 

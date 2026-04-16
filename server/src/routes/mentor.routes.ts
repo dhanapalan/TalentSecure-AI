@@ -7,6 +7,7 @@ import { Router } from "express";
 import { authenticate, authorize } from "../middleware/auth.js";
 import { query, queryOne } from "../config/database.js";
 import { sendNotification } from "../services/notification.service.js";
+import { sendMentorFeedbackEmail } from "../services/email.service.js";
 
 const router = Router();
 router.use(authenticate);
@@ -184,15 +185,25 @@ router.post("/sessions", authorize("mentor"), async (req, res, next) => {
       session_date || new Date().toISOString().slice(0, 10),
     ]);
 
-    // Notify student if feedback is shared
+    // Notify + email student if feedback is shared
     if (feedback) {
-      const mentor = await queryOne("SELECT name FROM users WHERE id = $1", [mentorId]);
-      await sendNotification(
-        student_id,
-        "Mentor Feedback",
-        `${(mentor as any)?.name} shared feedback from your session.`,
-        "success"
-      );
+      const [mentor, studentUser] = await Promise.all([
+        queryOne("SELECT name FROM users WHERE id = $1", [mentorId]),
+        queryOne("SELECT name, email FROM users WHERE id = $1", [student_id]),
+      ]);
+      const mentorName = (mentor as any)?.name as string;
+      await sendNotification(student_id, "Mentor Feedback",
+        `${mentorName} shared feedback from your session.`, "success");
+      if (studentUser) {
+        sendMentorFeedbackEmail({
+          studentName: (studentUser as any).name,
+          studentEmail: (studentUser as any).email,
+          studentId: student_id,
+          mentorName,
+          feedback,
+          actionItems: action_items,
+        }).catch(() => {});
+      }
     }
 
     res.status(201).json({ success: true, data: session });

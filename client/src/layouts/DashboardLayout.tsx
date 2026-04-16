@@ -85,7 +85,14 @@ const navigation: NavItem[] = [
     icon: EyeIcon,
     roles: ["super_admin", "hr", "cxo"],
   },
-  // 7. User / system management
+  // 7. Track placements
+  {
+    name: "Placements",
+    href: "/app/placements",
+    icon: TrophyIcon,
+    roles: ["super_admin", "hr", "college_admin"],
+  },
+  // 8. User / system management
   {
     name: "Administration",
     href: "/app/administration",
