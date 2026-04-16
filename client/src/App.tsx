@@ -4,7 +4,6 @@ import {
   Routes,
   Route,
   Navigate,
-  useParams,
 } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "react-hot-toast";
