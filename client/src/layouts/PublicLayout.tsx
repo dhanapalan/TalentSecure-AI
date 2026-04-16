@@ -143,7 +143,7 @@ export default function PublicLayout({ children }: { children?: ReactNode }) {
                                 <span className="text-lg font-bold">Grad<span className="text-indigo-400">Logic</span></span>
                             </div>
                             <p className="mt-4 max-w-xs text-sm leading-relaxed text-slate-400">
-                                AI-powered hiring platform for lateral recruitment and campus hiring — connecting top talent with the right opportunities.
+                                AI-Powered Talent Development &amp; Placement Platform — connecting colleges, companies, and students on one intelligent platform.
                             </p>
                         </div>
 

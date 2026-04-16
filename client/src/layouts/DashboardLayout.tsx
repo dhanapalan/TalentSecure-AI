@@ -312,14 +312,14 @@ export default function DashboardLayout() {
       <aside className="fixed inset-y-0 left-0 z-30 flex w-[260px] flex-col bg-white border-r border-slate-200">
         {/* Brand */}
         <div className="flex h-20 flex-shrink-0 items-center gap-3 px-6 border-b border-slate-100">
-          <Logo size={28} />
+          <Logo size={30} />
           <div className="min-w-0 flex-1">
-            <span className="block text-xl font-black tracking-tight text-slate-900">GradLogic</span>
-            {user?.college_name && (
-              <span className="block truncate text-[10px] font-bold uppercase tracking-widest text-indigo-500">
-                {user.college_name}
-              </span>
-            )}
+            <span className="block text-lg font-black tracking-tight text-slate-900">
+              Grad<span className="text-indigo-600">Logic</span>
+            </span>
+            <span className="block truncate text-[9px] font-semibold uppercase tracking-widest text-slate-400 leading-tight">
+              {user?.college_name ?? "Talent & Placement Platform"}
+            </span>
           </div>
         </div>
 
