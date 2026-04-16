@@ -31,25 +31,131 @@ interface NavItem {
 }
 
 const navigation: NavItem[] = [
-  // Role-specific home pages
+  // ── HR / Admin workflow ──────────────────────────────────────────────────────
+  // 1. Overview
   {
     name: "HR Dashboard",
     href: "/app/hr-dashboard",
     icon: HomeIcon,
     roles: ["super_admin", "hr", "cxo"],
   },
+  // 2. Onboard partner colleges
   {
     name: "Campuses",
     href: "/app/campuses",
     icon: AcademicCapIcon,
     roles: ["super_admin", "hr"],
   },
+  // 3. Define scoring / cutoff rules before creating drives
+  {
+    name: "Assessment Rules",
+    href: "/app/assessment-rules",
+    icon: ClipboardDocumentListIcon,
+    roles: ["super_admin", "hr", "engineer"],
+  },
+  // 4. Create and manage assessment drives
+  {
+    name: "Drives",
+    href: "/app/drives",
+    icon: RocketLaunchIcon,
+    roles: ["super_admin", "hr", "engineer"],
+  },
+  // 5. Review registered candidates
+  {
+    name: "Students",
+    href: "/app/students",
+    icon: UsersIcon,
+    roles: ["super_admin", "hr", "cxo"],
+  },
+  // 6. Monitor live exams
+  {
+    name: "Live Monitoring",
+    href: "/app/admin/monitoring",
+    icon: EyeIcon,
+    roles: ["super_admin", "hr", "cxo"],
+  },
+  // 7. User / system management
+  {
+    name: "Administration",
+    href: "/app/administration",
+    icon: WrenchScrewdriverIcon,
+    roles: ["super_admin", "admin", "hr", "cxo"],
+  },
+
+  // ── Engineer workflow ────────────────────────────────────────────────────────
   {
     name: "Engineer Panel",
     href: "/app/engineer-panel",
     icon: WrenchScrewdriverIcon,
     roles: ["engineer"],
   },
+
+  // ── College / Campus Portal workflow ────────────────────────────────────────
+  // 1. Overview
+  {
+    name: "Dashboard",
+    href: "/app/college-dashboard",
+    icon: HomeIcon,
+    roles: ["college_admin", "college", "college_staff"],
+  },
+  // 2. View assigned drives
+  {
+    name: "Drives",
+    href: "/app/college/drives",
+    icon: RocketLaunchIcon,
+    roles: ["college_admin", "college", "college_staff"],
+  },
+  // 3. Manage students in the college
+  {
+    name: "Students",
+    href: "/app/students",
+    icon: UsersIcon,
+    roles: ["college_admin", "college", "college_staff"],
+  },
+  // 4. View results after drives complete
+  {
+    name: "Results",
+    href: "/app/college/results",
+    icon: ClipboardDocumentListIcon,
+    roles: ["college_admin", "college", "college_staff"],
+  },
+  // 5. Analytics & trends
+  {
+    name: "Insights",
+    href: "/app/college/insights",
+    icon: ChartBarIcon,
+    roles: ["college_admin", "college", "college_staff"],
+  },
+  // 6. Proctoring / academic integrity
+  {
+    name: "Integrity",
+    href: "/app/college/integrity",
+    icon: ShieldCheckIcon,
+    roles: ["college_admin", "college", "college_staff"],
+  },
+  // 7. Announcements & messages
+  {
+    name: "Communications",
+    href: "/app/college/communications",
+    icon: EnvelopeIcon,
+    roles: ["college_admin", "college", "college_staff"],
+  },
+  // 8. Manage college staff accounts
+  {
+    name: "Campus Admins",
+    href: "/app/college/campus-admins",
+    icon: UserGroupIcon,
+    roles: ["college_admin", "college"],
+  },
+  // 9. College settings
+  {
+    name: "Settings",
+    href: "/app/college/settings",
+    icon: Cog6ToothIcon,
+    roles: ["college_admin", "college"],
+  },
+
+  // ── Student Portal ───────────────────────────────────────────────────────────
   {
     name: "Student Portal",
     href: "/app/student-portal",
@@ -61,88 +167,6 @@ const navigation: NavItem[] = [
     href: "/app/student-portal?tab=exams",
     icon: AcademicCapIcon,
     roles: ["student"],
-  },
-
-  // College / Campus Portal navigation
-  {
-    name: "Dashboard",
-    href: "/app/college-dashboard",
-    icon: HomeIcon,
-    roles: ["college_admin", "college", "college_staff"],
-  },
-  {
-    name: "Students",
-    href: "/app/students",
-    icon: UsersIcon,
-    roles: ["super_admin", "hr", "cxo", "college_admin", "college", "college_staff"],
-  },
-  {
-    name: "Drives",
-    href: "/app/drives",
-    icon: RocketLaunchIcon,
-    roles: ["super_admin", "hr", "engineer"],
-  },
-  {
-    name: "Drives",
-    href: "/app/college/drives",
-    icon: RocketLaunchIcon,
-    roles: ["college_admin", "college", "college_staff"],
-  },
-  {
-    name: "Results",
-    href: "/app/college/results",
-    icon: ClipboardDocumentListIcon,
-    roles: ["college_admin", "college", "college_staff"],
-  },
-  {
-    name: "Insights",
-    href: "/app/college/insights",
-    icon: ChartBarIcon,
-    roles: ["college_admin", "college", "college_staff"],
-  },
-  {
-    name: "Integrity",
-    href: "/app/college/integrity",
-    icon: ShieldCheckIcon,
-    roles: ["college_admin", "college", "college_staff"],
-  },
-  {
-    name: "Communications",
-    href: "/app/college/communications",
-    icon: EnvelopeIcon,
-    roles: ["college_admin", "college", "college_staff"],
-  },
-  {
-    name: "Campus Admins",
-    href: "/app/college/campus-admins",
-    icon: UserGroupIcon,
-    roles: ["college_admin", "college"],
-  },
-  {
-    name: "Settings",
-    href: "/app/college/settings",
-    icon: Cog6ToothIcon,
-    roles: ["college_admin", "college"],
-  },
-
-  // Other Feature links
-  {
-    name: "Assessment Rules",
-    href: "/app/assessment-rules",
-    icon: ClipboardDocumentListIcon,
-    roles: ["super_admin", "hr", "engineer"],
-  },
-  {
-    name: "Live Monitoring",
-    href: "/app/admin/monitoring",
-    icon: EyeIcon,
-    roles: ["super_admin"],
-  },
-  {
-    name: "Administration",
-    href: "/app/administration",
-    icon: WrenchScrewdriverIcon,
-    roles: ["super_admin", "admin", "hr", "cxo"],
   },
 ];
 
