@@ -1,28 +1,40 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <linearGradient id="gl-bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#4338CA"/>
-      <stop offset="55%" style="stop-color:#1D4ED8"/>
+    <linearGradient id="cap-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   style="stop-color:#4338CA"/>
+      <stop offset="55%"  style="stop-color:#1D4ED8"/>
       <stop offset="100%" style="stop-color:#0891B2"/>
     </linearGradient>
-    <linearGradient id="gl-spark" x1="0%" y1="100%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#A5B4FC"/>
+    <linearGradient id="cap-spark" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%"   style="stop-color:#A5B4FC"/>
       <stop offset="100%" style="stop-color:#67E8F9"/>
     </linearGradient>
   </defs>
+
   <!-- Rounded square background -->
-  <rect width="512" height="512" rx="108" ry="108" fill="url(#gl-bg)"/>
-  <!-- Subtle dot grid -->
-  <circle cx="128" cy="128" r="6" fill="white" opacity="0.08"/>
-  <circle cx="256" cy="128" r="6" fill="white" opacity="0.08"/>
-  <circle cx="384" cy="128" r="6" fill="white" opacity="0.08"/>
-  <circle cx="128" cy="256" r="6" fill="white" opacity="0.08"/>
-  <circle cx="384" cy="256" r="6" fill="white" opacity="0.08"/>
-  <circle cx="128" cy="384" r="6" fill="white" opacity="0.08"/>
-  <circle cx="256" cy="384" r="6" fill="white" opacity="0.08"/>
-  <circle cx="384" cy="384" r="6" fill="white" opacity="0.08"/>
-  <!-- GL lettermark -->
-  <text x="252" y="318" text-anchor="middle" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="164" font-weight="900" fill="white" letter-spacing="-6">GL</text>
-  <!-- AI spark — 4-pointed star -->
-  <path d="M385 64 L394 93 L423 102 L394 111 L385 140 L376 111 L347 102 L376 93 Z" fill="url(#gl-spark)"/>
+  <rect width="512" height="512" rx="108" ry="108" fill="url(#cap-bg)"/>
+
+  <!-- Subtle corner dots -->
+  <circle cx="80"  cy="80"  r="5" fill="white" opacity="0.10"/>
+  <circle cx="432" cy="80"  r="5" fill="white" opacity="0.10"/>
+  <circle cx="80"  cy="432" r="5" fill="white" opacity="0.10"/>
+  <circle cx="432" cy="432" r="5" fill="white" opacity="0.10"/>
+
+  <!-- Cap board — flat diamond -->
+  <polygon points="118,196 256,118 394,196 256,274" fill="white" opacity="0.96"/>
+
+  <!-- Centre button -->
+  <circle cx="256" cy="196" r="16" fill="url(#cap-bg)"/>
+
+  <!-- Cap body -->
+  <path d="M222,274 L290,274 L274,332 L238,332 Z" fill="white" opacity="0.90"/>
+
+  <!-- Brim / base band -->
+  <rect x="192" y="330" width="128" height="26" rx="13" fill="white" opacity="0.85"/>
+
+  <!-- Tassel cord -->
+  <path d="M394,196 Q438,238 432,358" stroke="url(#cap-spark)" stroke-width="10" stroke-linecap="round" fill="none"/>
+
+  <!-- Tassel end — AI spark (4-pointed star) -->
+  <path d="M432,352 L439,372 L459,379 L439,386 L432,406 L425,386 L405,379 L425,372 Z" fill="url(#cap-spark)"/>
 </svg>
