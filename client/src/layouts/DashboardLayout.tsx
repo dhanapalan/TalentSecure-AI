@@ -23,6 +23,8 @@ import {
   PuzzlePieceIcon,
   SparklesIcon,
   TrophyIcon,
+  BuildingOffice2Icon,
+  UserCircleIcon,
 } from "@heroicons/react/24/outline";
 
 // ── Sidebar navigation items with role access control ────────────────────────
@@ -208,6 +210,32 @@ const navigation: NavItem[] = [
     href: "/app/student-portal/gamification",
     icon: TrophyIcon,
     roles: ["student"],
+  },
+
+  // ── Company Portal ───────────────────────────────────────────────────────────
+  {
+    name: "Dashboard",
+    href: "/app/company",
+    icon: BuildingOffice2Icon,
+    roles: ["company"],
+  },
+  {
+    name: "Candidates",
+    href: "/app/company/candidates",
+    icon: UsersIcon,
+    roles: ["company"],
+  },
+  {
+    name: "My Drives",
+    href: "/app/drives",
+    icon: RocketLaunchIcon,
+    roles: ["company"],
+  },
+  {
+    name: "Company Profile",
+    href: "/app/company/profile",
+    icon: UserCircleIcon,
+    roles: ["company"],
   },
 
   // ── Mentor Portal ─────────────────────────────────────────────────────────────

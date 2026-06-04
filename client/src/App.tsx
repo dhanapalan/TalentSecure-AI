@@ -99,6 +99,11 @@ const GamificationPage = lazy(() => import("./pages/student/GamificationPage"));
 const MentorDashboardPage = lazy(() => import("./pages/mentor/MentorDashboardPage"));
 const PlacementPage = lazy(() => import("./pages/hr/PlacementPage"));
 
+// ── Company Portal ────────────────────────────────────────────────────────────
+const CompanyDashboardPage   = lazy(() => import("./pages/company/CompanyDashboardPage"));
+const CompanyCandidatesPage  = lazy(() => import("./pages/company/CompanyCandidatesPage"));
+const CompanyProfilePage     = lazy(() => import("./pages/company/CompanyProfilePage"));
+
 const MockInterviewPage = lazy(() => import("./pages/student/MockInterviewPage"));
 const MockInterviewRoom = lazy(() => import("./pages/student/MockInterviewRoom"));
 const MockInterviewFeedbackPage = lazy(() => import("./pages/student/MockInterviewFeedbackPage"));
@@ -445,6 +450,32 @@ export default function App() {
                 element={
                   <RoleGuard allowed={["super_admin", "hr", "college_admin"]}>
                     <PlacementPage />
+                  </RoleGuard>
+                }
+              />
+
+              {/* ── Company Portal ──────────────────────────────────── */}
+              <Route
+                path="company"
+                element={
+                  <RoleGuard allowed={["company", "super_admin", "hr"]}>
+                    <CompanyDashboardPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="company/candidates"
+                element={
+                  <RoleGuard allowed={["company", "super_admin", "hr"]}>
+                    <CompanyCandidatesPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="company/profile"
+                element={
+                  <RoleGuard allowed={["company"]}>
+                    <CompanyProfilePage />
                   </RoleGuard>
                 }
               />

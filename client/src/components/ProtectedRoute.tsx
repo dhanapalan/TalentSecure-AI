@@ -15,7 +15,8 @@ export type AppRole =
   | "college_staff"
   | "student"
   | "instructor"
-  | "mentor";
+  | "mentor"
+  | "company";
 
 export type AppWorkflow = "admin" | "college" | "student" | "neutral";
 
@@ -142,6 +143,7 @@ export const ROLE_HOME: Record<AppRole, string> = {
   student: "/app/student-portal",
   instructor: "/app/lms/courses",
   mentor: "/app/mentor/students",
+  company: "/app/company",
 };
 
 /** Get the correct landing path for a user. */
