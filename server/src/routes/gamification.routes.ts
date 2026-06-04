@@ -78,10 +78,50 @@ export async function checkAndAwardBadges(
 ): Promise<string[]> {
   const awarded: string[] = [];
 
+  // Shared helper: insert badge row + notify + email (fire-and-forget email)
+  const awardBadge = async (
+    badge: Record<string, unknown>,
+    notificationSuffix: string,
+    sourceId?: string,
+  ) => {
+    const inserted = await queryOne(`
+      INSERT INTO student_badges (student_id, badge_id, source_id)
+      VALUES ($1, $2, $3)
+      ON CONFLICT DO NOTHING
+      RETURNING id
+    `, [studentId, badge.id, sourceId || null]);
+
+    if (!inserted) return; // already awarded
+
+    const slug   = badge.slug as string;
+    const name   = badge.name as string;
+    const icon   = (badge.icon as string) || "🏅";
+    const desc   = (badge.description as string) || "";
+    const reward = (badge.xp_reward as number) || 0;
+
+    awarded.push(slug);
+    await sendNotification(
+      studentId,
+      `Badge Unlocked: ${name}`,
+      reward > 0
+        ? `You earned the "${name}" badge ${icon} and received +${reward} XP!`
+        : `You earned the "${name}" badge ${icon}${notificationSuffix}`,
+      "success",
+    );
+
+    // Fire-and-forget email — look up student email once per badge
+    queryOne("SELECT name, email FROM users WHERE id = $1", [studentId]).then(u => {
+      if (u) sendBadgeEarnedEmail({
+        studentName: (u as any).name, studentEmail: (u as any).email, studentId,
+        badgeName: name, badgeIcon: icon, badgeDescription: desc, xpReward: reward,
+      }).catch(() => {});
+    }).catch(() => {});
+  };
+
   // Auto-award by trigger slug (milestone badges)
   if (context.triggerSlug) {
     const badge = await queryOne(
-      "SELECT id, name, icon, xp_reward FROM badge_definitions WHERE slug = $1 AND is_active = TRUE",
+      "SELECT id, slug, name, icon, description, xp_reward FROM badge_definitions WHERE slug = $1 AND is_active = TRUE",
       [context.triggerSlug]
     );
     if (badge) {
@@ -90,13 +130,7 @@ export async function checkAndAwardBadges(
         [studentId, (badge as any).id]
       );
       if (!existing) {
-        await queryOne(`
-          INSERT INTO student_badges (student_id, badge_id, source_id)
-          VALUES ($1, $2, $3)
-          ON CONFLICT DO NOTHING
-        `, [studentId, (badge as any).id, context.sourceId || null]);
-
-        const reward = (badge as any).xp_reward as number;
+        const reward = ((badge as any).xp_reward as number) || 0;
         if (reward > 0) {
           await queryOne(`
             INSERT INTO xp_transactions (student_id, points, source, description)
@@ -107,27 +141,7 @@ export async function checkAndAwardBadges(
             WHERE student_id = $2
           `, [reward, studentId]);
         }
-        awarded.push(context.triggerSlug);
-
-        // Notify student
-        const icon = (badge as any).icon || "🏅";
-        const name = (badge as any).name as string;
-        const desc = (badge as any).description as string || "";
-        await sendNotification(
-          studentId,
-          `Badge Unlocked: ${name}`,
-          reward > 0
-            ? `You earned the "${name}" badge ${icon} and received +${reward} XP!`
-            : `You earned the "${name}" badge ${icon}`,
-          "success"
-        );
-        // Send badge email (fire-and-forget — look up student email)
-        queryOne("SELECT name, email FROM users WHERE id = $1", [studentId]).then(u => {
-          if (u) sendBadgeEarnedEmail({
-            studentName: (u as any).name, studentEmail: (u as any).email, studentId,
-            badgeName: name, badgeIcon: icon, badgeDescription: desc, xpReward: reward,
-          }).catch(() => {});
-        }).catch(() => {});
+        await awardBadge(badge as Record<string, unknown>, "", context.sourceId);
       }
     }
   }
@@ -135,66 +149,33 @@ export async function checkAndAwardBadges(
   // Auto XP threshold badges
   if (context.newXp !== undefined) {
     const xpBadges = await query(
-      "SELECT id, slug, name, icon FROM badge_definitions WHERE criteria_type = 'auto_xp' AND criteria_value <= $1 AND is_active = TRUE",
+      "SELECT id, slug, name, icon, description, xp_reward FROM badge_definitions WHERE criteria_type = 'auto_xp' AND criteria_value <= $1 AND is_active = TRUE",
       [context.newXp]
     );
     for (const badge of xpBadges) {
-      const existing = await queryOne(
-        "SELECT id FROM student_badges WHERE student_id = $1 AND badge_id = $2",
-        [studentId, (badge as any).id]
-      );
-      if (!existing) {
-        await queryOne(`
-          INSERT INTO student_badges (student_id, badge_id) VALUES ($1, $2) ON CONFLICT DO NOTHING
-        `, [studentId, (badge as any).id]);
-        awarded.push((badge as any).slug);
-        await sendNotification(studentId, `Badge Unlocked: ${(badge as any).name}`,
-          `You earned the "${(badge as any).name}" badge ${(badge as any).icon || "⭐"} for your XP milestone!`, "success");
-      }
+      await awardBadge(badge as Record<string, unknown>, " for your XP milestone!");
     }
   }
 
   // Auto score badges
   if (context.scorePercent !== undefined) {
     const scoreBadges = await query(
-      "SELECT id, slug, name, icon FROM badge_definitions WHERE criteria_type = 'auto_score' AND criteria_value <= $1 AND is_active = TRUE",
+      "SELECT id, slug, name, icon, description, xp_reward FROM badge_definitions WHERE criteria_type = 'auto_score' AND criteria_value <= $1 AND is_active = TRUE",
       [context.scorePercent]
     );
     for (const badge of scoreBadges) {
-      const existing = await queryOne(
-        "SELECT id FROM student_badges WHERE student_id = $1 AND badge_id = $2",
-        [studentId, (badge as any).id]
-      );
-      if (!existing) {
-        await queryOne(`
-          INSERT INTO student_badges (student_id, badge_id) VALUES ($1, $2) ON CONFLICT DO NOTHING
-        `, [studentId, (badge as any).id]);
-        awarded.push((badge as any).slug);
-        await sendNotification(studentId, `Badge Unlocked: ${(badge as any).name}`,
-          `You earned the "${(badge as any).name}" badge ${(badge as any).icon || "🏆"} for your score!`, "success");
-      }
+      await awardBadge(badge as Record<string, unknown>, " for your score!");
     }
   }
 
   // Auto streak badges
   if (context.streakDays !== undefined) {
     const streakBadges = await query(
-      "SELECT id, slug, name, icon, xp_reward FROM badge_definitions WHERE criteria_type = 'auto_streak' AND criteria_value <= $1 AND is_active = TRUE",
+      "SELECT id, slug, name, icon, description, xp_reward FROM badge_definitions WHERE criteria_type = 'auto_streak' AND criteria_value <= $1 AND is_active = TRUE",
       [context.streakDays]
     );
     for (const badge of streakBadges) {
-      const existing = await queryOne(
-        "SELECT id FROM student_badges WHERE student_id = $1 AND badge_id = $2",
-        [studentId, (badge as any).id]
-      );
-      if (!existing) {
-        await queryOne(`
-          INSERT INTO student_badges (student_id, badge_id) VALUES ($1, $2) ON CONFLICT DO NOTHING
-        `, [studentId, (badge as any).id]);
-        awarded.push((badge as any).slug);
-        await sendNotification(studentId, `Badge Unlocked: ${(badge as any).name}`,
-          `You earned the "${(badge as any).name}" badge ${(badge as any).icon || "🔥"} for your streak!`, "success");
-      }
+      await awardBadge(badge as Record<string, unknown>, " for your streak!");
     }
   }
 

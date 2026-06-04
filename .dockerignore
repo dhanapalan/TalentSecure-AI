@@ -1,0 +1,40 @@
+# ── Version control ──────────────────────────────────────────────────────────
+.git
+.gitignore
+
+# ── Node deps (rebuilt inside image) ─────────────────────────────────────────
+node_modules
+server/node_modules
+client/node_modules
+
+# ── Build outputs ─────────────────────────────────────────────────────────────
+server/dist
+client/dist
+
+# ── Secrets & env files ───────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Dev & test artifacts ──────────────────────────────────────────────────────
+test-results
+backups
+tmp_*
+*.log
+
+# ── One-off scripts at repo root ──────────────────────────────────────────────
+checkStudents.ts
+check_*.js
+get_*.ts
+list_*.ts
+migrate_*.ts
+migrate_*.js
+nullability_output.txt
+campuses_output.txt
+openapi.json
+
+# ── Local dev tools ───────────────────────────────────────────────────────────
+deploy
+scripts
+README.md
+*.md

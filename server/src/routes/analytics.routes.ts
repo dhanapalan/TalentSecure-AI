@@ -188,6 +188,11 @@ router.get("/cohort", authorize(...ADMIN_ROLES), async (req, res, next) => {
   try {
     const { group_by = "college" } = req.query as Record<string, string>;
 
+    const VALID_GROUP_BY = ["college", "degree", "year"] as const;
+    if (!VALID_GROUP_BY.includes(group_by as typeof VALID_GROUP_BY[number])) {
+      return res.status(400).json({ error: `Invalid group_by. Must be one of: ${VALID_GROUP_BY.join(", ")}` });
+    }
+
     let groupExpr = "";
     let labelExpr = "";
 
@@ -198,7 +203,6 @@ router.get("/cohort", authorize(...ADMIN_ROLES), async (req, res, next) => {
       groupExpr = "COALESCE(sd.passing_year::text, 'Unknown')";
       labelExpr = "COALESCE(sd.passing_year::text, 'Unknown') AS label";
     } else {
-      // Default: group by college
       groupExpr = "c.id::text";
       labelExpr = "COALESCE(c.name, 'Unknown') AS label";
     }
@@ -294,8 +298,9 @@ router.get("/readiness", authorize(...ADMIN_ROLES), async (req, res, next) => {
       ? (readinessParams.push(college_id), `AND COALESCE(u.college_id, sd.college_id) = $${readinessParams.length}`)
       : "";
 
-    readinessParams.push(parseInt(limit), parseInt(offset));
-    const limitIdx = readinessParams.length - 1;
+    readinessParams.push(parseInt(limit));
+    const limitIdx = readinessParams.length;
+    readinessParams.push(parseInt(offset));
     const offsetIdx = readinessParams.length;
 
     const rows = await query(`

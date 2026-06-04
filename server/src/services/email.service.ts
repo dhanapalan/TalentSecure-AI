@@ -15,6 +15,15 @@ const transporter = nodemailer.createTransport({
   auth: { user: env.SMTP_USER, pass: env.SMTP_PASS },
 });
 
+function esc(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 // =============================================================================
 // CORE SEND + AUDIT LOG
 // =============================================================================
@@ -36,23 +45,25 @@ export async function sendEmail({
   recipientId?: string;
   refId?: string;
 }) {
-  // Audit log (best-effort — don't fail if table not ready)
-  try {
-    await queryOne(
-      `INSERT INTO email_logs (recipient_id, to_email, subject, template, ref_id, status)
-       VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING`,
-      [recipientId || null, to, subject, template, refId || null, "sent"]
-    );
-  } catch { /* table may not exist yet in older deploys */ }
-
   if (!env.SMTP_USER || !env.SMTP_PASS) {
     logger.info("── SIMULATED EMAIL ──");
     logger.info(`To:      ${to}`);
     logger.info(`Subject: ${subject}`);
     logger.info(`Body:    ${text}`);
     logger.info("─────────────────────");
+    // Audit log with simulated status
+    try {
+      await queryOne(
+        `INSERT INTO email_logs (recipient_id, to_email, subject, template, ref_id, status)
+         VALUES ($1, $2, $3, $4, $5, 'simulated') ON CONFLICT DO NOTHING`,
+        [recipientId || null, to, subject, template, refId || null]
+      );
+    } catch { /* table may not exist yet in older deploys */ }
     return;
   }
+
+  let status = "sent";
+  let errorMsg: string | null = null;
 
   try {
     const info = await transporter.sendMail({
@@ -63,10 +74,27 @@ export async function sendEmail({
       html,
     });
     logger.info(`Email sent [${template}]: ${info.messageId}`);
+    // Audit log after successful send
+    try {
+      await queryOne(
+        `INSERT INTO email_logs (recipient_id, to_email, subject, template, ref_id, status)
+         VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING`,
+        [recipientId || null, to, subject, template, refId || null, status]
+      );
+    } catch { /* best-effort */ }
     return info;
   } catch (error) {
+    status = "failed";
+    errorMsg = error instanceof Error ? error.message : String(error);
     logger.error(`Failed to send email [${template}] to ${to}:`, error);
-    // Log failure but don't throw — email should never crash a request
+    // Audit log the failure with error detail
+    try {
+      await queryOne(
+        `INSERT INTO email_logs (recipient_id, to_email, subject, template, ref_id, status, error)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING`,
+        [recipientId || null, to, subject, template, refId || null, status, errorMsg]
+      );
+    } catch { /* best-effort */ }
   }
 }
 
@@ -106,12 +134,12 @@ export async function sendCampusAdminInvitation({
   const text = `Hi ${adminName}, you have been appointed Campus Admin for ${campusName}. Email: ${adminEmail}, Password: ${temporaryPassword}. Login: ${loginUrl}`;
   const html = emailHtml(
     `Welcome to GradLogic`,
-    `<p>Hi <strong>${adminName}</strong>,</p>
-     <p>You have been appointed as the Campus Admin for <strong>${campusName}</strong>.</p>
+    `<p>Hi <strong>${esc(adminName)}</strong>,</p>
+     <p>You have been appointed as the Campus Admin for <strong>${esc(campusName)}</strong>.</p>
      <div style="background:#f8fafc;padding:16px;border-radius:8px;margin:16px 0;">
        <p style="margin:0;font-size:13px;color:#64748b;">Login credentials:</p>
-       <p style="margin:8px 0 0;"><strong>Email:</strong> ${adminEmail}</p>
-       <p style="margin:4px 0 0;"><strong>Temporary Password:</strong> <code style="background:#e2e8f0;padding:2px 6px;border-radius:4px;">${temporaryPassword}</code></p>
+       <p style="margin:8px 0 0;"><strong>Email:</strong> ${esc(adminEmail)}</p>
+       <p style="margin:4px 0 0;"><strong>Temporary Password:</strong> <code style="background:#e2e8f0;padding:2px 6px;border-radius:4px;">${esc(temporaryPassword)}</code></p>
      </div>
      <p style="font-size:13px;color:#64748b;">You will be asked to change your password on first login.</p>`,
     loginUrl, "Access Campus Portal"
@@ -134,12 +162,12 @@ export async function sendDriveInviteEmail({
   const subject = `You're invited: ${driveName}`;
   const text = `Hi ${studentName}, you have been invited to participate in "${driveName}"${companyName ? ` by ${companyName}` : ""}${driveDate ? ` scheduled for ${driveDate}` : ""}. Log in to your portal to view details: ${portalUrl}`;
   const html = emailHtml(
-    `Assessment Invite: ${driveName}`,
-    `<p>Hi <strong>${studentName}</strong>,</p>
+    `Assessment Invite: ${esc(driveName)}`,
+    `<p>Hi <strong>${esc(studentName)}</strong>,</p>
      <p>You have been selected to participate in an upcoming assessment drive.</p>
      <div style="background:#f0f4ff;padding:16px;border-radius:8px;margin:16px 0;border-left:4px solid #4f46e5;">
-       <p style="margin:0;font-weight:600;font-size:16px;">${driveName}</p>
-       ${companyName ? `<p style="margin:6px 0 0;color:#4f46e5;">📋 ${companyName}</p>` : ""}
+       <p style="margin:0;font-weight:600;font-size:16px;">${esc(driveName)}</p>
+       ${companyName ? `<p style="margin:6px 0 0;color:#4f46e5;">📋 ${esc(companyName)}</p>` : ""}
        ${driveDate ? `<p style="margin:6px 0 0;color:#64748b;">📅 ${new Date(driveDate).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>` : ""}
      </div>
      <p>Log in to your student portal to view the drive details, instructions, and prepare accordingly.</p>`,
@@ -164,11 +192,11 @@ export async function sendShortlistEmail({
   const text = `Hi ${studentName}, great news! You have been shortlisted for ${driveName}${companyName ? ` at ${companyName}` : ""}. Log in to your portal for next steps: ${portalUrl}`;
   const html = emailHtml(
     `You've been Shortlisted! 🎉`,
-    `<p>Hi <strong>${studentName}</strong>,</p>
+    `<p>Hi <strong>${esc(studentName)}</strong>,</p>
      <p>Congratulations! You have been <strong>shortlisted</strong> for the following drive:</p>
      <div style="background:#f0fdf4;padding:16px;border-radius:8px;margin:16px 0;border-left:4px solid #22c55e;">
-       <p style="margin:0;font-weight:600;font-size:16px;">${driveName}</p>
-       ${companyName ? `<p style="margin:6px 0 0;color:#22c55e;">🏢 ${companyName}</p>` : ""}
+       <p style="margin:0;font-weight:600;font-size:16px;">${esc(driveName)}</p>
+       ${companyName ? `<p style="margin:6px 0 0;color:#22c55e;">🏢 ${esc(companyName)}</p>` : ""}
      </div>
      <p>Keep an eye on your portal for interview scheduling and further updates.</p>`,
     portalUrl, "View My Status"
@@ -192,12 +220,12 @@ export async function sendInterviewScheduledEmail({
   const text = `Hi ${studentName}, your interview for ${driveName}${companyName ? ` at ${companyName}` : ""} has been scheduled for ${interviewDate}. Log in to your portal for details: ${portalUrl}`;
   const html = emailHtml(
     `Interview Scheduled 📅`,
-    `<p>Hi <strong>${studentName}</strong>,</p>
+    `<p>Hi <strong>${esc(studentName)}</strong>,</p>
      <p>Your interview has been scheduled. Here are the details:</p>
      <div style="background:#fffbeb;padding:16px;border-radius:8px;margin:16px 0;border-left:4px solid #f59e0b;">
-       <p style="margin:0;font-weight:600;">${driveName}</p>
-       ${companyName ? `<p style="margin:6px 0 0;">🏢 ${companyName}</p>` : ""}
-       <p style="margin:6px 0 0;font-size:15px;font-weight:600;color:#d97706;">📅 ${interviewDate}</p>
+       <p style="margin:0;font-weight:600;">${esc(driveName)}</p>
+       ${companyName ? `<p style="margin:6px 0 0;">🏢 ${esc(companyName)}</p>` : ""}
+       <p style="margin:6px 0 0;font-size:15px;font-weight:600;color:#d97706;">📅 ${esc(interviewDate)}</p>
      </div>
      <p>Make sure to prepare well. Check your portal for any additional instructions.</p>`,
     portalUrl, "Prepare Now"
@@ -221,11 +249,11 @@ export async function sendOfferEmail({
   const text = `Hi ${studentName}, congratulations! An offer has been released for you from ${companyName || driveName}. Log in to your portal to view details: ${portalUrl}`;
   const html = emailHtml(
     `Offer Released — Congratulations! 🎊`,
-    `<p>Hi <strong>${studentName}</strong>,</p>
+    `<p>Hi <strong>${esc(studentName)}</strong>,</p>
      <p>We are thrilled to inform you that an <strong>offer has been released</strong> for you!</p>
      <div style="background:#fdf4ff;padding:16px;border-radius:8px;margin:16px 0;border-left:4px solid #a855f7;">
-       ${companyName ? `<p style="margin:0;font-weight:700;font-size:18px;color:#7e22ce;">🏢 ${companyName}</p>` : ""}
-       <p style="margin:6px 0 0;">${driveName}</p>
+       ${companyName ? `<p style="margin:0;font-weight:700;font-size:18px;color:#7e22ce;">🏢 ${esc(companyName)}</p>` : ""}
+       <p style="margin:6px 0 0;">${esc(driveName)}</p>
      </div>
      <p>Please log in to your portal to view the full offer details and next steps.</p>
      <p style="font-size:13px;color:#64748b;">Congratulations on this achievement — your hard work paid off!</p>`,
@@ -250,12 +278,12 @@ export async function sendPlacementConfirmedEmail({
   const text = `Hi ${studentName}, your placement at ${companyName}${roleTitle ? ` as ${roleTitle}` : ""}${packageLpa ? ` with a package of ₹${packageLpa} LPA` : ""} has been recorded. Congratulations!`;
   const html = emailHtml(
     `Placement Confirmed 🎓`,
-    `<p>Hi <strong>${studentName}</strong>,</p>
+    `<p>Hi <strong>${esc(studentName)}</strong>,</p>
      <p>Congratulations! Your placement has been officially confirmed and recorded.</p>
      <div style="background:#f0fdf4;padding:20px;border-radius:8px;margin:16px 0;border-left:4px solid #16a34a;text-align:center;">
-       <p style="margin:0;font-size:22px;font-weight:800;color:#15803d;">🎊 ${companyName}</p>
-       ${roleTitle ? `<p style="margin:8px 0 0;font-size:15px;color:#166534;">${roleTitle}</p>` : ""}
-       ${packageLpa ? `<p style="margin:6px 0 0;font-size:18px;font-weight:700;color:#16a34a;">₹${packageLpa} LPA</p>` : ""}
+       <p style="margin:0;font-size:22px;font-weight:800;color:#15803d;">🎊 ${esc(companyName)}</p>
+       ${roleTitle ? `<p style="margin:8px 0 0;font-size:15px;color:#166534;">${esc(roleTitle)}</p>` : ""}
+       ${packageLpa ? `<p style="margin:6px 0 0;font-size:18px;font-weight:700;color:#16a34a;">₹${esc(packageLpa)}</p>` : ""}
      </div>
      <p>Wishing you the very best in your new role. Keep in touch!</p>`,
     portalUrl, "My Portal"
@@ -278,14 +306,14 @@ export async function sendBadgeEarnedEmail({
   const subject = `New Badge Unlocked: ${badgeName} ${badgeIcon}`;
   const text = `Hi ${studentName}, you just earned the "${badgeName}" badge! ${badgeDescription}${xpReward > 0 ? ` You received +${xpReward} XP.` : ""} View your achievements: ${portalUrl}`;
   const html = emailHtml(
-    `New Badge Unlocked! ${badgeIcon}`,
-    `<p>Hi <strong>${studentName}</strong>,</p>
+    `New Badge Unlocked! ${esc(badgeIcon)}`,
+    `<p>Hi <strong>${esc(studentName)}</strong>,</p>
      <p>You just earned a new badge on GradLogic — keep it up!</p>
      <div style="background:#f5f3ff;padding:24px;border-radius:12px;margin:16px 0;text-align:center;border:2px solid #e0d9ff;">
-       <div style="font-size:48px;">${badgeIcon}</div>
-       <p style="margin:8px 0 0;font-size:18px;font-weight:700;color:#4f46e5;">${badgeName}</p>
-       <p style="margin:6px 0 0;color:#64748b;font-size:13px;">${badgeDescription}</p>
-       ${xpReward > 0 ? `<p style="margin:10px 0 0;font-size:15px;font-weight:600;color:#7c3aed;">+${xpReward} XP Bonus</p>` : ""}
+       <div style="font-size:48px;">${esc(badgeIcon)}</div>
+       <p style="margin:8px 0 0;font-size:18px;font-weight:700;color:#4f46e5;">${esc(badgeName)}</p>
+       <p style="margin:6px 0 0;color:#64748b;font-size:13px;">${esc(badgeDescription)}</p>
+       ${xpReward > 0 ? `<p style="margin:10px 0 0;font-size:15px;font-weight:600;color:#7c3aed;">+${esc(xpReward)} XP Bonus</p>` : ""}
      </div>`,
     portalUrl, "View Achievements"
   );
@@ -306,15 +334,15 @@ export async function sendMentorFeedbackEmail({
   const portalUrl = `${env.CLIENT_URL}/app/student-portal/development`;
   const subject = `Session Feedback from ${mentorName}`;
   const actionHtml = actionItems?.length
-    ? `<div style="margin-top:12px;"><p style="margin:0;font-weight:600;font-size:13px;color:#374151;">Action Items:</p><ul style="margin:8px 0 0;padding-left:20px;">${actionItems.map(a => `<li style="margin:4px 0;font-size:13px;">${a.task}${a.due_date ? ` <span style="color:#94a3b8;">(by ${a.due_date})</span>` : ""}</li>`).join("")}</ul></div>`
+    ? `<div style="margin-top:12px;"><p style="margin:0;font-weight:600;font-size:13px;color:#374151;">Action Items:</p><ul style="margin:8px 0 0;padding-left:20px;">${actionItems.map(a => `<li style="margin:4px 0;font-size:13px;">${esc(a.task)}${a.due_date ? ` <span style="color:#94a3b8;">(by ${esc(a.due_date)})</span>` : ""}</li>`).join("")}</ul></div>`
     : "";
   const text = `Hi ${studentName}, your mentor ${mentorName} shared feedback: ${feedback}${actionItems?.length ? ` Action items: ${actionItems.map(a => a.task).join(", ")}` : ""}`;
   const html = emailHtml(
     `Mentor Feedback`,
-    `<p>Hi <strong>${studentName}</strong>,</p>
-     <p>Your mentor <strong>${mentorName}</strong> has shared feedback from your recent session.</p>
+    `<p>Hi <strong>${esc(studentName)}</strong>,</p>
+     <p>Your mentor <strong>${esc(mentorName)}</strong> has shared feedback from your recent session.</p>
      <div style="background:#f8fafc;padding:16px;border-radius:8px;margin:16px 0;border-left:4px solid #4f46e5;">
-       <p style="margin:0;font-style:italic;color:#374151;">"${feedback}"</p>
+       <p style="margin:0;font-style:italic;color:#374151;">"${esc(feedback)}"</p>
        ${actionHtml}
      </div>
      <p style="font-size:13px;color:#64748b;">Keep working on the action items to stay on track!</p>`,

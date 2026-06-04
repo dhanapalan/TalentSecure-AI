@@ -90,24 +90,10 @@ router.post("/", authorize(...ADMIN_ROLES), async (req, res, next) => {
     );
     if (!studentInfo) return res.status(404).json({ error: "Student not found" });
 
-    const placement = await queryOne(`
-      INSERT INTO placement_records
-        (student_id, drive_id, college_id, company_name, role_title, package_lpa,
-         offer_type, placed_at, joining_date, placed_by, notes)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-      ON CONFLICT (student_id, drive_id) DO UPDATE SET
-        company_name  = EXCLUDED.company_name,
-        role_title    = EXCLUDED.role_title,
-        package_lpa   = EXCLUDED.package_lpa,
-        offer_type    = EXCLUDED.offer_type,
-        placed_at     = EXCLUDED.placed_at,
-        joining_date  = EXCLUDED.joining_date,
-        notes         = EXCLUDED.notes,
-        updated_at    = NOW()
-      RETURNING *
-    `, [
+    const resolvedDriveId = drive_id || null;
+    const vals = [
       student_id,
-      drive_id || null,
+      resolvedDriveId,
       (studentInfo as any).college_id || null,
       company_name,
       role_title || null,
@@ -117,13 +103,36 @@ router.post("/", authorize(...ADMIN_ROLES), async (req, res, next) => {
       joining_date || null,
       req.user!.userId,
       notes || null,
-    ]);
+    ];
 
-    // Update student_details placement_status
+    // Partial unique indexes require separate ON CONFLICT predicates for
+    // drive-linked vs direct (NULL drive_id) placements.
+    const conflictClause = resolvedDriveId
+      ? `ON CONFLICT (student_id, drive_id) WHERE drive_id IS NOT NULL DO UPDATE SET
+           company_name = EXCLUDED.company_name, role_title = EXCLUDED.role_title,
+           package_lpa = EXCLUDED.package_lpa, offer_type = EXCLUDED.offer_type,
+           placed_at = EXCLUDED.placed_at, joining_date = EXCLUDED.joining_date,
+           notes = EXCLUDED.notes, updated_at = NOW()`
+      : `ON CONFLICT (student_id) WHERE drive_id IS NULL DO UPDATE SET
+           company_name = EXCLUDED.company_name, role_title = EXCLUDED.role_title,
+           package_lpa = EXCLUDED.package_lpa, offer_type = EXCLUDED.offer_type,
+           placed_at = EXCLUDED.placed_at, joining_date = EXCLUDED.joining_date,
+           notes = EXCLUDED.notes, updated_at = NOW()`;
+
+    const placement = await queryOne(`
+      INSERT INTO placement_records
+        (student_id, drive_id, college_id, company_name, role_title, package_lpa,
+         offer_type, placed_at, joining_date, placed_by, notes)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      ${conflictClause}
+      RETURNING *
+    `, vals);
+
+    // Best-effort: update placement_status if that column exists in the deployed schema
     await queryOne(
       "UPDATE student_details SET placement_status = 'Placed', offer_released = TRUE WHERE user_id = $1",
       [student_id]
-    );
+    ).catch(() => {});
 
     // Notify + email student
     const s = studentInfo as any;
@@ -142,24 +151,29 @@ router.post("/", authorize(...ADMIN_ROLES), async (req, res, next) => {
 
 /**
  * PUT /api/placements/:id
- * Update a placement record
+ * Update a placement record. Explicitly passing null clears a nullable field.
  */
 router.put("/:id", authorize(...ADMIN_ROLES), async (req, res, next) => {
   try {
-    const { company_name, role_title, package_lpa, offer_type, placed_at, joining_date, notes } = req.body;
+    const allowed = ["company_name", "role_title", "package_lpa", "offer_type", "placed_at", "joining_date", "notes"] as const;
+    const sets: string[] = [];
+    const vals: unknown[] = [];
+
+    for (const key of allowed) {
+      if (key in req.body) {
+        vals.push(req.body[key] ?? null);
+        sets.push(`${key} = $${vals.length}`);
+      }
+    }
+
+    if (!sets.length) return res.status(400).json({ error: "No updatable fields provided" });
+
+    vals.push(req.params.id);
     const updated = await queryOne(`
-      UPDATE placement_records SET
-        company_name = COALESCE($1, company_name),
-        role_title   = COALESCE($2, role_title),
-        package_lpa  = COALESCE($3, package_lpa),
-        offer_type   = COALESCE($4, offer_type),
-        placed_at    = COALESCE($5, placed_at),
-        joining_date = COALESCE($6, joining_date),
-        notes        = COALESCE($7, notes),
-        updated_at   = NOW()
-      WHERE id = $8
+      UPDATE placement_records SET ${sets.join(", ")}, updated_at = NOW()
+      WHERE id = $${vals.length}
       RETURNING *
-    `, [company_name, role_title, package_lpa, offer_type, placed_at, joining_date, notes, req.params.id]);
+    `, vals);
 
     if (!updated) return res.status(404).json({ error: "Placement not found" });
     res.json({ success: true, data: updated });
@@ -171,7 +185,8 @@ router.put("/:id", authorize(...ADMIN_ROLES), async (req, res, next) => {
  */
 router.delete("/:id", authorize("super_admin", "hr"), async (req, res, next) => {
   try {
-    await queryOne("DELETE FROM placement_records WHERE id = $1", [req.params.id]);
+    const deleted = await queryOne("DELETE FROM placement_records WHERE id = $1 RETURNING id", [req.params.id]);
+    if (!deleted) return res.status(404).json({ error: "Placement not found" });
     res.json({ success: true });
   } catch (err) { next(err); }
 });

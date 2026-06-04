@@ -11,12 +11,14 @@ services:
       - "${TS_POSTGRES_PORT:-5433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./docker/init-db:/docker-entrypoint-initdb.d  # Auto-run schema on first start
+      - ./docker/init-db:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U talentsecure -d talentsecure_db"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - talentsecure
 
   # ── Redis 7 ─────────────────────────────────────────────────────────────────
   redis:
@@ -31,10 +33,12 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - talentsecure
 
   # ── MinIO (S3-compatible storage) ──────────────────────────────────────────
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2024-11-07T00-52-20Z
     container_name: talentsecure-minio
     command: server /data --console-address ":9001"
     environment:
@@ -45,6 +49,13 @@ services:
       - "9001:9001"   # Web Console
     volumes:
       - miniodata:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - talentsecure
 
   # ── API Server (Node.js / Express) ─────────────────────────────────────────
   api:
@@ -68,8 +79,10 @@ services:
       redis:
         condition: service_healthy
       minio:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
+    networks:
+      - talentsecure
 
   # ── AI / CV Engine (Python / FastAPI) ──────────────────────────────────────
   ai-engine:
@@ -85,6 +98,8 @@ services:
     depends_on:
       - api
     restart: unless-stopped
+    networks:
+      - talentsecure
 
   # ── Client (React / Vite → nginx) ─────────────────────────────────────────
   client:
@@ -99,6 +114,8 @@ services:
     depends_on:
       - api
     restart: unless-stopped
+    networks:
+      - talentsecure
 
   # ── Judge0 CE (Code Execution Sandbox) ─────────────────────────────────────
   judge0:
@@ -119,6 +136,8 @@ services:
         condition: service_healthy
     restart: unless-stopped
     privileged: true
+    networks:
+      - judge0
 
   judge0-postgres:
     image: postgres:16-alpine
@@ -134,6 +153,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - judge0
 
   judge0-redis:
     image: redis:7-alpine
@@ -145,6 +166,14 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - judge0
+
+networks:
+  talentsecure:
+    driver: bridge
+  judge0:
+    driver: bridge
 
 volumes:
   pgdata:

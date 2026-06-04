@@ -185,25 +185,26 @@ router.post("/sessions", authorize("mentor"), async (req, res, next) => {
       session_date || new Date().toISOString().slice(0, 10),
     ]);
 
-    // Notify + email student if feedback is shared
+    // Notify + email student if feedback is shared (fire-and-forget — session already committed)
     if (feedback) {
-      const [mentor, studentUser] = await Promise.all([
+      Promise.all([
         queryOne("SELECT name FROM users WHERE id = $1", [mentorId]),
         queryOne("SELECT name, email FROM users WHERE id = $1", [student_id]),
-      ]);
-      const mentorName = (mentor as any)?.name as string;
-      await sendNotification(student_id, "Mentor Feedback",
-        `${mentorName} shared feedback from your session.`, "success");
-      if (studentUser) {
-        sendMentorFeedbackEmail({
-          studentName: (studentUser as any).name,
-          studentEmail: (studentUser as any).email,
-          studentId: student_id,
-          mentorName,
-          feedback,
-          actionItems: action_items,
-        }).catch(() => {});
-      }
+      ]).then(async ([mentor, studentUser]) => {
+        const mentorName = (mentor as any)?.name as string ?? "";
+        await sendNotification(student_id, "Mentor Feedback",
+          `${mentorName} shared feedback from your session.`, "success");
+        if (studentUser) {
+          sendMentorFeedbackEmail({
+            studentName: (studentUser as any).name,
+            studentEmail: (studentUser as any).email,
+            studentId: student_id,
+            mentorName,
+            feedback,
+            actionItems: action_items,
+          }).catch(() => {});
+        }
+      }).catch(() => {});
     }
 
     res.status(201).json({ success: true, data: session });
