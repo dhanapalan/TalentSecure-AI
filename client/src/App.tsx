@@ -103,6 +103,7 @@ const PlacementPage = lazy(() => import("./pages/hr/PlacementPage"));
 const CompanyDashboardPage   = lazy(() => import("./pages/company/CompanyDashboardPage"));
 const CompanyCandidatesPage  = lazy(() => import("./pages/company/CompanyCandidatesPage"));
 const CompanyProfilePage     = lazy(() => import("./pages/company/CompanyProfilePage"));
+const JDExtractPage          = lazy(() => import("./pages/company/JDExtractPage"));
 
 const MockInterviewPage = lazy(() => import("./pages/student/MockInterviewPage"));
 const MockInterviewRoom = lazy(() => import("./pages/student/MockInterviewRoom"));
@@ -476,6 +477,14 @@ export default function App() {
                 element={
                   <RoleGuard allowed={["company"]}>
                     <CompanyProfilePage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="company/jd-extract"
+                element={
+                  <RoleGuard allowed={["company", "super_admin", "hr", "engineer"]}>
+                    <JDExtractPage />
                   </RoleGuard>
                 }
               />

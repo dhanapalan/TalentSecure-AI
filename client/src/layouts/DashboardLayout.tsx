@@ -65,6 +65,12 @@ const navigation: NavItem[] = [
     icon: ClipboardDocumentListIcon,
     roles: ["super_admin", "hr", "engineer"],
   },
+  {
+    name: "JD Extractor",
+    href: "/app/company/jd-extract",
+    icon: SparklesIcon,
+    roles: ["super_admin", "hr", "engineer"],
+  },
   // 4. Create and manage assessment drives
   {
     name: "Drives",
@@ -229,6 +235,12 @@ const navigation: NavItem[] = [
     name: "My Drives",
     href: "/app/drives",
     icon: RocketLaunchIcon,
+    roles: ["company"],
+  },
+  {
+    name: "JD Extractor",
+    href: "/app/company/jd-extract",
+    icon: SparklesIcon,
     roles: ["company"],
   },
   {

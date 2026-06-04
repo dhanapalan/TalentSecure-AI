@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router";
+import { useParams, useNavigate, useLocation } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
     ArrowLeft,
@@ -13,6 +13,10 @@ import {
     Database,
     Target,
     FileCheck,
+    FileText,
+    Sparkles,
+    Loader2,
+    X,
 } from "lucide-react";
 import api from "../../lib/api";
 import toast from "react-hot-toast";
@@ -125,10 +129,26 @@ const STEPS = [
 export default function RuleWizardPage() {
     const { id } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const isEdit = !!id && id !== "new";
 
     const [currentStep, setCurrentStep] = useState(0);
-    const [form, setForm] = useState<RuleFormData>({ ...initialForm });
+    const [form, setForm] = useState<RuleFormData>(() => {
+        // Pre-fill from JD extraction if navigated from JDExtractPage
+        const prefill = (location.state as any)?.prefill;
+        if (prefill && !isEdit) {
+            return {
+                ...initialForm,
+                name: prefill.name ?? initialForm.name,
+                target_role: prefill.target_role ?? initialForm.target_role,
+                skill_distribution: prefill.skill_distribution ?? initialForm.skill_distribution,
+                difficulty_distribution: prefill.difficulty_distribution ?? initialForm.difficulty_distribution,
+                duration_minutes: prefill.duration_minutes ?? initialForm.duration_minutes,
+                total_questions: prefill.total_questions ?? initialForm.total_questions,
+            };
+        }
+        return { ...initialForm };
+    });
     const [saving, setSaving] = useState(false);
 
     // Fetch existing rule if editing
@@ -359,6 +379,11 @@ function StepBasic({ form, updateField }: { form: RuleFormData; updateField: any
 }
 
 function StepSkills({ form, updateField, total }: { form: RuleFormData; updateField: any; total: number }) {
+    const [showJD, setShowJD] = useState(false);
+    const [jdText, setJdText] = useState("");
+    const [extracting, setExtracting] = useState(false);
+    const [jdError, setJdError] = useState("");
+
     const updateSkill = (key: string, val: number) => {
         updateField("skill_distribution", { ...form.skill_distribution, [key]: val });
     };
@@ -374,16 +399,81 @@ function StepSkills({ form, updateField, total }: { form: RuleFormData; updateFi
         updateField("skill_distribution", next);
     };
 
+    const extractFromJD = async () => {
+        if (!jdText.trim()) { setJdError("Paste a job description first."); return; }
+        setJdError("");
+        setExtracting(true);
+        try {
+            const res = await api.post("/company/jd/extract", { jd_text: jdText });
+            const data = res.data.data;
+            updateField("skill_distribution", data.skill_distribution);
+            if (data.difficulty_mix) updateField("difficulty_distribution", data.difficulty_mix);
+            if (data.suggested_duration_minutes) updateField("duration_minutes", data.suggested_duration_minutes);
+            if (data.suggested_total_questions) updateField("total_questions", data.suggested_total_questions);
+            setShowJD(false);
+            setJdText("");
+            toast.success(`Skills extracted from JD for "${data.role_title}"`);
+        } catch (e: any) {
+            setJdError(e.response?.data?.error || "Extraction failed");
+        } finally {
+            setExtracting(false);
+        }
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                     <Brain className="h-5 w-5 text-amber-500" /> Skill Distribution
                 </h2>
-                <div className={`px-4 py-2 rounded-xl text-sm font-bold ${total === 100 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
-                    Total: {total}% {total === 100 ? "✓" : "(must be 100%)"}
+                <div className="flex items-center gap-3">
+                    <button
+                        type="button"
+                        onClick={() => setShowJD(v => !v)}
+                        className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-xl transition-colors"
+                    >
+                        <FileText className="h-3.5 w-3.5" /> Parse from JD
+                    </button>
+                    <div className={`px-4 py-2 rounded-xl text-sm font-bold ${total === 100 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
+                        Total: {total}% {total === 100 ? "✓" : "(must be 100%)"}
+                    </div>
                 </div>
             </div>
+
+            {/* Inline JD import panel */}
+            {showJD && (
+                <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                        <p className="text-xs font-black text-indigo-700 flex items-center gap-1.5">
+                            <Sparkles className="h-3.5 w-3.5" /> Extract skills from Job Description
+                        </p>
+                        <button onClick={() => { setShowJD(false); setJdText(""); setJdError(""); }} className="text-indigo-400 hover:text-indigo-600">
+                            <X className="h-4 w-4" />
+                        </button>
+                    </div>
+                    <textarea
+                        value={jdText}
+                        onChange={e => { setJdText(e.target.value); setJdError(""); }}
+                        rows={6}
+                        placeholder="Paste the full job description here…"
+                        className="w-full px-3 py-2.5 bg-white border border-indigo-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none"
+                    />
+                    {jdError && <p className="text-xs text-rose-500">{jdError}</p>}
+                    <div className="flex justify-end">
+                        <button
+                            type="button"
+                            onClick={extractFromJD}
+                            disabled={extracting || !jdText.trim()}
+                            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors"
+                        >
+                            {extracting
+                                ? <><Loader2 className="h-4 w-4 animate-spin" /> Extracting…</>
+                                : <><Sparkles className="h-4 w-4" /> Extract & Apply</>}
+                        </button>
+                    </div>
+                    <p className="text-[10px] text-indigo-400">This will replace the current skill distribution and update duration/question count.</p>
+                </div>
+            )}
 
             <div className="space-y-4">
                 {Object.entries(form.skill_distribution).map(([skill, pct]) => (

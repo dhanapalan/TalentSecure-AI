@@ -6,11 +6,17 @@
 // GET    /api/company/drives                   drives owned by this company
 // GET    /api/company/candidates               all candidates across own drives
 // PUT    /api/company/candidates/:dsId/stage   move candidate through pipeline
+// POST   /api/company/jd/extract               Claude JD → skill distribution
 // =============================================================================
 
+import Anthropic from "@anthropic-ai/sdk";
 import { Router } from "express";
 import { authenticate, authorize } from "../middleware/auth.js";
 import { query, queryOne } from "../config/database.js";
+import { env } from "../config/env.js";
+import { logger } from "../config/logger.js";
+
+const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 
 const router = Router();
 router.use(authenticate);
@@ -235,6 +241,114 @@ router.put("/candidates/:dsId/stage", async (req, res, next) => {
 
     res.json({ success: true, data: row });
   } catch (err) { next(err); }
+});
+
+// ── POST /jd/extract ─────────────────────────────────────────────────────────
+// Accept JD text, run Claude extraction, return structured skill distribution.
+// The client uses this to pre-fill the Assessment Rule Wizard.
+router.post("/jd/extract", authorize("company", "super_admin", "hr", "engineer"), async (req, res, next) => {
+  try {
+    const { jd_text } = req.body;
+    if (!jd_text?.trim()) return res.status(400).json({ error: "jd_text is required" });
+    if (jd_text.length > 20_000) return res.status(400).json({ error: "JD text too long (max 20 000 chars)" });
+
+    if (!env.ANTHROPIC_API_KEY) {
+      return res.status(503).json({ error: "AI extraction not configured (ANTHROPIC_API_KEY missing)" });
+    }
+
+    const prompt = `You are an expert technical recruiter and assessment designer.
+Analyse the job description below and extract the skills needed for a technical screening assessment.
+
+Job Description:
+${jd_text.trim()}
+
+Respond ONLY with a valid JSON object using this exact structure:
+{
+  "role_title": "<extracted job title>",
+  "experience_level": "fresher|junior|mid|senior|lead",
+  "skill_distribution": {
+    "<category>": <integer 0–100>
+  },
+  "difficulty_mix": {
+    "Easy": <integer>,
+    "Medium": <integer>,
+    "Hard": <integer>
+  },
+  "key_requirements": ["<requirement>"],
+  "suggested_duration_minutes": <integer>,
+  "suggested_total_questions": <integer>
+}
+
+Rules for skill_distribution:
+- Use ONLY these category names (choose the most relevant 3–6):
+  "Reasoning", "Maths", "Aptitude", "Data Structures", "Programming",
+  "Python Coding", "Java Coding", "Data Science"
+- Percentages must sum to exactly 100
+- Reflect what the JD actually requires
+
+Rules for difficulty_mix:
+- Easy + Medium + Hard must sum to exactly 100
+- Adjust based on experience_level (fresher = more easy, senior = more hard)
+
+Rules for key_requirements:
+- 3–5 bullet points summarising the must-have technical skills
+
+suggested_duration_minutes: 30–120
+suggested_total_questions: 10–50`;
+
+    const message = await anthropic.messages.create({
+      model: env.ANTHROPIC_MODEL,
+      max_tokens: 1024,
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    const text = (message.content[0] as { type: string; text: string }).text ?? "{}";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("Claude returned no JSON");
+
+    const result = JSON.parse(jsonMatch[0]);
+
+    // Normalise percentages — ensure they sum to 100
+    const skillTotal = Object.values(result.skill_distribution as Record<string, number>).reduce((s, v) => s + v, 0);
+    if (skillTotal > 0 && skillTotal !== 100) {
+      const factor = 100 / skillTotal;
+      const skills = result.skill_distribution as Record<string, number>;
+      const entries = Object.entries(skills);
+      let running = 0;
+      entries.forEach(([k, v], i) => {
+        if (i < entries.length - 1) {
+          const rounded = Math.round(v * factor);
+          skills[k] = rounded;
+          running += rounded;
+        } else {
+          skills[k] = 100 - running; // last entry absorbs rounding error
+        }
+      });
+    }
+
+    const diffTotal = Object.values(result.difficulty_mix as Record<string, number>).reduce((s, v) => s + v, 0);
+    if (diffTotal > 0 && diffTotal !== 100) {
+      const dm = result.difficulty_mix as Record<string, number>;
+      const entries = Object.entries(dm);
+      let running = 0;
+      const factor = 100 / diffTotal;
+      entries.forEach(([k, v], i) => {
+        if (i < entries.length - 1) {
+          const rounded = Math.round(v * factor);
+          dm[k] = rounded;
+          running += rounded;
+        } else {
+          dm[k] = 100 - running;
+        }
+      });
+    }
+
+    logger.info("JD extraction completed", { role: result.role_title });
+    res.json({ success: true, data: result });
+  } catch (err: any) {
+    logger.error("JD extraction failed", { error: err.message });
+    next(err);
+  }
 });
 
 export default router;
