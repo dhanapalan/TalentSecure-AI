@@ -1,5 +1,5 @@
 import { Outlet } from "react-router-dom";
-import { CheckCircle2, Globe, Users } from "lucide-react";
+import { CheckCircle2, Mic, Users } from "lucide-react";
 import Logo from "../components/Logo";
 
 export default function AuthLayout() {
@@ -35,19 +35,22 @@ export default function AuthLayout() {
 
               <div className="mt-8">
                 <h1 className="text-3xl font-extrabold tracking-tight xl:text-4xl leading-tight">
-                  Connect talent with <span className="bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">intelligence.</span>
+                  Build skills. Run drives.{" "}
+                  <span className="bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
+                    Confirm placements.
+                  </span>
                 </h1>
                 <p className="mt-4 max-w-md text-sm leading-relaxed text-slate-300">
-                  Experience the next generation of hiring with AI-powered assessments, applicant tracking, and seamless onboarding — for lateral and campus recruitment.
+                  One intelligent platform connecting colleges, companies and students — from AI mock interviews and skill development to confirmed campus placements.
                 </p>
               </div>
             </div>
 
             <div className="relative z-10 mt-6 grid gap-4">
               {[
-                { icon: <CheckCircle2 className="h-5 w-5 text-indigo-400" />, title: "Verified Assessments", desc: "Anti-cheating controls and real-time audit logs." },
-                { icon: <Globe className="h-5 w-5 text-indigo-400" />, title: "Campus-Scale Onboarding", desc: "Bulk enrollment and automated profile validation." },
-                { icon: <Users className="h-5 w-5 text-indigo-400" />, title: "Role-Based Access", desc: "Granular control for admins, staff, and students." }
+                { icon: <Mic className="h-5 w-5 text-indigo-400" />,        title: "Voice AI Mock Interviews", desc: "Practice with a live AI interviewer and get instant feedback." },
+                { icon: <CheckCircle2 className="h-5 w-5 text-indigo-400" />, title: "Assessment Drives",       desc: "Multi-college drives, AI question generation, live results." },
+                { icon: <Users className="h-5 w-5 text-indigo-400" />,       title: "Learning & Certificates", desc: "Courses, skill programs, and printable certificates on completion." },
               ].map((feature, i) => (
                 <div key={i} className="flex gap-4 group">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/5 border border-white/10 transition-colors group-hover:bg-white/10">

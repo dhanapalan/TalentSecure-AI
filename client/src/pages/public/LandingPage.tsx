@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { useEffect, useRef } from "react";
 import {
     ArrowRight, CheckCircle, Zap, BookOpen, BarChart3,
-    Shield, Users, Trophy, Target, Brain,
+    Users, Trophy, Target, Brain, Mic,
     GraduationCap, Building2, UserCircle2, ChevronRight, Star,
 } from "lucide-react";
 
@@ -51,13 +51,13 @@ const ROLES = [
         tagColor: "bg-indigo-100 text-indigo-700",
         ctaColor: "text-indigo-600 hover:text-indigo-700",
         points: [
-            "Create multi-college assessment drives",
-            "AI-proctored exams with live monitoring",
-            "Smart shortlisting & interview scheduling",
-            "Placement tracking & analytics dashboard",
+            "Self-register and set up in minutes",
+            "Register colleges & import students via CSV",
+            "AI-generated assessments from your JD",
+            "Candidate pipeline: shortlist → interview → offer",
         ],
-        cta: "Explore HR Features",
-        href: "/contact",
+        cta: "Register Your Company",
+        href: "/auth/register",
     },
     {
         tag: "For Colleges & Campuses",
@@ -89,13 +89,13 @@ const ROLES = [
         tagColor: "bg-cyan-100 text-cyan-700",
         ctaColor: "text-cyan-700 hover:text-cyan-800",
         points: [
-            "Take AI-proctored drives & mock exams",
-            "Learn with structured LMS courses",
-            "Daily practice with AI feedback & streaks",
+            "Practice with Voice AI mock interviews",
+            "Get instant feedback & course recommendations",
+            "Learn with structured LMS courses & certificates",
             "Track readiness score, badges & XP",
         ],
-        cta: "View Student Portal",
-        href: "/auth/login",
+        cta: "Sign Up Free",
+        href: "/auth/register",
     },
 ] as const;
 
@@ -108,9 +108,9 @@ const FEATURES = [
         iconColor: "text-indigo-600",
     },
     {
-        icon: Shield,
-        title: "AI Proctoring",
-        desc: "Live tab-switch detection, webcam analysis, and integrity scoring. Every exam is fraud-proof and fully verifiable.",
+        icon: Mic,
+        title: "Voice AI Mock Interviews",
+        desc: "Students practice with a live AI interviewer, receive instant feedback on communication and technical depth, and get course recommendations.",
         iconBg: "bg-blue-100",
         iconColor: "text-blue-600",
     },
@@ -198,27 +198,27 @@ const TESTIMONIALS = [
 
 const PORTALS = [
     {
-        name: "Admin Portal",
-        desc: "HR · CXO · Administration",
+        name: "Company / HR",
+        desc: "Drives · Candidates · Analytics",
         icon: Building2,
-        url: import.meta.env.VITE_ADMIN_APP_URL || "https://admin.gradlogic.atherasys.com",
+        href: "/auth/login",
         bg: "bg-indigo-600 hover:bg-indigo-700",
     },
     {
-        name: "Campus Portal",
-        desc: "Colleges · Campus Staff",
+        name: "College Admin",
+        desc: "Campus drives · Student tracking",
         icon: GraduationCap,
-        url: import.meta.env.VITE_COLLEGE_APP_URL || "https://campus.gradlogic.atherasys.com",
+        href: "/auth/login",
         bg: "bg-blue-600 hover:bg-blue-700",
     },
     {
-        name: "Student Portal",
-        desc: "Exams · LMS · Achievements",
+        name: "Student",
+        desc: "Exams · Mock Interviews · LMS",
         icon: UserCircle2,
-        url: import.meta.env.VITE_STUDENT_APP_URL || "https://exam.gradlogic.atherasys.com",
+        href: "/auth/login",
         bg: "bg-cyan-600 hover:bg-cyan-700",
     },
-] as const;
+];
 
 // ── Page component ────────────────────────────────────────────────────────────
 
@@ -280,24 +280,24 @@ export default function LandingPage() {
                     {/* CTA row */}
                     <div className="mt-12 flex flex-col items-center justify-center gap-4 sm:flex-row">
                         <Link
-                            to="/contact"
+                            to="/auth/register"
                             className="group flex items-center gap-2.5 rounded-xl bg-indigo-600 px-8 py-4 text-sm font-bold text-white shadow-xl shadow-indigo-900/60 transition-all hover:bg-indigo-500 hover:shadow-indigo-500/50 active:scale-95"
                         >
-                            Book a Demo
+                            Get Started Free
                             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                         </Link>
                         <Link
-                            to="/auth/login"
+                            to="/contact"
                             className="flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-8 py-4 text-sm font-semibold text-white backdrop-blur-sm transition-all hover:bg-white/10 active:scale-95"
                         >
-                            Sign In
+                            Book a Demo
                             <ChevronRight className="h-4 w-4 opacity-60" />
                         </Link>
                     </div>
 
                     {/* Trust line */}
                     <p className="mt-8 text-xs font-medium tracking-wide text-slate-500">
-                        Trusted by 50+ colleges · 500+ companies · 50,000+ candidates assessed
+                        Trusted by 50+ colleges · 500+ companies · Voice AI mock interviews · No credit card required
                     </p>
                 </div>
 
@@ -507,17 +507,17 @@ export default function LandingPage() {
                     </p>
                     <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
                         <Link
-                            to="/contact"
+                            to="/auth/register"
                             className="group flex items-center gap-2.5 rounded-xl bg-white px-8 py-4 text-sm font-bold text-indigo-600 shadow-xl transition-all hover:bg-indigo-50 active:scale-95"
                         >
-                            Book a Demo
+                            Get Started Free
                             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                         </Link>
                         <Link
-                            to="/pricing"
+                            to="/contact"
                             className="flex items-center gap-2 rounded-xl border border-white/30 bg-white/10 px-8 py-4 text-sm font-semibold text-white backdrop-blur-sm transition-all hover:bg-white/20 active:scale-95"
                         >
-                            View Pricing
+                            Book a Demo
                         </Link>
                     </div>
                 </div>
@@ -534,9 +534,9 @@ export default function LandingPage() {
                     </div>
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                         {PORTALS.map((portal) => (
-                            <a
+                            <Link
                                 key={portal.name}
-                                href={portal.url}
+                                to={portal.href}
                                 className={`group flex items-center gap-4 rounded-2xl ${portal.bg} p-5 transition-all hover:-translate-y-1 hover:shadow-lg`}
                             >
                                 <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-white/20">
@@ -547,7 +547,7 @@ export default function LandingPage() {
                                     <p className="mt-0.5 text-xs text-white/70">{portal.desc}</p>
                                 </div>
                                 <ChevronRight className="h-5 w-5 flex-shrink-0 text-white/50 transition-transform group-hover:translate-x-1" />
-                            </a>
+                            </Link>
                         ))}
                     </div>
                 </div>

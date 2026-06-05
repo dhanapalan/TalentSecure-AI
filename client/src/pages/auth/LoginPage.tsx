@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import toast from "react-hot-toast";
-import { Mail, Lock, ArrowRight, Loader2 } from "lucide-react";
+import { Mail, Lock, ArrowRight, Loader2, Eye, EyeOff } from "lucide-react";
 import api from "../../lib/api";
 import { authActions } from "../../stores/authStore";
 import {
@@ -19,29 +19,24 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [msLoading, setMsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>();
+
   const onSubmit = async (form: LoginForm) => {
     setLoading(true);
     try {
       const { data } = await api.post("/auth/login", form);
       const { accessToken, user } = data.data;
       authActions.login(accessToken, user);
-      toast.success("Login successful");
 
-      // Small delay to allow browser extensions to finish their operations
-      // and prevent "message channel closed" errors during redirect.
       setTimeout(() => {
         const landingPath = getLandingPath(user);
         const workflowRedirect = getWorkflowRedirectUrl(user, landingPath);
-
-        if (workflowRedirect) {
-          window.location.replace(workflowRedirect);
-          return;
-        }
+        if (workflowRedirect) { window.location.replace(workflowRedirect); return; }
         navigate(landingPath);
       }, 100);
     } catch (err: any) {
-      toast.error(err.response?.data?.error || "Login failed");
+      toast.error(err.response?.data?.error || "Invalid email or password");
     } finally {
       setLoading(false);
     }
@@ -52,13 +47,10 @@ export default function LoginPage() {
     try {
       const { data } = await api.get("/auth/microsoft/url");
       if (data?.data?.url) {
-        // Persist state so MicrosoftCallback can verify it (CSRF protection)
-        if (data.data.state) {
-          sessionStorage.setItem("ms_oauth_state", data.data.state);
-        }
+        if (data.data.state) sessionStorage.setItem("ms_oauth_state", data.data.state);
         window.location.href = data.data.url;
       }
-    } catch (err) {
+    } catch {
       toast.error("Failed to initiate Microsoft login");
       setMsLoading(false);
     }
@@ -66,83 +58,97 @@ export default function LoginPage() {
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-2 duration-700">
-      <div className="text-left">
-        <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+      {/* Header */}
+      <div className="mb-6">
+        <h2 className="text-2xl font-black tracking-tight text-slate-900">
           Welcome back
         </h2>
-        <p className="mt-1 text-xs text-slate-500">
-          Enter your credentials to access your dashboard.
+        <p className="mt-1 text-sm text-slate-500">
+          Students, companies and colleges — sign in below.
         </p>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-3.5">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        {/* Email */}
         <div>
-          <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider">Email Address</label>
-          <div className="relative mt-1">
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
-              <Mail className="h-4 w-4" />
-            </div>
+          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+            Email Address
+          </label>
+          <div className="relative">
+            <Mail className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input
               type="email"
               {...register("email", { required: "Email is required" })}
-              className="block w-full rounded-xl border-0 bg-slate-100/50 py-2.5 pl-9 pr-4 text-slate-900 ring-1 ring-inset ring-slate-200 transition-all placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm"
-              placeholder="name@company.com"
+              className={`w-full rounded-xl border bg-slate-50 py-3 pl-10 pr-4 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.email ? "border-rose-300 ring-1 ring-rose-300" : "border-slate-200"}`}
+              placeholder="you@company.com"
+              autoComplete="email"
             />
           </div>
           {errors.email && (
-            <p className="mt-1 text-[10px] font-medium text-red-500">{errors.email.message}</p>
+            <p className="mt-1.5 text-xs text-rose-500">{errors.email.message}</p>
           )}
         </div>
 
+        {/* Password */}
         <div>
-          <div className="flex items-center justify-between">
-            <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider">Password</label>
-            <a href="#" className="text-[10px] font-semibold text-indigo-600 hover:text-indigo-500">
-              Forgot?
-            </a>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">
+              Password
+            </label>
+            <span className="text-xs text-slate-400 cursor-default">Forgot?{" "}
+              <span className="text-indigo-500">Contact admin</span>
+            </span>
           </div>
-          <div className="relative mt-1">
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
-              <Lock className="h-4 w-4" />
-            </div>
+          <div className="relative">
+            <Lock className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input
-              type="password"
+              type={showPassword ? "text" : "password"}
               {...register("password", { required: "Password is required" })}
-              className="block w-full rounded-xl border-0 bg-slate-100/50 py-2.5 pl-9 pr-4 text-slate-900 ring-1 ring-inset ring-slate-200 transition-all placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm"
-              placeholder="••••••••"
+              className={`w-full rounded-xl border bg-slate-50 py-3 pl-10 pr-10 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.password ? "border-rose-300 ring-1 ring-rose-300" : "border-slate-200"}`}
+              placeholder="Enter your password"
+              autoComplete="current-password"
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword(v => !v)}
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+              tabIndex={-1}
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
           </div>
           {errors.password && (
-            <p className="mt-1 text-[10px] font-medium text-red-500">{errors.password.message}</p>
+            <p className="mt-1.5 text-xs text-rose-500">{errors.password.message}</p>
           )}
         </div>
 
+        {/* Submit */}
         <button
           type="submit"
           disabled={loading}
-          className="group relative flex w-full items-center justify-center rounded-xl bg-slate-900 py-3 text-sm font-semibold text-white transition-all hover:bg-slate-800 hover:shadow-lg hover:shadow-slate-200 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
+          className="group flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3 text-sm font-bold text-white shadow-md shadow-indigo-200 transition-all hover:bg-indigo-700 hover:shadow-indigo-300 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {loading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
-            <span className="flex items-center gap-2">
-              Sign in to Account
-              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-            </span>
+            <>
+              Sign In
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+            </>
           )}
         </button>
 
-        {/* Only show Microsoft login on main TalentSecure platform, not for colleges/students/campuses */}
-        {!window.location.hostname.startsWith('college.') &&
-          !window.location.hostname.startsWith('campus.') &&
-          !window.location.hostname.startsWith('student.') && (
+        {/* Microsoft SSO */}
+        {!window.location.hostname.startsWith("college.") &&
+          !window.location.hostname.startsWith("campus.") &&
+          !window.location.hostname.startsWith("student.") && (
             <>
-              <div className="relative my-6">
+              <div className="relative my-2">
                 <div className="absolute inset-0 flex items-center">
                   <div className="w-full border-t border-slate-200" />
                 </div>
-                <div className="relative flex justify-center text-[10px] uppercase tracking-wider font-semibold">
-                  <span className="bg-white px-3 text-slate-500">Or continue with</span>
+                <div className="relative flex justify-center">
+                  <span className="bg-white px-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">or</span>
                 </div>
               </div>
 
@@ -150,7 +156,7 @@ export default function LoginPage() {
                 type="button"
                 onClick={handleMicrosoftLogin}
                 disabled={loading || msLoading}
-                className="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
+                className="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-50 hover:border-slate-300 active:scale-[0.98] disabled:opacity-60"
               >
                 {msLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -162,7 +168,7 @@ export default function LoginPage() {
                       <path d="M10 11H0V21H10V11Z" fill="#00A4EF" />
                       <path d="M21 11H11V21H21V11Z" fill="#FFB900" />
                     </svg>
-                    Sign in with Microsoft
+                    Continue with Microsoft
                   </>
                 )}
               </button>
@@ -170,14 +176,13 @@ export default function LoginPage() {
           )}
       </form>
 
-      {/* Sign-up prompt */}
+      {/* Register link */}
       <p className="mt-6 text-center text-sm text-slate-500">
-        Don't have an account?{" "}
-        <a href="/auth/register" className="font-bold text-indigo-600 hover:text-indigo-500 hover:underline">
-          Create one free →
-        </a>
+        New to GradLogic?{" "}
+        <Link to="/auth/register" className="font-bold text-indigo-600 hover:text-indigo-700 hover:underline">
+          Create a free account →
+        </Link>
       </p>
-
     </div>
   );
 }
