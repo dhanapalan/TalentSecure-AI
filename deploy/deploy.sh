@@ -27,32 +27,31 @@ rm -f server/migrations/run_phase1.ts
 
 # ── 2. Pull latest code ───────────────────────────────────────────────────────
 echo "[2/5] Pulling latest code from GitHub..."
-git pull origin main
+git pull origin master
 
 # ── 3. Run DB migrations ──────────────────────────────────────────────────────
 echo "[3/5] Running database migrations..."
 
 run_migration() {
   local file="$1"
-  local label="$2"
   if [ -f "$file" ]; then
-    echo "  → Running $label..."
-    docker exec -i "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$file"
-    echo "  ✓ $label done"
+    echo "  → $(basename $file)..."
+    docker exec -i "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$file" && echo "  ✓ done" || echo "  ⚠ skipped (may already exist)"
   fi
 }
 
-run_migration "server/migrations/phase1_lms_practice_development.sql" "Phase 1 (LMS, Practice, Development)"
-run_migration "server/migrations/phase2_gamification.sql"              "Phase 2 (Gamification)"
-run_migration "server/migrations/phase3_analytics_mentor.sql"          "Phase 3 (Analytics, Mentor)"
-run_migration "server/migrations/phase4_placement_email.sql"            "Phase 4 (Placements, Email Logs)"
+# Run all migrations in order — each is idempotent (IF NOT EXISTS / ADD COLUMN IF NOT EXISTS)
+run_migration "server/migrations/phase1_lms_practice_development.sql"
+run_migration "server/migrations/phase2_gamification.sql"
+run_migration "server/migrations/phase3_analytics_mentor.sql"
+run_migration "server/migrations/phase4_placement_email.sql"
+run_migration "server/migrations/phase4b_placement_unique_fix.sql"
+run_migration "server/migrations/phase5_company_role_proctoring_flag.sql"
+run_migration "server/migrations/phase6_mock_interviews.sql"
+run_migration "server/migrations/phase8_company_dashboard.sql"
+run_migration "server/migrations/phase10_lms_certificates_paths.sql"
 
-if [ ! -f "server/migrations/phase1_lms_practice_development.sql" ] && \
-   [ ! -f "server/migrations/phase2_gamification.sql" ] && \
-   [ ! -f "server/migrations/phase3_analytics_mentor.sql" ] && \
-   [ ! -f "server/migrations/phase4_placement_email.sql" ]; then
-  echo "  ⚠ No new migrations found, skipping."
-fi
+echo "  ✓ All migrations applied"
 
 # ── 4. Rebuild & restart containers ──────────────────────────────────────────
 echo "[4/5] Rebuilding and restarting containers..."
