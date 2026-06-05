@@ -6,7 +6,7 @@ const router = Router();
 
 // Secure all routes in this file
 router.use(authenticate);
-router.use(authorize("college_admin", "college", "college_staff"));
+router.use(authorize("college_admin", "college", "college_staff", "company", "hr", "super_admin"));
 
 router.get("/analytics", campusStudentsController.getAnalytics);
 

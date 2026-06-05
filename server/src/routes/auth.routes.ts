@@ -11,10 +11,40 @@ const loginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
+const studentRegisterSchema = z.object({
+  name:           z.string().min(2, "Name must be at least 2 characters").max(200),
+  email:          z.string().email("Invalid email"),
+  password:       z.string().min(8, "Password must be at least 8 characters"),
+  phone:          z.string().optional(),
+  degree:         z.string().optional(),
+  specialization: z.string().optional(),
+  passing_year:   z.number().int().min(2000).max(2040).optional(),
+  college_name:   z.string().optional(),
+});
+
+const companyRegisterSchema = z.object({
+  name:         z.string().min(2, "Name must be at least 2 characters").max(200),
+  email:        z.string().email("Invalid email"),
+  password:     z.string().min(8, "Password must be at least 8 characters"),
+  company_name: z.string().min(2, "Company name required").max(255),
+  industry:     z.string().optional(),
+  headquarters: z.string().optional(),
+});
+
 /**
  * POST /api/auth/login
  */
 router.post("/login", validate(loginSchema), authController.login);
+
+/**
+ * POST /api/auth/register/student — public student self-registration
+ */
+router.post("/register/student", validate(studentRegisterSchema), authController.registerStudent);
+
+/**
+ * POST /api/auth/register/company — public company/HR self-registration
+ */
+router.post("/register/company", validate(companyRegisterSchema), authController.registerCompany);
 
 /**
  * GET /api/auth/me — returns the authenticated user's profile

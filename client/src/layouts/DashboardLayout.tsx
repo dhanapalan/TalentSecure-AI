@@ -244,6 +244,12 @@ const navigation: NavItem[] = [
     roles: ["company"],
   },
   {
+    name: "Campus Setup",
+    href: "/app/company/campus-setup",
+    icon: AcademicCapIcon,
+    roles: ["company"],
+  },
+  {
     name: "JD Extractor",
     href: "/app/company/jd-extract",
     icon: SparklesIcon,

@@ -4,6 +4,7 @@ import api from "../../lib/api";
 import {
   Briefcase, Users, Star, Gift, TrendingUp,
   Plus, ChevronRight, Clock, CheckCircle2, Circle, AlertCircle,
+  GraduationCap, Upload,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -128,6 +129,39 @@ export default function CompanyDashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Quick actions */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Register a college */}
+        <Link
+          to="/app/company/campus-setup"
+          className="group flex items-center gap-4 bg-white rounded-2xl border border-slate-100 shadow-sm p-5 hover:shadow-md hover:border-indigo-100 transition-all"
+        >
+          <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center group-hover:bg-indigo-200 transition-colors shrink-0">
+            <GraduationCap className="h-6 w-6 text-indigo-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-black text-sm text-slate-900 group-hover:text-indigo-700 transition-colors">Register a College</p>
+            <p className="text-xs text-slate-400 mt-0.5">Add a college and import students for campus hiring</p>
+          </div>
+          <ChevronRight className="h-5 w-5 text-slate-300 group-hover:text-indigo-400 shrink-0" />
+        </Link>
+
+        {/* New Drive */}
+        <Link
+          to="/app/drives/create"
+          className="group flex items-center gap-4 bg-white rounded-2xl border border-slate-100 shadow-sm p-5 hover:shadow-md hover:border-emerald-100 transition-all"
+        >
+          <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center group-hover:bg-emerald-200 transition-colors shrink-0">
+            <Plus className="h-6 w-6 text-emerald-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-black text-sm text-slate-900 group-hover:text-emerald-700 transition-colors">Create Assessment Drive</p>
+            <p className="text-xs text-slate-400 mt-0.5">Set up a hiring drive with AI-generated questions</p>
+          </div>
+          <ChevronRight className="h-5 w-5 text-slate-300 group-hover:text-emerald-400 shrink-0" />
+        </Link>
+      </div>
 
       {/* Recent drives */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm">

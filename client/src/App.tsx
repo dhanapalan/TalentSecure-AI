@@ -35,6 +35,7 @@ const DashboardLayout = lazy(() => import("./layouts/DashboardLayout"));
 const AuthLayout = lazy(() => import("./layouts/AuthLayout"));
 
 const LoginPage = lazy(() => import("./pages/auth/LoginPage"));
+const RegisterPage = lazy(() => import("./pages/auth/RegisterPage"));
 const PasswordSetupPage = lazy(() => import("./pages/auth/PasswordSetupPage"));
 const MicrosoftCallback = lazy(() => import("./pages/auth/MicrosoftCallback"));
 
@@ -109,6 +110,7 @@ const CompanyDashboardPage   = lazy(() => import("./pages/company/CompanyDashboa
 const CompanyCandidatesPage  = lazy(() => import("./pages/company/CompanyCandidatesPage"));
 const CompanyProfilePage     = lazy(() => import("./pages/company/CompanyProfilePage"));
 const JDExtractPage          = lazy(() => import("./pages/company/JDExtractPage"));
+const CampusSetupPage        = lazy(() => import("./pages/company/CampusSetupPage"));
 
 const MockInterviewPage = lazy(() => import("./pages/student/MockInterviewPage"));
 const MockInterviewRoom = lazy(() => import("./pages/student/MockInterviewRoom"));
@@ -205,6 +207,7 @@ export default function App() {
             {/* ── Auth ────────────────────────────────────────────────── */}
             <Route path="/auth" element={<AuthLayout />}>
               <Route path="login" element={<LoginPage />} />
+              <Route path="register" element={<RegisterPage />} />
               <Route path="setup-password" element={<PasswordSetupPage />} />
               <Route path="callback" element={<MicrosoftCallback />} />
             </Route>
@@ -508,6 +511,14 @@ export default function App() {
                 element={
                   <RoleGuard allowed={["company"]}>
                     <CompanyProfilePage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="company/campus-setup"
+                element={
+                  <RoleGuard allowed={["company", "super_admin", "hr"]}>
+                    <CampusSetupPage />
                   </RoleGuard>
                 }
               />

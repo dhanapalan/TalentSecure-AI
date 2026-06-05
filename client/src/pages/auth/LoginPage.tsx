@@ -170,6 +170,14 @@ export default function LoginPage() {
           )}
       </form>
 
+      {/* Sign-up prompt */}
+      <p className="mt-6 text-center text-sm text-slate-500">
+        Don't have an account?{" "}
+        <a href="/auth/register" className="font-bold text-indigo-600 hover:text-indigo-500 hover:underline">
+          Create one free →
+        </a>
+      </p>
+
     </div>
   );
 }

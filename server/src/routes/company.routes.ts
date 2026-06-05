@@ -243,6 +243,54 @@ router.put("/candidates/:dsId/stage", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// =============================================================================
+// CAMPUS MANAGEMENT  (company creates colleges + adds students for drives)
+// =============================================================================
+
+/**
+ * GET /api/company/campuses
+ * Colleges the company has registered (created_by = company user)
+ */
+router.get("/campuses", authorize("company", "super_admin", "hr"), async (req, res, next) => {
+  try {
+    const rows = await query(`
+      SELECT c.id, c.name, c.city, c.state, c.college_code, c.is_active, c.created_at,
+             (SELECT COUNT(*)::int FROM student_details sd WHERE sd.college_id = c.id) AS student_count
+      FROM colleges c
+      WHERE c.created_by = $1
+      ORDER BY c.created_at DESC
+    `, [req.user!.userId]);
+    res.json({ success: true, data: rows });
+  } catch (err) { next(err); }
+});
+
+/**
+ * POST /api/company/campuses
+ * Register a new college for campus hiring (no college_admin account needed —
+ * the company manages the college directly).
+ */
+router.post("/campuses", authorize("company", "super_admin", "hr"), async (req, res, next) => {
+  try {
+    const { name, city, state, tier } = req.body;
+    if (!name?.trim()) return res.status(400).json({ error: "College name is required" });
+
+    // Build unique college_code from name + timestamp
+    const base = name.trim().toLowerCase().replace(/[^a-z0-9]/g, "_").slice(0, 30);
+    const code = `${base}_${Date.now()}`.slice(0, 50);
+
+    const existing = await queryOne("SELECT id FROM colleges WHERE LOWER(name) = LOWER($1) LIMIT 1", [name.trim()]);
+    if (existing) return res.status(409).json({ error: "A college with this name already exists" });
+
+    const college = await queryOne(
+      `INSERT INTO colleges (name, city, state, tier, college_code, created_by, is_active)
+       VALUES ($1,$2,$3,$4,$5,$6,TRUE) RETURNING *`,
+      [name.trim(), city ?? null, state ?? null, tier ?? null, code, req.user!.userId]
+    );
+
+    res.status(201).json({ success: true, data: college });
+  } catch (err) { next(err); }
+});
+
 // ── POST /jd/extract ─────────────────────────────────────────────────────────
 // Accept JD text, run Claude extraction, return structured skill distribution.
 // The client uses this to pre-fill the Assessment Rule Wizard.

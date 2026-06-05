@@ -52,6 +52,26 @@ export const login = async (
 };
 
 /**
+ * POST /api/auth/register/student
+ */
+export const registerStudent = async (req: Request, res: Response<ApiResponse>, next: NextFunction) => {
+  try {
+    const result = await authService.registerStudent(req.body, req.ip);
+    res.status(201).json({ success: true, data: result });
+  } catch (err) { next(err); }
+};
+
+/**
+ * POST /api/auth/register/company
+ */
+export const registerCompany = async (req: Request, res: Response<ApiResponse>, next: NextFunction) => {
+  try {
+    const result = await authService.registerCompany(req.body, req.ip);
+    res.status(201).json({ success: true, data: result });
+  } catch (err) { next(err); }
+};
+
+/**
  * GET /api/auth/me
  * Returns the current user from the JWT.
  */
