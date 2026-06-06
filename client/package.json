@@ -10,7 +10,13 @@
     "test": "tsc -b --pretty false",
     "preview": "vite preview",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "test:phase1": "playwright test --project=phase1-admin",
+    "test:phase2": "playwright test --project=phase2-campus-admin",
+    "test:phase3": "playwright test --project=phase3-candidate",
+    "test:phase4": "playwright test --project=phase4-e2e",
+    "test:phase5": "playwright test --project=phase5-edge",
+    "test:e2e:report": "playwright show-report playwright-report"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.0",
@@ -35,7 +41,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@playwright/test": "^1.58.2",
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/forms": "^0.5.10",
     "@types/node": "^22.19.11",
     "@types/react": "^18.3.18",
