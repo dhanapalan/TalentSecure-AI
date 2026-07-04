@@ -143,9 +143,22 @@ router.get(
   authorize("super_admin", "admin", "hr"),
   async (req, res, next) => {
     try {
+      // Whitelist approval_status against known enum values, then bind as a
+      // parameter — never interpolate query input into SQL.
+      const VALID_APPROVAL_STATUS = new Set(["pending", "approved", "rejected"]);
+      const rawStatus = getParamAsString(String(req.query.approval_status ?? ""));
+      const approvalStatus = VALID_APPROVAL_STATUS.has(rawStatus) ? rawStatus : "";
+
+      const params: unknown[] = [];
+      let statusFilter = "";
+      if (approvalStatus) {
+        params.push(approvalStatus);
+        statusFilter = `AND c.approval_status = $${params.length}`;
+      }
+
       const campuses = await query(`
-        SELECT 
-          c.*, 
+        SELECT
+          c.*,
           COUNT(DISTINCT sd.id)::int as student_count,
           (SELECT COUNT(DISTINCT u.id) FROM users u WHERE u.college_id = c.id AND u.role IN ('college_admin', 'college'))::int as admin_count,
           (SELECT COUNT(DISTINCT ec.id) FROM exam_colleges ec WHERE ec.college_id = c.id)::int as assessments_count,
@@ -154,9 +167,10 @@ router.get(
           (SELECT COUNT(DISTINCT cl.id) FROM cheating_logs cl JOIN student_details s ON s.user_id = cl.student_id WHERE s.college_id = c.id)::int as incident_count
         FROM colleges c
         LEFT JOIN student_details sd ON sd.college_id = c.id
+        WHERE 1=1 ${statusFilter}
         GROUP BY c.id
         ORDER BY c.name ASC
-      `);
+      `, params);
 
       res.json({ success: true, data: campuses });
     } catch (err) {
@@ -349,7 +363,7 @@ router.put(
   validate(updateCampusSchema),
   async (req, res, next) => {
     try {
-      const id = getParamAsString(req.params.id);
+      const id: string = getParamAsString(req.params.id);
       const updates: string[] = [];
       const values: any[] = [];
       let paramIdx = 1;
@@ -407,7 +421,7 @@ router.delete(
   authorize("super_admin", "admin", "hr"),
   async (req, res, next) => {
     try {
-      const id = getParamAsString(req.params.id);
+      const id: string = getParamAsString(req.params.id);
 
       const result = await query(
         "UPDATE colleges SET is_active = NOT is_active, updated_at = NOW() WHERE id = $1 RETURNING is_active",
@@ -453,7 +467,7 @@ router.post(
   validate(createAdminSchema),
   async (req, res, next) => {
     try {
-      const id = getParamAsString(req.params.id);
+      const id: string = getParamAsString(req.params.id);
       const { name, email, password } = req.body;
 
       // Verify campus exists
@@ -572,7 +586,7 @@ router.get(
   authorize("super_admin", "admin", "hr", "cxo"),
   async (req, res, next) => {
     try {
-      const id = getParamAsString(req.params.id);
+      const id: string = getParamAsString(req.params.id);
       const page = parseInt(String(req.query.page)) || 1;
       const limit = parseInt(String(req.query.limit)) || 30;
       const offset = (page - 1) * limit;
@@ -639,7 +653,7 @@ router.get(
   authorize("super_admin", "admin", "hr", "cxo"),
   async (req, res, next) => {
     try {
-      const id = getParamAsString(req.params.id);
+      const id: string = getParamAsString(req.params.id);
 
       const assessments = await query(
         `SELECT e.id, e.title, e.description, e.duration_minutes, e.total_marks,
@@ -687,7 +701,7 @@ router.get(
   authorize("super_admin", "admin", "hr", "cxo"),
   async (req, res, next) => {
     try {
-      const id = getParamAsString(req.params.id);
+      const id: string = getParamAsString(req.params.id);
 
       // Score buckets: 0-20, 21-40, 41-60, 61-80, 81-100
       const distribution = await query(
@@ -759,7 +773,7 @@ router.get(
   authorize("super_admin", "admin", "hr", "cxo"),
   async (req, res, next) => {
     try {
-      const id = getParamAsString(req.params.id);
+      const id: string = getParamAsString(req.params.id);
 
       const incidents = await query(
         `SELECT cl.id, cl.event_type, cl.risk_score, cl.description,
@@ -798,5 +812,169 @@ router.get(
     }
   }
 );
+
+// ── College Approval Workflow ────────────────────────────────────────────────
+
+/**
+ * GET /api/campuses/approval/pending
+ * List all pending college approvals (super_admin only)
+ */
+router.get(
+  "/approval/pending",
+  authenticate,
+  authorize("super_admin", "admin", "hr"),
+  async (req, res, next) => {
+    try {
+      const page = parseInt(String(req.query.page ?? "1"), 10) || 1;
+      const limit = parseInt(String(req.query.limit ?? "20"), 10) || 20;
+      const offset = (page - 1) * limit;
+
+      const [colleges, countResult] = await Promise.all([
+        query(
+          `SELECT
+             c.id, c.name, c.college_code,
+             c.created_at, c.approval_status,
+             u.name as created_by_name, u.email as created_by_email
+           FROM colleges c
+           LEFT JOIN users u ON u.id = c.created_by
+           WHERE c.approval_status = 'pending'
+           ORDER BY c.created_at DESC
+           LIMIT $1 OFFSET $2`,
+          [limit, offset]
+        ),
+        queryOne<{ count: number }>(
+          "SELECT COUNT(*)::int as count FROM colleges WHERE approval_status = 'pending'"
+        ),
+      ]);
+
+      res.json({
+        success: true,
+        data: colleges,
+        meta: {
+          page,
+          limit,
+          total: countResult?.count ?? 0,
+          totalPages: Math.ceil((countResult?.count ?? 0) / limit),
+        },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * POST /api/campuses/:id/approve
+ * Approve a pending college
+ */
+router.post(
+  "/:id/approve",
+  authenticate,
+  authorize("super_admin", "admin"),
+  async (req, res, next) => {
+    try {
+      const id: string = getParamAsString(req.params.id);
+      const { notes } = req.body as { notes?: string };
+      const userId = (req as any).user?.userId;
+
+      // Check college exists and is pending
+      const college = await queryOne<{ approval_status: string }>(
+        "SELECT id, approval_status FROM colleges WHERE id = $1",
+        [id]
+      );
+      if (!college) return res.status(404).json({ success: false, error: "College not found" });
+      if (college.approval_status !== "pending") {
+        return res.status(400).json({ success: false, error: "College is not in pending status" });
+      }
+
+      // Approve and mark as active
+      const updated = await queryOne(
+        `UPDATE colleges
+         SET approval_status = 'approved', approved_by = $1, approved_at = NOW(), updated_at = NOW()
+         WHERE id = $2
+         RETURNING id, name, approval_status, approved_at`,
+        [userId, id]
+      );
+
+      // Audit log
+      const userRole = (Array.isArray(req.user?.role) ? req.user.role[0] : req.user?.role || "unknown") as string;
+      await writeAuditLog({
+        actor_id: userId,
+        actor_role: userRole,
+        action: "college_approved",
+        target_id: id,
+        target_type: "college",
+        metadata: { notes: notes ?? null },
+      }).catch(() => { });
+
+      res.json({ success: true, data: updated, message: "College approved" });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * POST /api/campuses/:id/reject
+ * Reject a pending college with reason
+ */
+router.post(
+  "/:id/reject",
+  authenticate,
+  authorize("super_admin", "admin"),
+  validate(
+    z.object({
+      rejection_reason: z.string().min(10, "Rejection reason must be at least 10 characters"),
+    })
+  ),
+  async (req, res, next) => {
+    try {
+      const id: string = getParamAsString(req.params.id);
+      const { rejection_reason } = req.body as { rejection_reason: string };
+      const userId = (req as any).user?.userId;
+
+      // Check college exists and is pending
+      const college = await queryOne<{ approval_status: string }>(
+        "SELECT id, approval_status FROM colleges WHERE id = $1",
+        [id]
+      );
+      if (!college) return res.status(404).json({ success: false, error: "College not found" });
+      if (college.approval_status !== "pending") {
+        return res.status(400).json({ success: false, error: "College is not in pending status" });
+      }
+
+      // Reject and mark as inactive
+      const updated = await queryOne(
+        `UPDATE colleges
+         SET approval_status = 'rejected', rejection_reason = $1, rejection_at = NOW(), updated_at = NOW()
+         WHERE id = $2
+         RETURNING id, name, approval_status, rejection_reason, rejection_at`,
+        [rejection_reason, id]
+      );
+
+      // Audit log
+      const userRole = (Array.isArray(req.user?.role) ? req.user.role[0] : req.user?.role || "unknown") as string;
+      await writeAuditLog({
+        actor_id: userId,
+        actor_role: userRole,
+        action: "college_rejected",
+        target_id: id,
+        target_type: "college",
+        reason: rejection_reason || undefined,
+        metadata: { rejection_reason },
+      }).catch(() => { });
+
+      res.json({ success: true, data: updated, message: "College rejected" });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * GET /api/campuses?approval_status=...
+ * Filter existing list by approval status (extends existing GET)
+ * Add approval_status query param to the existing colleges list endpoint above
+ */
 
 export default router;

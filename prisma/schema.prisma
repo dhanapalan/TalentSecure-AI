@@ -31,6 +31,7 @@ model User {
   admin_audit_logs_admin_audit_logs_student_idTousers admin_audit_logs[] @relation("admin_audit_logs_student_idTousers")
   cheating_logs                                       cheating_logs[]
   colleges_colleges_created_byTousers                 colleges[]         @relation("colleges_created_byTousers")
+  colleges_colleges_approved_byTousers                colleges[]         @relation("colleges_approved_byTousers")
   colleges_colleges_legacy_user_idTousers             colleges?          @relation("colleges_legacy_user_idTousers")
   exam_attempts                                       exam_attempts[]
   exams                                               exams[]
@@ -119,12 +120,25 @@ model colleges {
   last_activity_date                   DateTime?         @db.Timestamptz(6)
   internal_notes                       String?
 
+  // College Approval Workflow
+  approval_status                      String            @default("pending") @db.VarChar(50)
+  approved_by                          String?           @db.Uuid
+  approved_at                          DateTime?         @db.Timestamptz(6)
+  rejection_reason                     String?
+  rejection_at                         DateTime?         @db.Timestamptz(6)
+
   users_colleges_created_byTousers     User?             @relation("colleges_created_byTousers", fields: [created_by], references: [id], onUpdate: NoAction)
+  users_colleges_approved_byTousers    User?             @relation("colleges_approved_byTousers", fields: [approved_by], references: [id], onUpdate: NoAction)
   users_colleges_legacy_user_idTousers User?             @relation("colleges_legacy_user_idTousers", fields: [legacy_user_id], references: [id], onUpdate: NoAction)
   exam_colleges                        exam_colleges[]
   student_details                      student_details[]
   users_users_college_idTocolleges     User[]            @relation("users_college_idTocolleges")
+  subscriptions                        subscriptions[]
+  invoices                             invoices[]
+  billing_contacts                     billing_contacts[]
+  usage_metrics                        usage_metrics[]
 
+  @@index([approval_status], map: "idx_colleges_approval_status")
   @@index([legacy_user_id], map: "idx_colleges_legacy_user_id")
   @@index([name], map: "idx_colleges_name")
 }
@@ -615,4 +629,151 @@ model drive_pool_audit_logs {
 
   @@index([pool_id], map: "idx_dpal_pool")
   @@index([actor_id], map: "idx_dpal_actor")
+}
+
+// ── BILLING & SUBSCRIPTION SYSTEM ────────────────────────────────────────────
+
+model subscription_plans {
+  id              String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name            String      @db.VarChar(100)
+  description     String?
+  tier            String      @unique @db.VarChar(50)
+  price_per_month Decimal     @db.Decimal(10, 2)
+  price_per_year  Decimal?    @db.Decimal(10, 2)
+  max_students    Int?
+  max_drives      Int?
+  max_assessments Int?
+  features        Json?
+  is_active       Boolean     @default(true)
+  created_at      DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime    @default(now()) @updatedAt @db.Timestamptz(6)
+
+  subscriptions   subscriptions[]
+
+  @@map("subscription_plans")
+}
+
+model subscriptions {
+  id                String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  college_id        String              @db.Uuid
+  plan_id           String              @db.Uuid
+  status            String              @default("active") @db.VarChar(50)
+  billing_cycle     String              @default("monthly") @db.VarChar(20)
+  current_amount    Decimal?            @db.Decimal(10, 2)
+  amount_paid       Decimal             @default(0) @db.Decimal(10, 2)
+  started_at        DateTime            @default(now()) @db.Timestamptz(6)
+  renewed_at        DateTime?           @db.Timestamptz(6)
+  expires_at        DateTime?           @db.Timestamptz(6)
+  cancelled_at      DateTime?           @db.Timestamptz(6)
+  payment_method    String?             @db.VarChar(50)
+  payment_method_id String?             @db.VarChar(255)
+  auto_renew        Boolean             @default(true)
+  created_at        DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime            @default(now()) @updatedAt @db.Timestamptz(6)
+
+  college colleges            @relation(fields: [college_id], references: [id], onDelete: Cascade)
+  plan    subscription_plans  @relation(fields: [plan_id], references: [id], onDelete: Restrict)
+  invoices invoices[]
+  usage   usage_metrics[]
+
+  @@index([college_id])
+  @@index([status])
+  @@map("subscriptions")
+}
+
+model invoices {
+  id              String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  subscription_id String        @db.Uuid
+  college_id      String        @db.Uuid
+  invoice_number  String        @unique @db.VarChar(100)
+  amount_due      Decimal       @db.Decimal(10, 2)
+  amount_paid     Decimal       @default(0) @db.Decimal(10, 2)
+  tax             Decimal       @default(0) @db.Decimal(10, 2)
+  discount        Decimal       @default(0) @db.Decimal(10, 2)
+  total           Decimal       @db.Decimal(10, 2)
+  status          String        @default("pending") @db.VarChar(50)
+  issued_date     DateTime      @default(now()) @db.Timestamptz(6)
+  due_date        DateTime?     @db.Timestamptz(6)
+  paid_date       DateTime?     @db.Timestamptz(6)
+  payment_id      String?       @db.VarChar(255)
+  notes           String?
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  college      colleges      @relation(fields: [college_id], references: [id], onDelete: Cascade)
+  subscription subscriptions @relation(fields: [subscription_id], references: [id], onDelete: Cascade)
+
+  @@index([college_id])
+  @@index([status])
+  @@index([subscription_id])
+  @@map("invoices")
+}
+
+model billing_contacts {
+  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  college_id    String   @db.Uuid
+  name          String   @db.VarChar(255)
+  email         String   @db.VarChar(255)
+  phone         String?  @db.VarChar(20)
+  designation   String?  @db.VarChar(100)
+  address_line1 String?  @db.VarChar(255)
+  address_line2 String?  @db.VarChar(255)
+  city          String?  @db.VarChar(100)
+  state         String?  @db.VarChar(100)
+  postal_code   String?  @db.VarChar(20)
+  country       String?  @db.VarChar(100)
+  gst_number    String?  @db.VarChar(50)
+  pan_number    String?  @db.VarChar(50)
+  is_primary    Boolean  @default(false)
+  is_active     Boolean  @default(true)
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  college colleges @relation(fields: [college_id], references: [id], onDelete: Cascade)
+
+  @@index([college_id])
+  @@map("billing_contacts")
+}
+
+model usage_metrics {
+  id             String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  college_id     String        @db.Uuid
+  subscription_id String?       @db.Uuid
+  metric_name    String        @db.VarChar(100)
+  metric_value   Int           @default(0)
+  month          DateTime      @db.Date
+  created_at     DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime      @default(now()) @updatedAt @db.Timestamptz(6)
+
+  college     colleges      @relation(fields: [college_id], references: [id], onDelete: Cascade)
+  subscription subscriptions? @relation(fields: [subscription_id], references: [id], onDelete: SetNull)
+
+  @@unique([college_id, metric_name, month])
+  @@index([college_id])
+  @@map("usage_metrics")
+}
+
+model student_payments {
+  id             String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  student_id     String    @db.Uuid
+  college_id     String    @db.Uuid
+  department     String?   @db.VarChar(150)
+  academic_year  String    @db.VarChar(9)
+  amount         Decimal   @default(500.00) @db.Decimal(10, 2)
+  status         String    @default("pending") @db.VarChar(20)
+  paid_at        DateTime? @db.Timestamptz(6)
+  payment_method String?   @db.VarChar(50)
+  payment_ref    String?   @db.VarChar(100)
+  recorded_by    String?   @db.Uuid
+  notes          String?
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+
+  @@unique([student_id, academic_year], map: "unique_student_academic_year")
+  @@index([college_id, academic_year])
+  @@index([status])
+  @@index([college_id, department])
+  @@map("student_payments")
 }

@@ -44,6 +44,9 @@ import studentLearningRoutes from "./routes/studentLearning.routes.js";
 import collegeSkillsRoutes from "./routes/collegeSkills.routes.js";
 import mockInterviewRoutes from "./routes/mockInterview.routes.js";
 import companyRoutes from "./routes/company.routes.js";
+import billingRoutes from "./routes/billing.routes.js";
+import questionBankAIRoutes from "./routes/questionBankAI.routes.js";
+import superadminRoutes from "./routes/superadmin.routes.js";
 
 const app = express();
 
@@ -146,6 +149,10 @@ app.use("/api/student-learning", studentLearningRoutes);
 app.use("/api/college-skills", collegeSkillsRoutes);
 app.use("/api/mock-interviews", mockInterviewRoutes);
 app.use("/api/company", companyRoutes);
+app.use("/api/billing", billingRoutes);
+app.use("/api/qb-ai", questionBankAIRoutes);
+// ── SuperAdmin Portal ─────────────────────────────────────────────────────────
+app.use("/api/superadmin", superadminRoutes);
 
 // ── Error Handling ───────────────────────────────────────────────────────────
 app.use(notFoundHandler);

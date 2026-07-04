@@ -8,6 +8,7 @@
 import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
 import { NestExpressApplication } from "@nestjs/platform-express";
+import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import helmet from "helmet";
 import cors from "cors";
 import { AppModule } from "./nest/app.module.js";
@@ -77,6 +78,26 @@ async function bootstrap() {
 
   // 8. Disable automatic body parser (NestJS) so Express middleware handles it
   app.set("trust proxy", 1);
+
+  // 9. Setup Swagger/OpenAPI documentation
+  if (env.NODE_ENV !== "production") {
+    const config = new DocumentBuilder()
+      .setTitle("TalentSecure Phase 2 API")
+      .setDescription("Users, Roles, Audit Trail, and Workflows Management API")
+      .setVersion("2.0.0")
+      .addBearerAuth(
+        { type: "http", scheme: "bearer", bearerFormat: "JWT" },
+        "access_token"
+      )
+      .addTag("Users", "User management endpoints")
+      .addTag("Roles", "Role and permission management")
+      .addTag("Audit", "Audit trail and logging")
+      .addTag("Workflows", "Workflow management")
+      .build();
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup("api/docs", app, document);
+    logger.info("✓ Swagger documentation available at /api/docs");
+  }
 
   await app.listen(env.PORT);
   logger.info(`✓ GradLogic server running on port ${env.PORT} [NestJS]`);

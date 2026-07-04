@@ -1,0 +1,315 @@
+"""
+RAG Engine
+==========
+Retrieval-Augmented Generation for intelligent question generation.
+"""
+
+import logging
+import json
+from typing import List, Dict, Optional
+
+from langchain_groq import ChatGroq
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers import JsonOutputParser
+
+from config import config
+from vector_store import VectorStore
+
+logger = logging.getLogger(__name__)
+
+
+class RAGEngine:
+    """Retrieval-Augmented Generation Engine"""
+
+    def __init__(self):
+        self.logger = logger
+        self.vector_store = VectorStore()
+        self.llm = self._initialize_llm()
+
+    def _initialize_llm(self):
+        """Initialize LLM based on configuration"""
+        provider = config.llm.provider
+
+        if provider == "groq":
+            if not config.llm.groq_api_key:
+                raise ValueError("GROQ_API_KEY not set")
+
+            self.logger.info(f"Initializing Groq LLM: {config.llm.groq_model}")
+            return ChatGroq(
+                model=config.llm.groq_model,
+                api_key=config.llm.groq_api_key,
+                temperature=config.llm.groq_temperature,
+                max_tokens=config.llm.groq_max_tokens,
+            )
+
+        elif provider == "openai":
+            if not config.llm.openai_api_key:
+                raise ValueError("OPENAI_API_KEY not set")
+
+            self.logger.info(f"Initializing OpenAI LLM: {config.llm.openai_model}")
+            return ChatOpenAI(
+                model=config.llm.openai_model,
+                api_key=config.llm.openai_api_key,
+                temperature=config.llm.openai_temperature,
+                max_tokens=config.llm.openai_max_tokens,
+            )
+
+        else:
+            raise ValueError(f"Unsupported LLM provider: {provider}")
+
+    def retrieve_context(self, query: str, top_k: int = 5) -> str:
+        """Retrieve relevant context from knowledge base"""
+        relevant_chunks = self.vector_store.search(query, top_k=top_k)
+
+        if not relevant_chunks:
+            return ""
+
+        # Combine chunks into context
+        context_parts = []
+        for i, chunk in enumerate(relevant_chunks, 1):
+            context_parts.append(f"--- Source {i} (Similarity: {chunk['similarity']:.0%}) ---\n{chunk['content']}")
+
+        return "\n\n".join(context_parts)
+
+    def generate_response(self, query: str, context: str = None) -> str:
+        """Generate a response using RAG"""
+        if context is None:
+            context = self.retrieve_context(query)
+
+        if not context:
+            # Fallback to LLM without context
+            messages = [HumanMessage(content=query)]
+        else:
+            # Use RAG with context
+            rag_prompt = f"""Based on the following context, answer the question.
+
+Context:
+{context}
+
+Question: {query}
+
+Answer:"""
+            messages = [HumanMessage(content=rag_prompt)]
+
+        response = self.llm.invoke(messages)
+        return response.content
+
+    def get_collection_stats(self) -> Dict:
+        """Get knowledge base statistics"""
+        return self.vector_store.get_collection_stats()
+
+    def search_knowledge_base(self, query: str, top_k: int = 5) -> List[Dict]:
+        """Search the knowledge base"""
+        return self.vector_store.search(query, top_k=top_k)
+
+
+class QuestionGenerator(RAGEngine):
+    """AI-powered Question Generator using RAG"""
+
+    def generate_questions(
+        self,
+        topic: str,
+        difficulty: str = "medium",
+        question_type: str = "multiple_choice",
+        count: int = 3,
+        use_rag: bool = True,
+    ) -> List[Dict]:
+        """Generate questions for a topic"""
+
+        if use_rag:
+            context = self.retrieve_context(topic, top_k=3)
+        else:
+            context = ""
+
+        questions = []
+
+        for i in range(count):
+            prompt = self._build_question_prompt(
+                topic=topic,
+                difficulty=difficulty,
+                question_type=question_type,
+                context=context,
+                question_number=i + 1,
+            )
+
+            # Steer away from repeats: show the LLM what it already produced
+            if questions:
+                previous = "\n".join(f"- {q.get('question', '')}" for q in questions)
+                prompt += (
+                    f"\n\nIMPORTANT: You already generated these questions — "
+                    f"create one that tests a DIFFERENT concept or scenario:\n{previous}"
+                )
+
+            try:
+                response = self.llm.invoke([HumanMessage(content=prompt)])
+                question = self._parse_question_response(response.content, question_type)
+
+                if question:
+                    questions.append(question)
+                    self.logger.info(f"Generated question {i + 1}/{count}")
+                else:
+                    self.logger.warning(f"Failed to parse question {i + 1}")
+
+            except Exception as e:
+                self.logger.error(f"Error generating question {i + 1}: {e}")
+
+        return questions
+
+    def _build_question_prompt(
+        self,
+        topic: str,
+        difficulty: str,
+        question_type: str,
+        context: str,
+        question_number: int,
+    ) -> str:
+        """Build the prompt for question generation"""
+
+        if question_type == "multiple_choice":
+            return f"""Generate a {difficulty} difficulty multiple choice question on the topic: "{topic}"
+
+{f"Use this context: {context}" if context else ""}
+
+Requirements:
+- Clear, unambiguous question
+- 4 distinct options (A, B, C, D)
+- One correct answer
+- Options should have similar length
+- No tricks or ambiguity
+
+Respond ONLY in this JSON format:
+{{
+    "question": "The question text here?",
+    "options": ["Option A", "Option B", "Option C", "Option D"],
+    "correct_answer": "Option A",
+    "explanation": "Brief explanation of why this is correct",
+    "difficulty": "{difficulty}",
+    "topic": "{topic}"
+}}"""
+
+        elif question_type == "short_answer":
+            return f"""Generate a {difficulty} difficulty short answer question on: "{topic}"
+
+{f"Use this context: {context}" if context else ""}
+
+Requirements:
+- Clear, specific question
+- Expected answer should be 1-3 sentences
+- Focused on key concepts
+
+Respond ONLY in this JSON format:
+{{
+    "question": "The question text here?",
+    "answer": "Expected answer",
+    "keywords": ["key1", "key2", "key3"],
+    "explanation": "Full explanation",
+    "difficulty": "{difficulty}",
+    "topic": "{topic}"
+}}"""
+
+        elif question_type == "true_false":
+            return f"""Generate a {difficulty} difficulty true/false question on: "{topic}"
+
+{f"Use this context: {context}" if context else ""}
+
+Requirements:
+- Statement should be clear
+- Not ambiguous
+- Educational value
+
+Respond ONLY in this JSON format:
+{{
+    "question": "Statement here?",
+    "correct_answer": true,
+    "explanation": "Why this statement is true/false",
+    "difficulty": "{difficulty}",
+    "topic": "{topic}"
+}}"""
+
+        else:
+            # Generic format
+            return f"""Generate a {difficulty} difficulty {question_type} question on: "{topic}"
+
+{f"Use this context: {context}" if context else ""}
+
+Create an engaging, clear question appropriate for skill assessment.
+
+Respond in JSON format with: question, answer/options, explanation, difficulty, topic"""
+
+    def _parse_question_response(self, response: str, question_type: str) -> Optional[Dict]:
+        """Parse LLM response to extract question"""
+        try:
+            # Try to extract JSON
+            json_start = response.find("{")
+            json_end = response.rfind("}") + 1
+
+            if json_start != -1 and json_end > json_start:
+                json_str = response[json_start:json_end]
+                question = json.loads(json_str)
+
+                # Validate required fields
+                if "question" in question:
+                    question["question_type"] = question_type
+                    return question
+
+            self.logger.warning(f"Could not parse response: {response[:100]}")
+            return None
+
+        except json.JSONDecodeError as e:
+            self.logger.error(f"JSON parsing error: {e}")
+            return None
+
+    def generate_batch(
+        self,
+        topics: List[str],
+        difficulty: str = "medium",
+        questions_per_topic: int = 2,
+    ) -> List[Dict]:
+        """Generate questions for multiple topics"""
+
+        all_questions = []
+
+        for topic in topics:
+            self.logger.info(f"Generating questions for: {topic}")
+
+            questions = self.generate_questions(
+                topic=topic,
+                difficulty=difficulty,
+                question_type="multiple_choice",
+                count=questions_per_topic,
+            )
+
+            all_questions.extend(questions)
+
+        self.logger.info(f"Generated {len(all_questions)} questions total")
+        return all_questions
+
+
+if __name__ == "__main__":
+    # Test RAG & Question Generation
+    try:
+        generator = QuestionGenerator()
+
+        # Test question generation
+        print("Generating sample questions...\n")
+
+        questions = generator.generate_questions(
+            topic="Profit and Loss",
+            difficulty="medium",
+            question_type="multiple_choice",
+            count=2,
+        )
+
+        for i, q in enumerate(questions, 1):
+            print(f"\nQuestion {i}:")
+            print(f"  Q: {q.get('question')}")
+            if "options" in q:
+                for j, opt in enumerate(q["options"], 1):
+                    print(f"  {chr(64+j)}: {opt}")
+            print(f"  Answer: {q.get('correct_answer')}")
+            print(f"  Explanation: {q.get('explanation')}")
+
+    except Exception as e:
+        print(f"❌ Error: {e}")

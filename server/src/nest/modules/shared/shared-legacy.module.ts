@@ -2,7 +2,8 @@
  * SHARED legacy module — mounts remaining Express routers unchanged.
  * Covers: /api/analytics, /api/admin, /api/audit-logs, /api/notifications,
  *         /api/gamification, /api/mentor, /api/mock-interviews,
- *         /api/development, /api/skills, /api/roles, /api/cheating
+ *         /api/development, /api/skills, /api/roles, /api/cheating,
+ *         /api/billing, /api/qb-ai
  * TODO: Port each to a full NestJS controller in a follow-up.
  */
 import { Module, MiddlewareConsumer, NestModule } from "@nestjs/common";
@@ -17,6 +18,8 @@ import developmentRoutes from "../../../routes/development.routes.js";
 import skillsRoutes from "../../../routes/skills.routes.js";
 import roleRoutes from "../../../routes/role.routes.js";
 import cheatingRoutes from "../../../routes/cheating.routes.js";
+import billingRoutes from "../../../routes/billing.routes.js";
+import questionBankAIRoutes from "../../../routes/questionBankAI.routes.js";
 import { applyLegacyRouter } from "../../utils/legacy-router.middleware.js";
 
 @Module({})
@@ -33,5 +36,7 @@ export class SharedLegacyModule implements NestModule {
     applyLegacyRouter(consumer, skillsRoutes, "/api/skills");
     applyLegacyRouter(consumer, roleRoutes, "/api/roles");
     applyLegacyRouter(consumer, cheatingRoutes, "/api/cheating");
+    applyLegacyRouter(consumer, billingRoutes, "/api/billing");
+    applyLegacyRouter(consumer, questionBankAIRoutes, "/api/qb-ai");
   }
 }

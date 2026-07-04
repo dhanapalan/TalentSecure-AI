@@ -6,7 +6,7 @@ let redis: Redis;
 
 export const connectRedis = async (): Promise<Redis> => {
   redis = new Redis(env.REDIS_URL, {
-    maxRetriesPerRequest: 3,
+    maxRetriesPerRequest: null,
     retryStrategy(times: number) {
       return Math.min(times * 200, 2000);
     },

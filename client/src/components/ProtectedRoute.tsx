@@ -132,8 +132,8 @@ function WorkflowRedirect({ to }: { to: string }) {
 
 /** Default landing path per role after login. */
 export const ROLE_HOME: Record<AppRole, string> = {
-  super_admin: "/app/hr-dashboard",
-  admin: "/app/hr-dashboard",
+  super_admin: "/app/superadmin/dashboard",
+  admin: "/app/superadmin/dashboard",
   hr: "/app/hr-dashboard",
   engineer: "/app/engineer-panel",
   cxo: "/app/cxo-analytics",

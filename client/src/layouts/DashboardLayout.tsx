@@ -25,9 +25,10 @@ import {
   TrophyIcon,
   BuildingOffice2Icon,
   UserCircleIcon,
+  CreditCardIcon,
 } from "@heroicons/react/24/outline";
 
-// ── Sidebar navigation items with role access control ────────────────────────
+// ── Sidebar navigation: grouped sections with role access control ────────────
 
 interface NavItem {
   name: string;
@@ -36,286 +37,141 @@ interface NavItem {
   roles: AppRole[]; // which roles see this link
 }
 
-const navigation: NavItem[] = [
-  // ── HR / Admin workflow ──────────────────────────────────────────────────────
-  // 1. Overview
+interface NavSection {
+  title: string | null; // null → no header rendered
+  items: NavItem[];
+}
+
+const navigation: NavSection[] = [
+  // ── Overview ────────────────────────────────────────────────────────────────
   {
-    name: "HR Dashboard",
-    href: "/app/hr-dashboard",
-    icon: HomeIcon,
-    roles: ["super_admin", "hr", "cxo"],
-  },
-  // 2. Onboard partner colleges
-  {
-    name: "CXO Analytics",
-    href: "/app/cxo-analytics",
-    icon: ChartBarIcon,
-    roles: ["cxo", "super_admin"],
-  },
-  {
-    name: "Campuses",
-    href: "/app/campuses",
-    icon: AcademicCapIcon,
-    roles: ["super_admin", "hr"],
-  },
-  // 3. Define scoring / cutoff rules before creating drives
-  {
-    name: "Assessment Rules",
-    href: "/app/assessment-rules",
-    icon: ClipboardDocumentListIcon,
-    roles: ["super_admin", "hr", "engineer"],
-  },
-  {
-    name: "JD Extractor",
-    href: "/app/company/jd-extract",
-    icon: SparklesIcon,
-    roles: ["super_admin", "hr", "engineer"],
-  },
-  // 4. Create and manage assessment drives
-  {
-    name: "Drives",
-    href: "/app/drives",
-    icon: RocketLaunchIcon,
-    roles: ["super_admin", "hr", "engineer"],
-  },
-  // 5. Review registered candidates
-  {
-    name: "Students",
-    href: "/app/students",
-    icon: UsersIcon,
-    roles: ["super_admin", "hr", "cxo"],
-  },
-  // 6. Monitor live exams
-  {
-    name: "Live Monitoring",
-    href: "/app/admin/monitoring",
-    icon: EyeIcon,
-    roles: ["super_admin", "hr", "cxo"],
-  },
-  // 7. Track placements
-  {
-    name: "Placements",
-    href: "/app/placements",
-    icon: TrophyIcon,
-    roles: ["super_admin", "hr", "college_admin"],
-  },
-  // 8. User / system management
-  {
-    name: "Administration",
-    href: "/app/administration",
-    icon: WrenchScrewdriverIcon,
-    roles: ["super_admin", "admin", "hr", "cxo"],
+    title: null,
+    items: [
+      { name: "HR Dashboard", href: "/app/hr-dashboard", icon: HomeIcon, roles: ["super_admin", "hr", "cxo"] },
+      { name: "CXO Analytics", href: "/app/cxo-analytics", icon: ChartBarIcon, roles: ["cxo", "super_admin"] },
+      { name: "Dashboard", href: "/app/college-dashboard", icon: HomeIcon, roles: ["college_admin", "college", "college_staff"] },
+      { name: "Student Portal", href: "/app/student-portal", icon: HomeIcon, roles: ["student"] },
+      { name: "Dashboard", href: "/app/company", icon: BuildingOffice2Icon, roles: ["company"] },
+      { name: "My Students", href: "/app/mentor", icon: UserGroupIcon, roles: ["mentor"] },
+      { name: "Engineer Panel", href: "/app/engineer-panel", icon: WrenchScrewdriverIcon, roles: ["engineer"] },
+    ],
   },
 
-  // ── Engineer workflow ────────────────────────────────────────────────────────
+  // ── SuperAdmin: colleges & onboarding ───────────────────────────────────────
   {
-    name: "Engineer Panel",
-    href: "/app/engineer-panel",
-    icon: WrenchScrewdriverIcon,
-    roles: ["engineer"],
+    title: "Colleges",
+    items: [
+      { name: "Campuses", href: "/app/campuses", icon: AcademicCapIcon, roles: ["super_admin", "hr"] },
+      { name: "Pending Approvals", href: "/app/approvals/pending", icon: ShieldCheckIcon, roles: ["super_admin", "admin", "hr"] },
+      { name: "Placements", href: "/app/placements", icon: TrophyIcon, roles: ["super_admin", "hr"] },
+    ],
   },
 
-  // ── College / Campus Portal workflow ────────────────────────────────────────
-  // 1. Overview
+  // ── SuperAdmin: content studio (question bank + learning content) ───────────
   {
-    name: "Dashboard",
-    href: "/app/college-dashboard",
-    icon: HomeIcon,
-    roles: ["college_admin", "college", "college_staff"],
-  },
-  // 2. View assigned drives
-  {
-    name: "Drives",
-    href: "/app/college/drives",
-    icon: RocketLaunchIcon,
-    roles: ["college_admin", "college", "college_staff"],
-  },
-  // 3. Manage students in the college
-  {
-    name: "Students",
-    href: "/app/students",
-    icon: UsersIcon,
-    roles: ["college_admin", "college", "college_staff"],
-  },
-  // 4. View results after drives complete
-  {
-    name: "Results",
-    href: "/app/college/results",
-    icon: ClipboardDocumentListIcon,
-    roles: ["college_admin", "college", "college_staff"],
-  },
-  // 5. Analytics & trends
-  {
-    name: "Insights",
-    href: "/app/college/insights",
-    icon: ChartBarIcon,
-    roles: ["college_admin", "college", "college_staff"],
-  },
-  // 6. Proctoring / academic integrity
-  {
-    name: "Integrity",
-    href: "/app/college/integrity",
-    icon: ShieldCheckIcon,
-    roles: ["college_admin", "college", "college_staff"],
-  },
-  // 7. Announcements & messages
-  {
-    name: "Communications",
-    href: "/app/college/communications",
-    icon: EnvelopeIcon,
-    roles: ["college_admin", "college", "college_staff"],
-  },
-  // 8. Manage college staff accounts
-  {
-    name: "Campus Admins",
-    href: "/app/college/campus-admins",
-    icon: UserGroupIcon,
-    roles: ["college_admin", "college"],
-  },
-  // 9. College settings
-  {
-    name: "Settings",
-    href: "/app/college/settings",
-    icon: Cog6ToothIcon,
-    roles: ["college_admin", "college"],
+    title: "Content Studio",
+    items: [
+      { name: "Question Bank", href: "/app/question-bank", icon: ClipboardDocumentListIcon, roles: ["super_admin", "hr", "engineer"] },
+      { name: "AI Generator", href: "/app/question-bank/ai-generate", icon: SparklesIcon, roles: ["super_admin", "hr", "engineer"] },
+      { name: "Learning Modules", href: "/app/learning-modules", icon: BookOpenIcon, roles: ["super_admin", "hr", "cxo"] },
+      { name: "Skills", href: "/app/skills", icon: AcademicCapIcon, roles: ["super_admin", "hr", "cxo"] },
+      { name: "Skill Programs", href: "/app/skill-programs", icon: RocketLaunchIcon, roles: ["super_admin", "hr", "cxo"] },
+      { name: "Course Builder", href: "/app/lms/builder", icon: BookOpenIcon, roles: ["super_admin", "hr", "instructor"] },
+    ],
   },
 
-  // ── Student Portal ───────────────────────────────────────────────────────────
+  // ── SuperAdmin: assessments & proctoring ────────────────────────────────────
   {
-    name: "Student Portal",
-    href: "/app/student-portal",
-    icon: HomeIcon,
-    roles: ["student"],
-  },
-  {
-    name: "Exams",
-    href: "/app/student-portal?tab=exams",
-    icon: AcademicCapIcon,
-    roles: ["student"],
-  },
-  {
-    name: "Learning Portal",
-    href: "/app/learn",
-    icon: AcademicCapIcon,
-    roles: ["student"],
-  },
-  {
-    name: "Course Catalog",
-    href: "/app/lms/catalog",
-    icon: BookOpenIcon,
-    roles: ["student"],
-  },
-  {
-    name: "Practice Arena",
-    href: "/app/student-portal/practice",
-    icon: PuzzlePieceIcon,
-    roles: ["student"],
-  },
-  {
-    name: "Development",
-    href: "/app/student-portal/development",
-    icon: SparklesIcon,
-    roles: ["student"],
-  },
-  {
-    name: "Achievements",
-    href: "/app/student-portal/gamification",
-    icon: TrophyIcon,
-    roles: ["student"],
+    title: "Assessments",
+    items: [
+      { name: "Drives", href: "/app/drives", icon: RocketLaunchIcon, roles: ["super_admin", "hr", "engineer"] },
+      { name: "Assessment Rules", href: "/app/assessment-rules", icon: ClipboardDocumentListIcon, roles: ["super_admin", "hr", "engineer"] },
+      { name: "JD Extractor", href: "/app/company/jd-extract", icon: SparklesIcon, roles: ["super_admin", "hr", "engineer"] },
+      { name: "Live Monitoring", href: "/app/admin/monitoring", icon: EyeIcon, roles: ["super_admin", "hr", "cxo"] },
+    ],
   },
 
-  // ── Company Portal ───────────────────────────────────────────────────────────
+  // ── SuperAdmin: people & system ─────────────────────────────────────────────
   {
-    name: "Dashboard",
-    href: "/app/company",
-    icon: BuildingOffice2Icon,
-    roles: ["company"],
-  },
-  {
-    name: "Candidates",
-    href: "/app/company/candidates",
-    icon: UsersIcon,
-    roles: ["company"],
-  },
-  {
-    name: "My Drives",
-    href: "/app/drives",
-    icon: RocketLaunchIcon,
-    roles: ["company"],
-  },
-  {
-    name: "Campus Setup",
-    href: "/app/company/campus-setup",
-    icon: AcademicCapIcon,
-    roles: ["company"],
-  },
-  {
-    name: "JD Extractor",
-    href: "/app/company/jd-extract",
-    icon: SparklesIcon,
-    roles: ["company"],
-  },
-  {
-    name: "Company Profile",
-    href: "/app/company/profile",
-    icon: UserCircleIcon,
-    roles: ["company"],
+    title: "People & System",
+    items: [
+      { name: "Students", href: "/app/students", icon: UsersIcon, roles: ["super_admin", "hr", "cxo"] },
+      { name: "Skill Partners", href: "/app/skill-partners", icon: UserGroupIcon, roles: ["super_admin", "hr", "cxo"] },
+      { name: "Administration", href: "/app/administration", icon: WrenchScrewdriverIcon, roles: ["super_admin", "admin", "hr", "cxo"] },
+    ],
   },
 
-  // ── Mentor Portal ─────────────────────────────────────────────────────────────
+  // ── Campus portal: students & performance ───────────────────────────────────
   {
-    name: "My Students",
-    href: "/app/mentor",
-    icon: UserGroupIcon,
-    roles: ["mentor"],
-  },
-  // ── Instructor Portal ────────────────────────────────────────────────────────
-  {
-    name: "Course Builder",
-    href: "/app/lms/builder",
-    icon: BookOpenIcon,
-    roles: ["instructor"],
-  },
-  {
-    name: "Course Catalog",
-    href: "/app/lms/catalog",
-    icon: BookOpenIcon,
-    roles: ["instructor"],
+    title: "Students",
+    items: [
+      { name: "Students", href: "/app/students", icon: UsersIcon, roles: ["college_admin", "college", "college_staff"] },
+      { name: "Results", href: "/app/college/results", icon: ClipboardDocumentListIcon, roles: ["college_admin", "college", "college_staff"] },
+      { name: "Insights", href: "/app/college/insights", icon: ChartBarIcon, roles: ["college_admin", "college", "college_staff"] },
+      { name: "Integrity", href: "/app/college/integrity", icon: ShieldCheckIcon, roles: ["college_admin", "college", "college_staff"] },
+    ],
   },
 
-
-  // ── Skill Development Layer (HR/Admin) ───────────────────────────────────────
+  // ── Campus portal: placement activity ───────────────────────────────────────
   {
-    name: "Skills",
-    href: "/app/skills",
-    icon: AcademicCapIcon,
-    roles: ["super_admin", "hr", "cxo"],
-  },
-  {
-    name: "Learning Modules",
-    href: "/app/learning-modules",
-    icon: ClipboardDocumentListIcon,
-    roles: ["super_admin", "hr", "cxo"],
-  },
-  {
-    name: "Skill Programs",
-    href: "/app/skill-programs",
-    icon: RocketLaunchIcon,
-    roles: ["super_admin", "hr", "cxo"],
-  },
-  {
-    name: "Skill Partners",
-    href: "/app/skill-partners",
-    icon: UserGroupIcon,
-    roles: ["super_admin", "hr", "cxo"],
+    title: "Placement",
+    items: [
+      { name: "Drives", href: "/app/college/drives", icon: RocketLaunchIcon, roles: ["college_admin", "college", "college_staff"] },
+      { name: "Placements", href: "/app/placements", icon: TrophyIcon, roles: ["college_admin"] },
+      { name: "Communications", href: "/app/college/communications", icon: EnvelopeIcon, roles: ["college_admin", "college", "college_staff"] },
+    ],
   },
 
-  // ── LMS management (HR/Admin) ────────────────────────────────────────────────
+  // ── Campus portal: administration ───────────────────────────────────────────
   {
-    name: "Course Builder",
-    href: "/app/lms/builder",
-    icon: BookOpenIcon,
-    roles: ["super_admin", "hr"],
+    title: "Administration",
+    items: [
+      { name: "Campus Admins", href: "/app/college/campus-admins", icon: UserGroupIcon, roles: ["college_admin", "college"] },
+      { name: "Billing", href: "/app/college/billing", icon: CreditCardIcon, roles: ["college_admin"] },
+      { name: "Settings", href: "/app/college/settings", icon: Cog6ToothIcon, roles: ["college_admin", "college"] },
+    ],
+  },
+
+  // ── Student portal: learning ────────────────────────────────────────────────
+  {
+    title: "Learn",
+    items: [
+      { name: "Learning Portal", href: "/app/learn", icon: BookOpenIcon, roles: ["student"] },
+      { name: "Course Catalog", href: "/app/lms/catalog", icon: AcademicCapIcon, roles: ["student", "instructor"] },
+      { name: "Soft Skills Hub", href: "/app/student-portal/soft-skills", icon: SparklesIcon, roles: ["student"] },
+      { name: "Development", href: "/app/student-portal/development", icon: SparklesIcon, roles: ["student"] },
+    ],
+  },
+
+  // ── Student portal: practice & exams ────────────────────────────────────────
+  {
+    title: "Practice & Exams",
+    items: [
+      { name: "Exams", href: "/app/student-portal?tab=exams", icon: AcademicCapIcon, roles: ["student"] },
+      { name: "Practice Arena", href: "/app/student-portal/practice", icon: PuzzlePieceIcon, roles: ["student"] },
+      { name: "Mock Interview", href: "/app/student-portal/mock-interview", icon: UserCircleIcon, roles: ["student"] },
+      { name: "Achievements", href: "/app/student-portal/gamification", icon: TrophyIcon, roles: ["student"] },
+    ],
+  },
+
+  // ── Company portal ──────────────────────────────────────────────────────────
+  {
+    title: "Recruiting",
+    items: [
+      { name: "Candidates", href: "/app/company/candidates", icon: UsersIcon, roles: ["company"] },
+      { name: "My Drives", href: "/app/drives", icon: RocketLaunchIcon, roles: ["company"] },
+      { name: "Campus Setup", href: "/app/company/campus-setup", icon: AcademicCapIcon, roles: ["company"] },
+      { name: "JD Extractor", href: "/app/company/jd-extract", icon: SparklesIcon, roles: ["company"] },
+      { name: "Company Profile", href: "/app/company/profile", icon: UserCircleIcon, roles: ["company"] },
+    ],
+  },
+
+  // ── Instructor portal ───────────────────────────────────────────────────────
+  {
+    title: "Teaching",
+    items: [
+      { name: "Course Builder", href: "/app/lms/builder", icon: BookOpenIcon, roles: ["instructor"] },
+    ],
   },
 ];
 
@@ -353,10 +209,20 @@ export default function DashboardLayout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Filter navigation items to only those the user's role can see
-  const visibleNav = navigation.filter((item) =>
-    item.roles.includes(effectiveRole),
-  );
+  // Filter each section's items to the user's role; drop empty sections and
+  // de-duplicate hrefs that appear in multiple sections (first wins).
+  const seenHrefs = new Set<string>();
+  const visibleSections = navigation
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => {
+        if (!item.roles.includes(effectiveRole)) return false;
+        if (seenHrefs.has(item.href)) return false;
+        seenHrefs.add(item.href);
+        return true;
+      }),
+    }))
+    .filter((section) => section.items.length > 0);
 
   return (
     <div className="flex min-h-screen bg-[#F8FAFC]">
@@ -376,26 +242,37 @@ export default function DashboardLayout() {
         </div>
 
         {/* Nav Links */}
-        <nav className="flex-1 overflow-y-auto space-y-1.5 px-4 py-6">
-          {visibleNav.map((item) => (
-            <NavLink
-              key={item.href}
-              to={item.href}
-              end={item.href === "/"}
-              className={({ isActive }) =>
-                `group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold transition-all ${isActive
-                  ? "bg-[#F0F5FF] text-blue-600 shadow-sm"
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                }`
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  <item.icon className={`h-5 w-5 flex-shrink-0 transition-colors ${isActive ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-600'}`} strokeWidth={isActive ? 2 : 1.5} />
-                  {item.name}
-                </>
+        <nav className="flex-1 overflow-y-auto px-4 py-4">
+          {visibleSections.map((section, si) => (
+            <div key={section.title ?? `section-${si}`} className={si > 0 ? "mt-5" : ""}>
+              {section.title && (
+                <p className="px-4 pb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                  {section.title}
+                </p>
               )}
-            </NavLink>
+              <div className="space-y-1">
+                {section.items.map((item) => (
+                  <NavLink
+                    key={item.href}
+                    to={item.href}
+                    end={item.href === "/"}
+                    className={({ isActive }) =>
+                      `group flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-bold transition-all ${isActive
+                        ? "bg-[#F0F5FF] text-blue-600 shadow-sm"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                      }`
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <item.icon className={`h-5 w-5 flex-shrink-0 transition-colors ${isActive ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-600'}`} strokeWidth={isActive ? 2 : 1.5} />
+                        {item.name}
+                      </>
+                    )}
+                  </NavLink>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
       </aside>

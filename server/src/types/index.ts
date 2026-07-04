@@ -81,7 +81,9 @@ export type AdminAuditAction =
   | "CAMPUS_MOU_UPLOADED"
   | "CAMPUS_BULK_SUSPEND"
   | "CAMPUS_BULK_ACTIVATE"
-  | "CAMPUS_BULK_BLACKLIST";
+  | "CAMPUS_BULK_BLACKLIST"
+  | "college_approved"
+  | "college_rejected";
 
 // ── Row Types ────────────────────────────────────────────────────────────────
 

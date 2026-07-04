@@ -1,0 +1,282 @@
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import {
+  UserGroupIcon,
+  AcademicCapIcon,
+  ClipboardDocumentListIcon,
+  ChartBarIcon,
+  ArrowDownTrayIcon,
+} from "@heroicons/react/24/outline";
+import toast from "react-hot-toast";
+import analyticsService, {
+  PlatformAnalytics,
+  CollegeAnalytics,
+} from "../../../services/analyticsService";
+import StatusBadge from "../../../components/superadmin/StatusBadge";
+import ChartCard from "../../../components/superadmin/ChartCard";
+
+type View = "platform" | "colleges" | "reports";
+
+const VIEW_TITLES: Record<View, { title: string; subtitle: string }> = {
+  platform: { title: "Platform Overview", subtitle: "Usage and growth across the whole platform" },
+  colleges: { title: "College Performance", subtitle: "Engagement and results per college" },
+  reports: { title: "Reports", subtitle: "Download platform data as CSV" },
+};
+
+function downloadCsv(filename: string, headers: string[], rows: (string | number)[][]) {
+  const escape = (v: string | number) => {
+    const s = String(v ?? "");
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const csv = [headers, ...rows].map((r) => r.map(escape).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export default function AnalyticsPage() {
+  const [searchParams] = useSearchParams();
+  const view: View = (searchParams.get("view") as View) || "platform";
+
+  const [days, setDays] = useState(30);
+  const [platform, setPlatform] = useState<PlatformAnalytics | null>(null);
+  const [colleges, setColleges] = useState<CollegeAnalytics[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        // Reports view needs both datasets for its exports.
+        if (view === "platform" || view === "reports") {
+          setPlatform(await analyticsService.getPlatform(days));
+        }
+        if (view === "colleges" || view === "reports") {
+          setColleges(await analyticsService.getColleges());
+        }
+      } catch (error) {
+        toast.error("Failed to load analytics");
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [view, days]);
+
+  const meta = VIEW_TITLES[view] || VIEW_TITLES.platform;
+
+  return (
+    <div className="p-8">
+      <div className="mb-8">
+        <h2 className="text-3xl font-bold text-gray-900">{meta.title}</h2>
+        <p className="text-gray-600 mt-1">{meta.subtitle}</p>
+      </div>
+
+      {loading ? (
+        <div className="p-12 text-center text-gray-600">Loading analytics...</div>
+      ) : view === "colleges" ? (
+        <CollegesView colleges={colleges} />
+      ) : view === "reports" ? (
+        <ReportsView platform={platform} colleges={colleges} />
+      ) : (
+        <PlatformView platform={platform} days={days} setDays={setDays} />
+      )}
+    </div>
+  );
+}
+
+function PlatformView({
+  platform,
+  days,
+  setDays,
+}: {
+  platform: PlatformAnalytics | null;
+  days: number;
+  setDays: (d: number) => void;
+}) {
+  const s = platform?.summary;
+  const cards = [
+    { title: "Total Users", value: s?.total_users, icon: UserGroupIcon, color: "text-blue-600 bg-blue-50" },
+    { title: "Active Users", value: s?.active_users, icon: UserGroupIcon, color: "text-green-600 bg-green-50" },
+    { title: "Colleges", value: s?.total_colleges, icon: AcademicCapIcon, color: "text-purple-600 bg-purple-50" },
+    { title: "Questions", value: s?.total_questions, icon: ClipboardDocumentListIcon, color: "text-orange-600 bg-orange-50" },
+    { title: "Exam Attempts", value: s?.total_attempts, icon: ChartBarIcon, color: "text-cyan-600 bg-cyan-50" },
+    { title: "Average Score", value: s?.avg_score, icon: ChartBarIcon, color: "text-pink-600 bg-pink-50" },
+  ];
+
+  return (
+    <>
+      <div className="mb-6 flex gap-2">
+        {[7, 30, 90].map((d) => (
+          <button
+            key={d}
+            onClick={() => setDays(d)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              days === d
+                ? "bg-blue-600 text-white"
+                : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+            }`}
+          >
+            Last {d} days
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+        {cards.map((card) => {
+          const Icon = card.icon;
+          return (
+            <div key={card.title} className="bg-white rounded-lg border border-gray-200 p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">{card.title}</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-1">{card.value ?? 0}</p>
+                </div>
+                <div className={`rounded-lg p-2 ${card.color}`}>
+                  <Icon className="w-6 h-6" />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <ChartCard
+          title={`New Users (last ${days} days)`}
+          data={(platform?.users_growth || []).map((r) => ({
+            label: r.date,
+            value: Number(r.new_users),
+          }))}
+        />
+        <ChartCard
+          title={`Exam Attempts (last ${days} days)`}
+          data={(platform?.attempts_trend || []).map((r) => ({
+            label: r.date,
+            value: Number(r.attempts),
+          }))}
+        />
+        <ChartCard
+          title="Questions by Category"
+          data={(platform?.questions_by_category || []).map((r) => ({
+            label: r.category.replace(/_/g, " "),
+            value: Number(r.count),
+          }))}
+        />
+      </div>
+    </>
+  );
+}
+
+function CollegesView({ colleges }: { colleges: CollegeAnalytics[] }) {
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      {colleges.length === 0 ? (
+        <div className="p-12 text-center text-gray-600">No colleges found</div>
+      ) : (
+        <table className="w-full">
+          <thead className="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">College</th>
+              <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Status</th>
+              <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900">Students</th>
+              <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900">Attempts</th>
+              <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900">Avg Score</th>
+              <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900">Paid Students</th>
+              <th className="px-6 py-3 text-right text-sm font-semibold text-gray-900">Fees Collected</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {colleges.map((c) => (
+              <tr key={c.id} className="hover:bg-gray-50">
+                <td className="px-6 py-4 text-sm font-medium text-gray-900">{c.name}</td>
+                <td className="px-6 py-4 text-sm">
+                  <StatusBadge status={c.status || "pending"} size="sm" label={c.status || "pending"} />
+                </td>
+                <td className="px-6 py-4 text-sm text-right text-gray-600">{c.student_count}</td>
+                <td className="px-6 py-4 text-sm text-right text-gray-600">{c.attempts}</td>
+                <td className="px-6 py-4 text-sm text-right text-gray-600">{c.avg_score}</td>
+                <td className="px-6 py-4 text-sm text-right text-gray-600">{c.paid_students}</td>
+                <td className="px-6 py-4 text-sm text-right font-medium text-gray-900">
+                  ₹{Number(c.collected).toLocaleString("en-IN")}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+function ReportsView({
+  platform,
+  colleges,
+}: {
+  platform: PlatformAnalytics | null;
+  colleges: CollegeAnalytics[];
+}) {
+  const reports = [
+    {
+      name: "Platform Summary",
+      description: "Headline totals: users, colleges, questions, attempts, scores.",
+      disabled: !platform,
+      onDownload: () => {
+        const s = platform!.summary;
+        downloadCsv(
+          "platform-summary.csv",
+          ["Metric", "Value"],
+          Object.entries(s).map(([k, v]) => [k.replace(/_/g, " "), String(v)])
+        );
+      },
+    },
+    {
+      name: "College Performance",
+      description: "Per-college students, attempts, average score and fees collected.",
+      disabled: colleges.length === 0,
+      onDownload: () =>
+        downloadCsv(
+          "college-performance.csv",
+          ["College", "Status", "Students", "Attempts", "Avg Score", "Paid Students", "Collected (INR)"],
+          colleges.map((c) => [
+            c.name, c.status, c.student_count, c.attempts, c.avg_score, c.paid_students, c.collected,
+          ])
+        ),
+    },
+    {
+      name: "Question Bank by Category",
+      description: "Question counts per category.",
+      disabled: !platform || platform.questions_by_category.length === 0,
+      onDownload: () =>
+        downloadCsv(
+          "questions-by-category.csv",
+          ["Category", "Questions"],
+          platform!.questions_by_category.map((r) => [r.category, r.count])
+        ),
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {reports.map((r) => (
+        <div key={r.name} className="bg-white rounded-lg border border-gray-200 p-6 flex flex-col">
+          <h3 className="font-semibold text-gray-900">{r.name}</h3>
+          <p className="text-sm text-gray-600 mt-1 flex-1">{r.description}</p>
+          <button
+            onClick={r.onDownload}
+            disabled={r.disabled}
+            className="mt-4 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+          >
+            <ArrowDownTrayIcon className="w-4 h-4" />
+            Download CSV
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}

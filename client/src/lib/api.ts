@@ -1,8 +1,10 @@
 import axios from "axios";
 
 // In dev: relative "/api" is proxied by Vite → localhost:5050
-// In prod (Vercel): VITE_API_URL = "https://api.atherasys.com"
-const VITE_API_URL = import.meta.env.VITE_API_URL || "https://api.gradlogic.atherasys.com";
+// In staging (Docker): http://localhost:5050
+// In prod: https://api.atherasys.com
+const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+const VITE_API_URL = import.meta.env.VITE_API_URL || (isLocalhost ? "http://localhost:5050" : "https://api.gradlogic.atherasys.com");
 const baseURL = VITE_API_URL.endsWith("/") ? `${VITE_API_URL}api` : `${VITE_API_URL}/api`;
 
 const api = axios.create({

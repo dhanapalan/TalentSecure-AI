@@ -1,0 +1,361 @@
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  MagnifyingGlassIcon,
+  PlusIcon,
+  EyeIcon,
+  TrashIcon,
+  NoSymbolIcon,
+  CheckIcon,
+} from "@heroicons/react/24/outline";
+import toast from "react-hot-toast";
+import userService, { User, UserFilters } from "../../../services/userService";
+import StatusBadge from "../../../components/superadmin/StatusBadge";
+
+export default function AllUsersPage() {
+  const navigate = useNavigate();
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(50);
+  const [total, setTotal] = useState(0);
+  const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
+  const [bulkAction, setBulkAction] = useState<string>("");
+  const [bulkLoading, setBulkLoading] = useState(false);
+
+  useEffect(() => {
+    const loadUsers = async () => {
+      setLoading(true);
+      try {
+        const filters: UserFilters = {
+          page,
+          limit,
+          search: search || undefined,
+          role: roleFilter === "all" ? undefined : roleFilter,
+          status: statusFilter === "all" ? undefined : statusFilter,
+        };
+
+        const response = await userService.listUsers(filters);
+        setUsers(response.data);
+        setTotal(response.pagination.total);
+      } catch (error) {
+        toast.error("Failed to load users");
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUsers();
+  }, [search, roleFilter, statusFilter, page, limit]);
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedUsers(new Set(users.map((u) => u.id)));
+    } else {
+      setSelectedUsers(new Set());
+    }
+  };
+
+  const handleSelectUser = (userId: string, checked: boolean) => {
+    const newSelected = new Set(selectedUsers);
+    if (checked) {
+      newSelected.add(userId);
+    } else {
+      newSelected.delete(userId);
+    }
+    setSelectedUsers(newSelected);
+  };
+
+  const handleBulkAction = async () => {
+    if (selectedUsers.size === 0) {
+      toast.error("No users selected");
+      return;
+    }
+
+    if (!bulkAction) {
+      toast.error("Select an action");
+      return;
+    }
+
+    setBulkLoading(true);
+    try {
+      await userService.bulkUserAction(
+        Array.from(selectedUsers),
+        bulkAction as "suspend" | "delete" | "activate"
+      );
+
+      toast.success(`${bulkAction} completed for ${selectedUsers.size} users`);
+      setSelectedUsers(new Set());
+      setBulkAction("");
+
+      const filters: UserFilters = {
+        page,
+        limit,
+        search: search || undefined,
+        role: roleFilter === "all" ? undefined : roleFilter,
+        status: statusFilter === "all" ? undefined : statusFilter,
+      };
+
+      const response = await userService.listUsers(filters);
+      setUsers(response.data);
+      setTotal(response.pagination.total);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Bulk action failed");
+      console.error(error);
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (confirm("Are you sure? This will soft delete the user.")) {
+      try {
+        await userService.deleteUser(userId);
+        toast.success("User deleted");
+        setUsers((prev) => prev.filter((u) => u.id !== userId));
+      } catch (error: any) {
+        toast.error(error.response?.data?.message || "Failed to delete user");
+        console.error(error);
+      }
+    }
+  };
+
+  const handleSuspendUser = async (userId: string) => {
+    try {
+      await userService.suspendUser(userId);
+      toast.success("User suspended");
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === userId ? { ...u, status: "suspended" } : u
+        )
+      );
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to suspend user");
+      console.error(error);
+    }
+  };
+
+  const handleUnsuspendUser = async (userId: string) => {
+    try {
+      await userService.unsuspendUser(userId);
+      toast.success("User unsuspended");
+      setUsers((prev) =>
+        prev.map((u) => (u.id === userId ? { ...u, status: "active" } : u))
+      );
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to unsuspend user");
+      console.error(error);
+    }
+  };
+
+  const pages = Math.ceil(total / limit);
+
+  return (
+    <div className="p-8">
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h2 className="text-3xl font-bold text-gray-900">All Users</h2>
+          <p className="text-gray-600 mt-1">Manage platform users ({total} total)</p>
+        </div>
+        <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">
+          <PlusIcon className="w-5 h-5" />
+          Invite User
+        </button>
+      </div>
+
+      <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
+        <div className="grid grid-cols-3 gap-4">
+          <div className="relative col-span-2">
+            <MagnifyingGlassIcon className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search by name, email, phone..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <select
+            value={roleFilter}
+            onChange={(e) => {
+              setRoleFilter(e.target.value);
+              setPage(1);
+            }}
+            className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Roles</option>
+            <option value="super_admin">Super Admin</option>
+            <option value="college_admin">College Admin</option>
+            <option value="tpo">TPO</option>
+            <option value="mentor">Mentor</option>
+            <option value="student">Student</option>
+          </select>
+
+          <select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(1);
+            }}
+            className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="suspended">Suspended</option>
+          </select>
+        </div>
+      </div>
+
+      {selectedUsers.size > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 flex items-center gap-4">
+          <p className="font-semibold text-blue-900">{selectedUsers.size} selected</p>
+          <select
+            value={bulkAction}
+            onChange={(e) => setBulkAction(e.target.value)}
+            className="px-3 py-2 border border-blue-300 rounded-lg text-sm"
+          >
+            <option value="">-- Action --</option>
+            <option value="suspend">Suspend</option>
+            <option value="activate">Activate</option>
+            <option value="delete">Delete</option>
+          </select>
+          <button
+            onClick={handleBulkAction}
+            disabled={bulkLoading || !bulkAction}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm disabled:opacity-50"
+          >
+            {bulkLoading ? "Processing..." : "Apply"}
+          </button>
+          <button
+            onClick={() => {
+              setSelectedUsers(new Set());
+              setBulkAction("");
+            }}
+            className="px-4 py-2 text-blue-600 text-sm"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        {loading ? (
+          <div className="p-12 text-center text-gray-600">Loading users...</div>
+        ) : (
+          <>
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-6 py-3 text-left">
+                    <input
+                      type="checkbox"
+                      checked={selectedUsers.size === users.length && users.length > 0}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                    />
+                  </th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Name</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Email</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Role</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Status</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">College</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Joined</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {users.map((user) => (
+                  <tr key={user.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4">
+                      <input
+                        type="checkbox"
+                        checked={selectedUsers.has(user.id)}
+                        onChange={(e) => handleSelectUser(user.id, e.target.checked)}
+                      />
+                    </td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{user.full_name}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{user.email}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600 capitalize">{user.role}</td>
+                    <td className="px-6 py-4 text-sm">
+                      <StatusBadge status={user.status} label={user.status} size="sm" />
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{user.college_name || "-"}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      {new Date(user.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 text-sm flex gap-2">
+                      <button onClick={() => navigate(`/app/superadmin/users/${user.id}`)}>
+                        <EyeIcon className="w-4 h-4 text-blue-600" />
+                      </button>
+                      {user.status === "suspended" ? (
+                        <button onClick={() => handleUnsuspendUser(user.id)}>
+                          <CheckIcon className="w-4 h-4 text-green-600" />
+                        </button>
+                      ) : (
+                        <button onClick={() => handleSuspendUser(user.id)}>
+                          <NoSymbolIcon className="w-4 h-4 text-yellow-600" />
+                        </button>
+                      )}
+                      <button onClick={() => handleDeleteUser(user.id)}>
+                        <TrashIcon className="w-4 h-4 text-red-600" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {users.length === 0 && (
+              <div className="p-12 text-center text-gray-600">No users found</div>
+            )}
+          </>
+        )}
+      </div>
+
+      {pages > 1 && (
+        <div className="mt-6 flex items-center justify-between">
+          <div className="text-sm text-gray-600">Page {page} of {pages}</div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPage(Math.max(1, page - 1))}
+              disabled={page === 1}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-sm disabled:opacity-50"
+            >
+              Previous
+            </button>
+            {Array.from({ length: pages }, (_, i) => i + 1)
+              .slice(Math.max(0, page - 3), page + 2)
+              .map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setPage(p)}
+                  className={`px-3 py-2 rounded-lg text-sm ${
+                    p === page
+                      ? "bg-blue-600 text-white"
+                      : "border border-gray-300"
+                  }`}
+                >
+                  {p}
+                </button>
+              ))}
+            <button
+              onClick={() => setPage(Math.min(pages, page + 1))}
+              disabled={page === pages}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-sm disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

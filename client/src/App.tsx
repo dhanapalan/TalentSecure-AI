@@ -16,6 +16,7 @@ import {
 
 // ── Layouts ──────────────────────────────────────────────────────────────────
 import PublicLayout from "./layouts/PublicLayout";
+const SuperAdminLayout = lazy(() => import("./pages/superadmin/SuperAdminLayout"));
 
 // ── Public pages (eagerly loaded for fast initial paint) ─────────────────────
 import LandingPage from "./pages/public/LandingPage";
@@ -51,9 +52,11 @@ const CampusIntegrityPage = lazy(() => import("./pages/college/IntegrityPage"));
 const CampusCommunicationsPage = lazy(() => import("./pages/college/CommunicationsPage"));
 const CampusAdminsPage = lazy(() => import("./pages/college/CampusAdminsPage"));
 const CampusSettingsPage = lazy(() => import("./pages/college/SettingsPage"));
+const BillingPage = lazy(() => import("./pages/college/BillingPage"));
 const StudentPortalPage = lazy(() => import("./pages/student/StudentPortalPage"));
 const CampusListPage = lazy(() => import("./pages/hr/CampusListPage"));
 const CampusDetailPage = lazy(() => import("./pages/hr/CampusDetailPage"));
+const PendingApprovalsPage = lazy(() => import("./pages/hr/PendingApprovalsPage"));
 const DashboardPage = lazy(() => import("./pages/dashboard/DashboardPage"));
 
 const StudentListPage = lazy(() => import("./pages/students/StudentListPage"));
@@ -87,7 +90,9 @@ const AssignCampusPage = lazy(() => import("./pages/drives/AssignCampusPage"));
 const CreateUserPage = lazy(() => import("./pages/admin/CreateUserPage"));
 const EditUserPage = lazy(() => import("./pages/admin/EditUserPage"));
 
+const QuestionBankPage = lazy(() => import("./pages/assessments/QuestionBankPage"));
 const AddQuestionPage = lazy(() => import("./pages/assessments/AddQuestionPage"));
+const AIQuestionGeneratorPage = lazy(() => import("./pages/assessments/AIQuestionGeneratorPage"));
 
 
 const ExamInstructionsPage = lazy(() => import("./pages/student/ExamInstructionsPage"));
@@ -113,6 +118,7 @@ const JDExtractPage          = lazy(() => import("./pages/company/JDExtractPage"
 const CampusSetupPage        = lazy(() => import("./pages/company/CampusSetupPage"));
 
 const MockInterviewPage = lazy(() => import("./pages/student/MockInterviewPage"));
+const SoftSkillsHubPage = lazy(() => import("./pages/student/SoftSkillsHubPage"));
 const MockInterviewRoom = lazy(() => import("./pages/student/MockInterviewRoom"));
 const MockInterviewFeedbackPage = lazy(() => import("./pages/student/MockInterviewFeedbackPage"));
 
@@ -137,6 +143,48 @@ const LearningModulesPage = lazy(() => import("./pages/skills/LearningModulesPag
 const SkillProgramsPage = lazy(() => import("./pages/skills/SkillProgramsPage"));
 const ProgramDetailPage = lazy(() => import("./pages/skills/ProgramDetailPage"));
 const SkillPartnersPage = lazy(() => import("./pages/skills/SkillPartnersPage"));
+
+// ── SuperAdmin Portal ──────────────────────────────────────────────────────────
+const SuperAdminDashboard = lazy(() => import("./pages/superadmin/dashboard/DashboardPage"));
+
+// Colleges
+const SuperAdminColleges = lazy(() => import("./pages/superadmin/colleges/AllCollegesPage"));
+const SuperAdminCollegeRequests = lazy(() => import("./pages/superadmin/colleges/CollegeRequestsPage"));
+const SuperAdminAddCollege = lazy(() => import("./pages/superadmin/colleges/AddCollegePage"));
+
+// Users
+const SuperAdminUsers = lazy(() => import("./pages/superadmin/users/AllUsersPage"));
+
+// Roles
+const SuperAdminRoleManagement = lazy(() => import("./pages/superadmin/roles/RoleManagementPage"));
+
+// Audit Trail
+const SuperAdminAuditTrail = lazy(() => import("./pages/superadmin/audit/AuditTrailPage"));
+
+// Question Bank
+const SuperAdminQuestionBank = lazy(() => import("./pages/superadmin/question-bank/AllQuestionsPage"));
+const SuperAdminAIGenerator = lazy(() => import("./pages/superadmin/question-bank/AIGeneratorPage"));
+const SuperAdminCategories = lazy(() => import("./pages/superadmin/question-bank/CategoriesPage"));
+const SuperAdminReviewQueue = lazy(() => import("./pages/superadmin/question-bank/ReviewQueuePage"));
+const SuperAdminImportBooks = lazy(() => import("./pages/superadmin/question-bank/ImportBooksPage"));
+
+// Workflows
+const SuperAdminWorkflows = lazy(() => import("./pages/superadmin/workflows/WorkflowsPage"));
+
+// Analytics
+const SuperAdminAnalytics = lazy(() => import("./pages/superadmin/analytics/AnalyticsPage"));
+
+// Notifications
+const SuperAdminNotifications = lazy(() => import("./pages/superadmin/notifications/NotificationsPage"));
+
+// AI Configuration
+const SuperAdminAIConfig = lazy(() => import("./pages/superadmin/ai-config/AIConfigPage"));
+
+// Billing
+const SuperAdminBilling = lazy(() => import("./pages/superadmin/billing/BillingPage"));
+
+// Settings
+const SuperAdminSettings = lazy(() => import("./pages/superadmin/settings/SettingsPage"));
 
 // ── QueryClient ───────────────────────────────────────────────────────────────
 const queryClient = new QueryClient({
@@ -215,6 +263,62 @@ export default function App() {
 
             {/* ── Not-authorized ──────────────────────────────────────── */}
             <Route path="/not-authorized" element={<NotAuthorizedPage />} />
+
+            {/* ── SuperAdmin Portal ──────────────────────────────────────── */}
+            <Route
+              path="/app/superadmin"
+              element={
+                <ProtectedRoute>
+                  <RoleGuard allowed={["super_admin"]}>
+                    <SuperAdminLayout />
+                  </RoleGuard>
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<Navigate to="/app/superadmin/dashboard" replace />} />
+
+              {/* Dashboard */}
+              <Route path="dashboard" element={<SuperAdminDashboard />} />
+
+              {/* Colleges */}
+              <Route path="colleges" element={<SuperAdminColleges />} />
+              <Route path="colleges/requests" element={<SuperAdminCollegeRequests />} />
+              <Route path="colleges/new" element={<SuperAdminAddCollege />} />
+
+              {/* Users */}
+              <Route path="users" element={<SuperAdminUsers />} />
+
+              {/* Roles */}
+              <Route path="roles" element={<SuperAdminRoleManagement />} />
+
+              {/* Audit Trail */}
+              <Route path="audit-trail" element={<SuperAdminAuditTrail />} />
+
+              {/* Question Bank */}
+              <Route path="question-bank" element={<SuperAdminQuestionBank />} />
+              <Route path="question-bank/ai-generator" element={<SuperAdminAIGenerator />} />
+              <Route path="question-bank/categories" element={<SuperAdminCategories />} />
+              <Route path="question-bank/review-queue" element={<SuperAdminReviewQueue />} />
+              <Route path="question-bank/import-books" element={<SuperAdminImportBooks />} />
+
+              {/* Workflows */}
+              <Route path="workflows" element={<SuperAdminWorkflows />} />
+
+              {/* Analytics */}
+              <Route path="analytics" element={<SuperAdminAnalytics />} />
+
+              {/* Notifications */}
+              <Route path="notifications" element={<SuperAdminNotifications />} />
+
+              {/* AI Configuration */}
+              <Route path="ai-config" element={<SuperAdminAIConfig />} />
+
+              {/* Billing */}
+              <Route path="billing" element={<SuperAdminBilling />} />
+
+              {/* Settings */}
+              <Route path="settings" element={<SuperAdminSettings />} />
+            </Route>
 
             {/* ── Student onboarding (protected) ──────────────────────── */}
             <Route
@@ -350,6 +454,14 @@ export default function App() {
                 }
               />
               <Route
+                path="college/billing"
+                element={
+                  <RoleGuard allowed={["college_admin", "college"]}>
+                    <BillingPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
                 path="college/integrity"
                 element={
                   <RoleGuard allowed={["college_admin", "college", "college_staff"]}>
@@ -404,6 +516,14 @@ export default function App() {
                 element={
                   <RoleGuard allowed={["student"]}>
                     <PracticePage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="student-portal/soft-skills"
+                element={
+                  <RoleGuard allowed={["student"]}>
+                    <SoftSkillsHubPage />
                   </RoleGuard>
                 }
               />
@@ -784,6 +904,40 @@ export default function App() {
                 }
               />
 
+              {/* Global Question Bank */}
+              <Route
+                path="question-bank"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "engineer"]}>
+                    <QuestionBankPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="question-bank/new"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "engineer"]}>
+                    <AddQuestionPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="question-bank/ai-generate"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "engineer"]}>
+                    <AIQuestionGeneratorPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="question-bank/:id"
+                element={
+                  <RoleGuard allowed={["super_admin", "hr", "engineer"]}>
+                    <AddQuestionPage />
+                  </RoleGuard>
+                }
+              />
+
               {/* Drives */}
               <Route
                 path="drives"
@@ -850,6 +1004,14 @@ export default function App() {
                 element={
                   <RoleGuard allowed={["super_admin", "hr"]}>
                     <CampusDetailPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="approvals/pending"
+                element={
+                  <RoleGuard allowed={["super_admin", "admin", "hr"]}>
+                    <PendingApprovalsPage />
                   </RoleGuard>
                 }
               />

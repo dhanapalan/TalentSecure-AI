@@ -1,0 +1,30 @@
+# AI Question Bank Engine
+# RAG + Question Generation from Document Knowledge Base
+# Python 3.10+ (tested on 3.13). Unpinned on purpose — these libraries
+# move fast and old pins (early-2024) no longer install on modern Python.
+
+# API
+fastapi
+uvicorn[standard]
+python-multipart          # required by FastAPI UploadFile
+
+# Config
+python-dotenv
+pydantic-settings
+
+# LLM (LangChain modern split packages)
+langchain-core
+langchain-groq
+langchain-openai
+
+# Vector store + embeddings
+chromadb
+sentence-transformers
+
+# Document parsing
+pypdf
+pdfplumber
+python-docx
+
+# HTTP client
+httpx
