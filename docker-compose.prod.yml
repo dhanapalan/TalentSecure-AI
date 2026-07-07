@@ -81,8 +81,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      # MinIO is only used for file storage — don't block API boot on its health.
+      # Login/dashboard/roles work without it; only uploads need MinIO up.
       minio:
-        condition: service_healthy
+        condition: service_started
     restart: unless-stopped
     networks:
       - talentsecure
