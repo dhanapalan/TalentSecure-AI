@@ -11,7 +11,7 @@
 #   ./deploy.sh migrate        # only apply pending DB migrations
 #
 # Overridable via environment:
-#   BRANCH=master              # git branch to deploy
+#   BRANCH=main                # git branch to deploy (auto-detected if unset)
 #   HEALTH_URL=http://127.0.0.1:5050/api/health
 #   NO_PULL=1                  # skip 'git pull' (deploy current working tree)
 #   PROFILE=judge0             # also start the opt-in judge0 sandbox
@@ -20,7 +20,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 TARGET="${1:-all}"
-BRANCH="${BRANCH:-master}"
+BRANCH="${BRANCH:-}"   # empty → auto-detected from the checkout's upstream below
 COMPOSE_FILE="docker-compose.prod.yml"
 HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:5050/api/health}"
 DB_CONTAINER="talentsecure-postgres"
@@ -46,11 +46,24 @@ DB_NAME="${PG_DATABASE:-talentsecure_db}"
 
 # ── 1. Pull latest code ──────────────────────────────────────────────────────
 if [ "${NO_PULL:-0}" != "1" ] && [ "$TARGET" != "migrate" ]; then
+  # Resolve the branch to deploy (don't assume 'master' — this repo's remote
+  # may use 'main'). Precedence: BRANCH env → current upstream → remote default.
+  if [ -z "$BRANCH" ]; then
+    if up=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null); then
+      BRANCH="${up#*/}"                       # e.g. origin/main → main
+    else
+      BRANCH="$(git remote show origin 2>/dev/null | sed -n 's/.*HEAD branch: //p')"
+      BRANCH="${BRANCH:-main}"
+    fi
+  fi
   log "Pulling latest code (branch: $BRANCH)…"
-  git fetch --quiet origin "$BRANCH"
-  git checkout --quiet "$BRANCH"
-  git pull --ff-only origin "$BRANCH"
-  ok "code up to date ($(git rev-parse --short HEAD))"
+  git fetch --quiet origin "$BRANCH" \
+    || die "remote has no branch '$BRANCH' — set BRANCH=<name> (check: git ls-remote --heads origin)"
+  # Mirror the remote exactly (safe on a deploy checkout; .env & other gitignored
+  # files are untouched). Avoids 'diverged'/'cannot fast-forward' failures.
+  git checkout --quiet -B "$BRANCH" "origin/$BRANCH"
+  git reset --hard --quiet "origin/$BRANCH"
+  ok "code up to date ($(git rev-parse --short HEAD) on $BRANCH)"
 fi
 
 # ── 2. Ensure external volumes exist (prod compose declares them external) ────
