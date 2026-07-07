@@ -1,0 +1,4 @@
+# Ensure shell scripts always use LF so they run on Linux servers,
+# regardless of the platform they were committed from.
+*.sh text eol=lf
+deploy.sh text eol=lf
