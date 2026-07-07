@@ -162,8 +162,10 @@ PUT    /api/superadmin/workflows/:id/steps
 ## 🔄 If Password Needs Reset
 
 ```bash
-# Connect to PostgreSQL
-psql -h localhost -U postgres -d talentsecure -p 5433
+# Connect to PostgreSQL (host port 5433 → container 5432)
+psql -h localhost -p 5433 -U talentsecure -d talentsecure_db
+# …or straight into the container:
+#   docker exec -it talentsecure-postgres psql -U talentsecure -d talentsecure_db
 
 # Update password hash (replace with new bcrypt hash)
 UPDATE users 

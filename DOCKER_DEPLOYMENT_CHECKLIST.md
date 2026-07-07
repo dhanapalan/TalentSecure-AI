@@ -94,48 +94,50 @@ docker-compose ps
 ### Step 2: Verify Database Connection
 ```bash
 # Should connect without errors
-docker exec talentsecure-db psql -U talentsecure -d talentsecure_db -c "SELECT version();"
+docker exec talentsecure-postgres psql -U talentsecure -d talentsecure_db -c "SELECT version();"
 
 # Verify new tables don't exist yet (pre-migration state)
-docker exec talentsecure-db psql -U talentsecure -d talentsecure_db -c "\dt subscription_plans"
+docker exec talentsecure-postgres psql -U talentsecure -d talentsecure_db -c "\dt subscription_plans"
 # Should return "Did not find any relation"
 ```
 
 ### Step 3: Run Migrations
-```bash
-# Option A: Via Prisma CLI (if node installed in container)
-docker exec talentsecure-server npx prisma migrate deploy
+Schema is applied automatically from `docker/init-db/*.sql` the first time the
+postgres volume is created — a fresh deploy needs **no** manual migrate step.
+Prisma migrate is **not** used (it fails with P3005 against this baseline).
 
-# Option B: Manual SQL execution
-docker exec talentsecure-db psql -U talentsecure -d talentsecure_db < prisma/migrations/20260703_college_approval/migration.sql
-docker exec talentsecure-db psql -U talentsecure -d talentsecure_db < prisma/migrations/20260703_billing_system/migration.sql
+To apply a new numbered migration to an **already-running** database:
+```bash
+# Replace NN-… with the file(s) added under docker/init-db/
+docker exec -i talentsecure-postgres \
+  psql -U talentsecure -d talentsecure_db < docker/init-db/NN-your-migration.sql
 ```
 
 ### Step 4: Verify Tables Created
 ```bash
 # Check colleges has new columns
-docker exec talentsecure-db psql -U talentsecure -d talentsecure_db -c "\d+ colleges"
+docker exec talentsecure-postgres psql -U talentsecure -d talentsecure_db -c "\d+ colleges"
 # Should show: approval_status, approved_by, approved_at, rejection_reason, rejection_at
 
 # Check billing tables exist
-docker exec talentsecure-db psql -U talentsecure -d talentsecure_db -c "\dt subscription*"
+docker exec talentsecure-postgres psql -U talentsecure -d talentsecure_db -c "\dt subscription*"
 # Should list: subscription_plans, subscriptions
 
-docker exec talentsecure-db psql -U talentsecure -d talentsecure_db -c "\dt invoices"
-docker exec talentsecure-db psql -U talentsecure -d talentsecure_db -c "\dt billing_contacts"
-docker exec talentsecure-db psql -U talentsecure -d talentsecure_db -c "\dt usage_metrics"
+docker exec talentsecure-postgres psql -U talentsecure -d talentsecure_db -c "\dt invoices"
+docker exec talentsecure-postgres psql -U talentsecure -d talentsecure_db -c "\dt billing_contacts"
+docker exec talentsecure-postgres psql -U talentsecure -d talentsecure_db -c "\dt usage_metrics"
 ```
 
 ### Step 5: Check Server Logs
 ```bash
 # Look for startup errors
-docker logs talentsecure-server
+docker logs talentsecure-api
 
 # Should see:
 # ✓ PostgreSQL connected
 # ✓ Redis connected
 # ✓ Socket.IO initialized
-# ✓ GradLogic server running on port 5000
+# ✓ GradLogic server running on port 5050
 # No ERROR lines
 
 # If NestJS errors about missing migrations, re-run Step 3
@@ -144,7 +146,7 @@ docker logs talentsecure-server
 ### Step 6: Seed Subscription Plans
 ```bash
 # Insert default plans
-docker exec talentsecure-db psql -U talentsecure -d talentsecure_db << 'EOF'
+docker exec talentsecure-postgres psql -U talentsecure -d talentsecure_db << 'EOF'
 INSERT INTO subscription_plans (id, name, description, tier, price_per_month, price_per_year, max_students, max_drives, max_assessments, features, is_active)
 VALUES
   (uuid_generate_v4(), 'Free', 'Get started', 'free', 0, 0, 50, 3, 10, '{"proctoring":false,"ai_grading":false}'::jsonb, true),
@@ -155,7 +157,7 @@ ON CONFLICT (tier) DO NOTHING;
 EOF
 
 # Verify
-docker exec talentsecure-db psql -U talentsecure -d talentsecure_db -c "SELECT tier, price_per_month FROM subscription_plans;"
+docker exec talentsecure-postgres psql -U talentsecure -d talentsecure_db -c "SELECT tier, price_per_month FROM subscription_plans;"
 # Should list 4 plans
 ```
 
@@ -166,16 +168,16 @@ docker exec talentsecure-db psql -U talentsecure -d talentsecure_db -c "SELECT t
 ### Question Bank Module
 ```bash
 # Get auth token first
-export JWT=$(curl -s -X POST http://localhost:5000/api/auth/login \
+export JWT=$(curl -s -X POST http://localhost:5050/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"admin@example.com","password":"YourPassword1"}' | jq -r '.data.accessToken')
 
 # List questions (should be empty or return existing ones)
-curl -X GET "http://localhost:5000/api/question-bank" \
+curl -X GET "http://localhost:5050/api/question-bank" \
   -H "Authorization: Bearer $JWT" | jq .
 
 # Create a question
-curl -X POST "http://localhost:5000/api/question-bank" \
+curl -X POST "http://localhost:5050/api/question-bank" \
   -H "Authorization: Bearer $JWT" \
   -H "Content-Type: application/json" \
   -d '{
@@ -192,17 +194,17 @@ curl -X POST "http://localhost:5000/api/question-bank" \
 ### College Approval Module
 ```bash
 # List pending colleges
-curl -X GET "http://localhost:5000/api/campuses/approval/pending" \
+curl -X GET "http://localhost:5050/api/campuses/approval/pending" \
   -H "Authorization: Bearer $JWT" | jq .
 
 # Approve a college (replace COLLEGE_ID with real ID)
-curl -X POST "http://localhost:5000/api/campuses/{COLLEGE_ID}/approve" \
+curl -X POST "http://localhost:5050/api/campuses/{COLLEGE_ID}/approve" \
   -H "Authorization: Bearer $JWT" \
   -H "Content-Type: application/json" \
   -d '{"notes":"Verified credentials"}' | jq .
 
 # Reject a college
-curl -X POST "http://localhost:5000/api/campuses/{COLLEGE_ID}/reject" \
+curl -X POST "http://localhost:5050/api/campuses/{COLLEGE_ID}/reject" \
   -H "Authorization: Bearer $JWT" \
   -H "Content-Type: application/json" \
   -d '{"rejection_reason":"Insufficient documentation provided"}' | jq .
@@ -211,25 +213,25 @@ curl -X POST "http://localhost:5000/api/campuses/{COLLEGE_ID}/reject" \
 ### Billing Module
 ```bash
 # List plans (public - no auth needed)
-curl -X GET "http://localhost:5000/api/billing/plans" | jq .
+curl -X GET "http://localhost:5050/api/billing/plans" | jq .
 
 # Get current subscription (college_admin)
-curl -X GET "http://localhost:5000/api/billing/subscriptions" \
+curl -X GET "http://localhost:5050/api/billing/subscriptions" \
   -H "Authorization: Bearer $JWT" | jq .
 
 # Subscribe to a plan
-PLAN_ID=$(curl -s -X GET "http://localhost:5000/api/billing/plans" | jq -r '.data[0].id')
-curl -X POST "http://localhost:5000/api/billing/subscribe" \
+PLAN_ID=$(curl -s -X GET "http://localhost:5050/api/billing/plans" | jq -r '.data[0].id')
+curl -X POST "http://localhost:5050/api/billing/subscribe" \
   -H "Authorization: Bearer $JWT" \
   -H "Content-Type: application/json" \
   -d "{\"plan_id\":\"$PLAN_ID\",\"billing_cycle\":\"monthly\"}" | jq .
 
 # List invoices
-curl -X GET "http://localhost:5000/api/billing/invoices" \
+curl -X GET "http://localhost:5050/api/billing/invoices" \
   -H "Authorization: Bearer $JWT" | jq .
 
 # Add billing contact
-curl -X POST "http://localhost:5000/api/billing/contacts" \
+curl -X POST "http://localhost:5050/api/billing/contacts" \
   -H "Authorization: Bearer $JWT" \
   -H "Content-Type: application/json" \
   -d '{
@@ -266,7 +268,7 @@ curl -X POST "http://localhost:5000/api/billing/contacts" \
 
 ### Check All Migrations Applied
 ```bash
-docker exec talentsecure-db psql -U talentsecure -d talentsecure_db -c "
+docker exec talentsecure-postgres psql -U talentsecure -d talentsecure_db -c "
 SELECT id, checksum, finished_at
 FROM _prisma_migrations
 WHERE name LIKE '%college_approval%' OR name LIKE '%billing%'
@@ -277,7 +279,7 @@ ORDER BY finished_at DESC;
 
 ### Verify Foreign Keys
 ```bash
-docker exec talentsecure-db psql -U talentsecure -d talentsecure_db -c "
+docker exec talentsecure-postgres psql -U talentsecure -d talentsecure_db -c "
 SELECT constraint_name, table_name, column_name
 FROM information_schema.key_column_usage
 WHERE table_name IN ('colleges', 'subscriptions', 'invoices', 'billing_contacts')
@@ -287,7 +289,7 @@ ORDER BY table_name;
 
 ### Check Indexes
 ```bash
-docker exec talentsecure-db psql -U talentsecure -d talentsecure_db -c "
+docker exec talentsecure-postgres psql -U talentsecure -d talentsecure_db -c "
 SELECT schemaname, tablename, indexname
 FROM pg_indexes
 WHERE tablename IN ('subscription_plans', 'subscriptions', 'invoices', 'billing_contacts', 'usage_metrics')
@@ -302,13 +304,13 @@ ORDER BY tablename;
 ### Query Performance (Test Indexes)
 ```bash
 # Explain plan for common queries
-docker exec talentsecure-db psql -U talentsecure -d talentsecure_db -c "
+docker exec talentsecure-postgres psql -U talentsecure -d talentsecure_db -c "
 EXPLAIN ANALYZE
 SELECT * FROM colleges WHERE approval_status = 'pending' LIMIT 20;
 "
 # Should use idx_colleges_pending index
 
-docker exec talentsecure-db psql -U talentsecure -d talentsecure_db -c "
+docker exec talentsecure-postgres psql -U talentsecure -d talentsecure_db -c "
 EXPLAIN ANALYZE
 SELECT * FROM subscriptions WHERE college_id = 'some-uuid' AND status = 'active';
 "
@@ -317,7 +319,7 @@ SELECT * FROM subscriptions WHERE college_id = 'some-uuid' AND status = 'active'
 
 ### Table Sizes
 ```bash
-docker exec talentsecure-db psql -U talentsecure -d talentsecure_db -c "
+docker exec talentsecure-postgres psql -U talentsecure -d talentsecure_db -c "
 SELECT
   tablename,
   pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size
@@ -349,12 +351,12 @@ npx prisma generate
 ### Option 2: Restore from Backup
 ```bash
 # If you have pg_dump backup
-docker exec talentsecure-db pg_restore -U talentsecure -d talentsecure_db /path/to/backup.sql
+docker exec talentsecure-postgres pg_restore -U talentsecure -d talentsecure_db /path/to/backup.sql
 ```
 
 ### Option 3: Manual SQL Rollback
 ```bash
-docker exec talentsecure-db psql -U talentsecure -d talentsecure_db << 'EOF'
+docker exec talentsecure-postgres psql -U talentsecure -d talentsecure_db << 'EOF'
 -- Drop billing tables (reverse order of creation)
 DROP TABLE IF EXISTS usage_metrics CASCADE;
 DROP TABLE IF EXISTS billing_contacts CASCADE;
@@ -406,6 +408,6 @@ EOF
 If deployment fails:
 1. Check `SUPERADMIN_COMPLETION.md` for detailed implementation docs
 2. Verify all file paths and migrations exist
-3. Review server logs: `docker logs talentsecure-server`
-4. Review database logs: `docker logs talentsecure-db`
+3. Review server logs: `docker logs talentsecure-api`
+4. Review database logs: `docker logs talentsecure-postgres`
 5. Check client console (F12) for JavaScript errors

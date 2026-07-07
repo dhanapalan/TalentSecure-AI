@@ -263,15 +263,15 @@ docker exec talentsecure-db psql -U talentsecure talentsecure_db -c "\dt *subscr
 
 ```bash
 # Test plan listing (public)
-curl -X GET http://localhost:5000/api/billing/plans
+curl -X GET http://localhost:5050/api/billing/plans
 
 # Test approval flow (requires auth)
-curl -X GET http://localhost:5000/api/campuses/approval/pending \
+curl -X GET http://localhost:5050/api/campuses/approval/pending \
   -H "Authorization: Bearer {JWT_TOKEN}" \
   -H "Content-Type: application/json"
 
 # Test question bank (requires auth)
-curl -X GET http://localhost:5000/api/question-bank \
+curl -X GET http://localhost:5050/api/question-bank \
   -H "Authorization: Bearer {JWT_TOKEN}"
 ```
 

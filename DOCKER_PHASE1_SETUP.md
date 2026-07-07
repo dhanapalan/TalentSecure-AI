@@ -102,7 +102,7 @@ curl http://localhost:8000/docs           # AI Engine
 ### Step 5: Run Database Migrations
 
 ```bash
-docker-compose exec api npm run migrate
+# migrations auto-apply from docker/init-db on first DB boot — no manual step
 ```
 
 ### Step 6: Access Phase 1 Tests
@@ -276,7 +276,7 @@ ports:
 ### Database Migration Issues
 ```bash
 # Run migrations manually
-docker-compose exec api npm run migrate
+# migrations auto-apply from docker/init-db on first DB boot — no manual step
 
 # Or reset database
 docker-compose down -v

@@ -157,13 +157,13 @@ docker-compose up -d
 ### Validation (2 minutes)
 ```bash
 # Verify all tables created
-docker exec talentsecure-db psql -U talentsecure talentsecure_db -c "\dt *billing* *subscription*"
+docker exec talentsecure-postgres psql -U talentsecure talentsecure_db -c "\dt *billing* *subscription*"
 
 # Check server is healthy
-docker logs talentsecure-server | grep -E "✓|ERROR"
+docker logs talentsecure-api | grep -E "✓|ERROR"
 
 # Test APIs
-curl http://localhost:5000/api/billing/plans
+curl http://localhost:5050/api/billing/plans
 ```
 
 ### Manual Testing (3 minutes)

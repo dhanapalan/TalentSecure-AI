@@ -148,11 +148,15 @@ docker-compose -f docker-compose.staging.yml ps
 ### Step 5: Initialize Database
 
 ```bash
-# Connect to running database
+# Schema is applied automatically from docker/init-db/*.sql on first boot of an
+# empty postgres volume — no manual migrate step for a fresh staging deploy.
+
+# Connect to the running database if you need to inspect or apply a new migration:
 docker-compose -f docker-compose.staging.yml exec postgres psql -U talentsecure_user -d talentsecure_staging
 
-# Or run migration script
-docker-compose -f docker-compose.staging.yml exec backend npm run migrate
+# Apply a newly added migration to an already-running DB:
+docker-compose -f docker-compose.staging.yml exec -T postgres \
+  psql -U talentsecure_user -d talentsecure_staging < docker/init-db/NN-your-migration.sql
 ```
 
 ### Step 6: Verify Staging Environment

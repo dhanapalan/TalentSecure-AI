@@ -29,7 +29,7 @@ docker-compose ps
 npm install
 
 # Run database migrations (creates tables including billing, approvals)
-npx prisma migrate deploy
+# migrations auto-apply from docker/init-db on first DB boot (see README)
 
 # Seed test data (optional)
 npx prisma db seed
@@ -42,7 +42,7 @@ npx prisma db seed
 npm run dev
 
 # You'll see:
-# ✓ Server running on http://localhost:5000
+# ✓ Server running on http://localhost:5050
 # ✓ Client running on http://localhost:5173
 ```
 
@@ -136,7 +136,7 @@ VALUES
 ### Create Test College (for approval)
 ```bash
 # Via API
-curl -X POST "http://localhost:5000/api/campuses" \
+curl -X POST "http://localhost:5050/api/campuses" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -206,7 +206,7 @@ docker-compose logs -f server
 # If port 5173 (client) is in use:
 cd client && npm run dev -- --port 5174
 
-# If port 5000 (server) is in use:
+# If port 5050 (server) is in use:
 cd server && npm run dev -- --port 5001
 ```
 
@@ -219,7 +219,7 @@ docker-compose logs postgres
 docker-compose up postgres -d
 
 # Run migrations again:
-npx prisma migrate deploy
+# migrations auto-apply from docker/init-db on first DB boot (see README)
 ```
 
 ### Missing Test Data
@@ -239,7 +239,7 @@ rm -rf node_modules package-lock.json
 # Fresh start
 docker-compose up -d
 npm install
-npx prisma migrate deploy
+# migrations auto-apply from docker/init-db on first DB boot (see README)
 npm run dev
 ```
 
@@ -250,10 +250,10 @@ npm run dev
 ### Question Bank API
 ```bash
 # List questions
-curl http://localhost:5000/api/question-bank
+curl http://localhost:5050/api/question-bank
 
 # Create question
-curl -X POST http://localhost:5000/api/question-bank \
+curl -X POST http://localhost:5050/api/question-bank \
   -H "Content-Type: application/json" \
   -d '{"category":"programming","type":"multiple_choice",...}'
 ```
@@ -261,23 +261,23 @@ curl -X POST http://localhost:5000/api/question-bank \
 ### College Approval API
 ```bash
 # List pending
-curl http://localhost:5000/api/campuses/approval/pending
+curl http://localhost:5050/api/campuses/approval/pending
 
 # Approve
-curl -X POST http://localhost:5000/api/campuses/ID/approve
+curl -X POST http://localhost:5050/api/campuses/ID/approve
 
 # Reject
-curl -X POST http://localhost:5000/api/campuses/ID/reject \
+curl -X POST http://localhost:5050/api/campuses/ID/reject \
   -d '{"rejection_reason":"..."}'
 ```
 
 ### Billing API
 ```bash
 # List plans
-curl http://localhost:5000/api/billing/plans
+curl http://localhost:5050/api/billing/plans
 
 # Create subscription
-curl -X POST http://localhost:5000/api/billing/subscribe \
+curl -X POST http://localhost:5050/api/billing/subscribe \
   -d '{"plan_id":"...","billing_cycle":"monthly"}'
 ```
 

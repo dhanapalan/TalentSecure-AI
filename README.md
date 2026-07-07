@@ -56,14 +56,27 @@ npm install
 cp .env.example .env
 
 # 3. Start database & services
+#    Schema is applied automatically from docker/init-db/*.sql the first time
+#    the postgres volume is created (no Prisma migrate step — see note below).
 docker-compose up -d
 
-# 4. Run migrations
-npx prisma migrate dev
-
-# 5. Start development
+# 4. Start development
 npm run dev
 ```
+
+## Database migrations
+
+Schema is managed by ordered SQL files in `docker/init-db/` (`01-schema.sql`,
+`02-…`, …). Postgres runs them automatically **on first boot** of an empty data
+volume. `npx prisma migrate` is **not** used here (it fails with P3005 against
+this baseline). To apply a new migration to an already-running database:
+
+```bash
+docker exec -i talentsecure-postgres \
+  psql -U "$PG_USER" -d "$PG_DATABASE" < docker/init-db/NN-your-migration.sql
+```
+
+The API listens on **port 5050**; the client (nginx) on **3000** in Docker.
 
 ## License
 

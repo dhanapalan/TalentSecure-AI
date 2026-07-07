@@ -1,31 +1,119 @@
-#!/bin/bash
-# GradLogic — One-command deploy script
-# Usage: ./deploy.sh [api|all]
-set -e
+#!/usr/bin/env bash
+# =============================================================================
+# GradLogic / TalentSecure-AI — one-command production deploy
+# =============================================================================
+# Run this on the server, from the repo root:
+#
+#   ./deploy.sh                # pull, build & (re)start EVERYTHING, apply migrations
+#   ./deploy.sh api            # only rebuild/restart the API
+#   ./deploy.sh client         # only rebuild/restart the client (nginx)
+#   ./deploy.sh ai-engine      # only rebuild/restart the AI engine
+#   ./deploy.sh migrate        # only apply pending DB migrations
+#
+# Overridable via environment:
+#   BRANCH=master              # git branch to deploy
+#   HEALTH_URL=http://127.0.0.1:5050/api/health
+#   NO_PULL=1                  # skip 'git pull' (deploy current working tree)
+#   PROFILE=judge0             # also start the opt-in judge0 sandbox
+# =============================================================================
+set -euo pipefail
+cd "$(dirname "$0")"
 
-TARGET=${1:-api}
-COMPOSE="docker compose -f docker-compose.prod.yml"
+TARGET="${1:-all}"
+BRANCH="${BRANCH:-master}"
+COMPOSE_FILE="docker-compose.prod.yml"
+HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:5050/api/health}"
+DB_CONTAINER="talentsecure-postgres"
 
-echo "==> Pulling latest code..."
-git pull origin main
+COMPOSE="docker compose -f $COMPOSE_FILE"
+[ -n "${PROFILE:-}" ] && COMPOSE="$COMPOSE --profile $PROFILE"
 
-if [ "$TARGET" = "all" ] || [ "$TARGET" = "db" ]; then
-  echo "==> Running DB migrations..."
-  for f in docker/init-db/*.sql; do
-    echo "  Applying $f..."
-    docker exec -i talentsecure-postgres psql -U talentsecure -d talentsecure < "$f" 2>/dev/null || true
+log()  { echo -e "\n\033[1;36m==>\033[0m $*"; }
+ok()   { echo -e "  \033[1;32m✓\033[0m $*"; }
+warn() { echo -e "  \033[1;33m⚠\033[0m $*"; }
+die()  { echo -e "\n\033[1;31m✗ $*\033[0m" >&2; exit 1; }
+
+# ── Preflight ────────────────────────────────────────────────────────────────
+command -v docker >/dev/null 2>&1 || die "docker is not installed"
+docker compose version >/dev/null 2>&1 || die "docker compose v2 is required"
+[ -f "$COMPOSE_FILE" ] || die "$COMPOSE_FILE not found — run from the repo root"
+[ -f .env ] || die ".env not found — copy .env.prod.example to .env and fill in secrets"
+
+# DB credentials come from .env (never hard-coded), with sane fallbacks.
+set -a; . ./.env; set +a
+DB_USER="${PG_USER:-talentsecure}"
+DB_NAME="${PG_DATABASE:-talentsecure_db}"
+
+# ── 1. Pull latest code ──────────────────────────────────────────────────────
+if [ "${NO_PULL:-0}" != "1" ] && [ "$TARGET" != "migrate" ]; then
+  log "Pulling latest code (branch: $BRANCH)…"
+  git fetch --quiet origin "$BRANCH"
+  git checkout --quiet "$BRANCH"
+  git pull --ff-only origin "$BRANCH"
+  ok "code up to date ($(git rev-parse --short HEAD))"
+fi
+
+# ── 2. Ensure external volumes exist (prod compose declares them external) ────
+if [ "$TARGET" != "migrate" ]; then
+  log "Ensuring Docker volumes…"
+  for v in pgdata redisdata miniodata judge0pgdata judge0redisdata; do
+    vol="talentsecure-ai_${v}"
+    docker volume inspect "$vol" >/dev/null 2>&1 || { docker volume create "$vol" >/dev/null; ok "created $vol"; }
   done
 fi
 
-if [ "$TARGET" = "all" ] || [ "$TARGET" = "api" ]; then
-  echo "==> Building API..."
-  $COMPOSE build api
-  echo "==> Restarting API..."
-  $COMPOSE up -d api
-  echo "==> Waiting for API to start..."
-  sleep 5
-  echo "==> Health check..."
-  curl -sf https://api.gradlogic.atherasys.com/api/health | jq '.status' || echo "Health check failed"
+# ── 3. Build + (re)start ─────────────────────────────────────────────────────
+if [ "$TARGET" = "all" ]; then
+  log "Building images…"; $COMPOSE build
+  log "Starting all services…"; $COMPOSE up -d --remove-orphans
+elif [ "$TARGET" = "api" ] || [ "$TARGET" = "client" ] || [ "$TARGET" = "ai-engine" ]; then
+  log "Building $TARGET…"; $COMPOSE build "$TARGET"
+  log "Restarting $TARGET…"; $COMPOSE up -d "$TARGET"
+elif [ "$TARGET" = "migrate" ]; then
+  : # handled below
+else
+  die "Unknown target '$TARGET' (use: all | api | client | ai-engine | migrate)"
 fi
 
-echo "==> Done!"
+# ── 4. Apply DB migrations (idempotent) ──────────────────────────────────────
+# On a first-ever boot, docker/init-db/*.sql runs automatically from the
+# postgres entrypoint. This re-applies them for existing databases so newly
+# added, numbered migration files land too. Every file is written idempotently
+# (CREATE ... IF NOT EXISTS / ADD COLUMN IF NOT EXISTS), so re-running is safe.
+if [ "$TARGET" = "all" ] || [ "$TARGET" = "migrate" ]; then
+  log "Waiting for postgres…"
+  for i in $(seq 1 30); do
+    docker exec "$DB_CONTAINER" pg_isready -U "$DB_USER" >/dev/null 2>&1 && break
+    sleep 2
+    [ "$i" = "30" ] && die "postgres did not become ready"
+  done
+  log "Applying migrations (docker/init-db/*.sql → $DB_NAME)…"
+  shopt -s nullglob
+  for f in docker/init-db/*.sql; do
+    printf '  → %-40s ' "$(basename "$f")"
+    if docker exec -i "$DB_CONTAINER" psql -v ON_ERROR_STOP=1 -q \
+         -U "$DB_USER" -d "$DB_NAME" < "$f" >/dev/null 2>&1; then
+      echo "applied"
+    else
+      echo "already present / skipped"
+    fi
+  done
+fi
+
+# ── 5. Health check ──────────────────────────────────────────────────────────
+if [ "$TARGET" = "all" ] || [ "$TARGET" = "api" ]; then
+  log "Waiting for API health ($HEALTH_URL)…"
+  for i in $(seq 1 30); do
+    code=$(curl -s -o /dev/null -w '%{http_code}' "$HEALTH_URL" || echo 000)
+    if [ "$code" = "200" ]; then ok "API healthy"; break; fi
+    sleep 2
+    if [ "$i" = "30" ]; then
+      warn "API health check failed (last status: $code) — recent logs:"
+      $COMPOSE logs --tail 40 api || true
+      die "deploy finished but API is not healthy"
+    fi
+  done
+fi
+
+log "Deploy complete."
+$COMPOSE ps
