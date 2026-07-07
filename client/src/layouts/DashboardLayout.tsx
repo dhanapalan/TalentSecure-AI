@@ -27,6 +27,7 @@ import {
   UserCircleIcon,
   CreditCardIcon,
   MapIcon,
+  Squares2X2Icon,
 } from "@heroicons/react/24/outline";
 
 // ── Sidebar navigation: grouped sections with role access control ────────────
@@ -63,6 +64,7 @@ const navigation: NavSection[] = [
     title: "Colleges",
     items: [
       { name: "Campuses", href: "/app/campuses", icon: AcademicCapIcon, roles: ["super_admin", "hr"] },
+      { name: "Modules", href: "/app/superadmin/modules", icon: Squares2X2Icon, roles: ["super_admin"] },
       { name: "Pending Approvals", href: "/app/approvals/pending", icon: ShieldCheckIcon, roles: ["super_admin", "admin", "hr"] },
       { name: "Placements", href: "/app/placements", icon: TrophyIcon, roles: ["super_admin", "hr"] },
     ],

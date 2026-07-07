@@ -15,6 +15,7 @@ import {
   Settings,
   ChevronDown,
   LogOut,
+  Package,
   type LucideIcon,
 } from "lucide-react";
 import { authActions, useAuthStore } from "../../stores/authStore";
@@ -60,6 +61,7 @@ const SECTIONS: NavSection[] = [
       },
       { name: "Students", icon: Users, href: `${BASE}/students` },
       { name: "Approvals", icon: CheckCircle2, href: `${BASE}/approvals` },
+      { name: "Modules", icon: Package, href: `${BASE}/modules` },
     ],
   },
   {

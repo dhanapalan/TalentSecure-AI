@@ -13,6 +13,8 @@ import {
   RoleGuard,
   getLandingPath,
 } from "./components/ProtectedRoute";
+import { CollegeLegacyFeatureGuard } from "./components/CollegeLegacyFeatureGuard";
+import { StudentFeatureGuard } from "./components/FeatureGuard";
 
 // ── Layouts ──────────────────────────────────────────────────────────────────
 import PublicLayout from "./layouts/PublicLayout";
@@ -55,7 +57,7 @@ const CollegePortalDashboard = lazy(() => import("./pages/college-portal/Dashboa
 const CollegePortalStudents = lazy(() => import("./pages/college-portal/StudentsPage"));
 const CollegePortalAnalytics = lazy(() => import("./pages/college-portal/AnalyticsPage"));
 const CollegePortalComingSoon = lazy(() => import("./pages/college-portal/ComingSoonPage"));
-const StudentPortalPage = lazy(() => import("./pages/student/StudentPortalPage"));
+const LmsModulePage = lazy(() => import("./pages/lms/LmsModulePage"));
 const StudentPaymentsPage = lazy(() => import("./pages/student/PaymentsPage"));
 const StudentQuestionBankPage = lazy(() => import("./pages/student/QuestionBankPage"));
 const StudentWorkflowPage = lazy(() => import("./pages/student/WorkflowPage"));
@@ -204,6 +206,7 @@ const SuperAdminBilling = lazy(() => import("./pages/superadmin/billing/BillingP
 
 // Settings
 const SuperAdminSettings = lazy(() => import("./pages/superadmin/settings/SettingsPage"));
+const SuperAdminModules = lazy(() => import("./pages/superadmin/modules/ModulesPage"));
 
 // ── QueryClient ───────────────────────────────────────────────────────────────
 const queryClient = new QueryClient({
@@ -312,6 +315,8 @@ export default function App() {
               {/* Approvals */}
               <Route path="approvals" element={<SuperAdminApprovals />} />
 
+              <Route path="modules" element={<SuperAdminModules />} />
+
               {/* Users */}
               <Route path="users" element={<SuperAdminUsers />} />
               <Route path="users/:id" element={<SuperAdminUserDetail />} />
@@ -402,6 +407,7 @@ export default function App() {
                 }
               />
               <Route path="settings" element={<CampusSettingsPage />} />
+              <Route path="lms/:moduleKey" element={<LmsModulePage portal="college" />} />
             </Route>
 
             {/* ── Student Portal (dedicated layout) ───────────────────── */}
@@ -425,6 +431,7 @@ export default function App() {
               <Route path="payments" element={<StudentPaymentsPage />} />
               <Route path="notifications" element={<StudentNotificationsPage />} />
               <Route path="profile" element={<StudentProfile />} />
+              <Route path="lms/:moduleKey" element={<LmsModulePage portal="student" />} />
               <Route path="soft-skills" element={<SoftSkillsHubPage />} />
               <Route path="development" element={<DevelopmentPage />} />
               <Route path="mock-interview" element={<MockInterviewPage />} />
@@ -451,7 +458,9 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <RoleGuard allowed={["student"]}>
-                    <ExamPlayerPage />
+                    <StudentFeatureGuard feature="tests">
+                      <ExamPlayerPage />
+                    </StudentFeatureGuard>
                   </RoleGuard>
                 </ProtectedRoute>
               }
@@ -462,7 +471,9 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <RoleGuard allowed={["student"]}>
-                    <MockExamPlayer />
+                    <StudentFeatureGuard feature="tests">
+                      <MockExamPlayer />
+                    </StudentFeatureGuard>
                   </RoleGuard>
                 </ProtectedRoute>
               }
@@ -519,7 +530,9 @@ export default function App() {
                 path="college/drives"
                 element={
                   <RoleGuard allowed={["college_admin", "college", "college_staff"]}>
-                    <CampusDrivesListPage />
+                    <CollegeLegacyFeatureGuard>
+                      <CampusDrivesListPage />
+                    </CollegeLegacyFeatureGuard>
                   </RoleGuard>
                 }
               />
@@ -527,7 +540,9 @@ export default function App() {
                 path="college/drives/:id"
                 element={
                   <RoleGuard allowed={["college_admin", "college", "college_staff"]}>
-                    <CampusDriveDetailPage />
+                    <CollegeLegacyFeatureGuard>
+                      <CampusDriveDetailPage />
+                    </CollegeLegacyFeatureGuard>
                   </RoleGuard>
                 }
               />
@@ -536,7 +551,9 @@ export default function App() {
                 path="college/results"
                 element={
                   <RoleGuard allowed={["college_admin", "college", "college_staff"]}>
-                    <CampusResultsPage />
+                    <CollegeLegacyFeatureGuard>
+                      <CampusResultsPage />
+                    </CollegeLegacyFeatureGuard>
                   </RoleGuard>
                 }
               />
@@ -544,7 +561,9 @@ export default function App() {
                 path="college/insights"
                 element={
                   <RoleGuard allowed={["college_admin", "college", "college_staff"]}>
-                    <CampusInsightsPage />
+                    <CollegeLegacyFeatureGuard>
+                      <CampusInsightsPage />
+                    </CollegeLegacyFeatureGuard>
                   </RoleGuard>
                 }
               />
@@ -552,7 +571,9 @@ export default function App() {
                 path="college/communications"
                 element={
                   <RoleGuard allowed={["college_admin", "college", "college_staff"]}>
-                    <CampusCommunicationsPage />
+                    <CollegeLegacyFeatureGuard>
+                      <CampusCommunicationsPage />
+                    </CollegeLegacyFeatureGuard>
                   </RoleGuard>
                 }
               />
@@ -560,7 +581,9 @@ export default function App() {
                 path="college/settings"
                 element={
                   <RoleGuard allowed={["college_admin", "college"]}>
-                    <CampusSettingsPage />
+                    <CollegeLegacyFeatureGuard>
+                      <CampusSettingsPage />
+                    </CollegeLegacyFeatureGuard>
                   </RoleGuard>
                 }
               />
@@ -568,7 +591,9 @@ export default function App() {
                 path="college/billing"
                 element={
                   <RoleGuard allowed={["college_admin", "college"]}>
-                    <BillingPage />
+                    <CollegeLegacyFeatureGuard>
+                      <BillingPage />
+                    </CollegeLegacyFeatureGuard>
                   </RoleGuard>
                 }
               />
@@ -576,7 +601,9 @@ export default function App() {
                 path="college/integrity"
                 element={
                   <RoleGuard allowed={["college_admin", "college", "college_staff"]}>
-                    <CampusIntegrityPage />
+                    <CollegeLegacyFeatureGuard>
+                      <CampusIntegrityPage />
+                    </CollegeLegacyFeatureGuard>
                   </RoleGuard>
                 }
               />
@@ -584,7 +611,9 @@ export default function App() {
                 path="college/campus-admins"
                 element={
                   <RoleGuard allowed={["college_admin", "college"]}>
-                    <CampusAdminsPage />
+                    <CollegeLegacyFeatureGuard>
+                      <CampusAdminsPage />
+                    </CollegeLegacyFeatureGuard>
                   </RoleGuard>
                 }
               />
@@ -751,7 +780,9 @@ export default function App() {
                 path="students"
                 element={
                   <RoleGuard allowed={["super_admin", "hr", "cxo", "college_admin", "college", "college_staff"]}>
-                    <StudentListPage />
+                    <CollegeLegacyFeatureGuard>
+                      <StudentListPage />
+                    </CollegeLegacyFeatureGuard>
                   </RoleGuard>
                 }
               />
@@ -759,7 +790,9 @@ export default function App() {
                 path="students/new"
                 element={
                   <RoleGuard allowed={["super_admin", "hr", "cxo", "college_admin"]}>
-                    <StudentDetailPage />
+                    <CollegeLegacyFeatureGuard>
+                      <StudentDetailPage />
+                    </CollegeLegacyFeatureGuard>
                   </RoleGuard>
                 }
               />
@@ -767,7 +800,9 @@ export default function App() {
                 path="students/:id"
                 element={
                   <RoleGuard allowed={["super_admin", "hr", "cxo", "college_admin", "college", "college_staff"]}>
-                    <StudentDetailPage />
+                    <CollegeLegacyFeatureGuard>
+                      <StudentDetailPage />
+                    </CollegeLegacyFeatureGuard>
                   </RoleGuard>
                 }
               />
@@ -775,7 +810,9 @@ export default function App() {
                 path="students/:id/edit"
                 element={
                   <RoleGuard allowed={["super_admin", "hr", "cxo", "college_admin"]}>
-                    <StudentDetailPage />
+                    <CollegeLegacyFeatureGuard>
+                      <StudentDetailPage />
+                    </CollegeLegacyFeatureGuard>
                   </RoleGuard>
                 }
               />
@@ -783,7 +820,9 @@ export default function App() {
                 path="students/bulk-import"
                 element={
                   <RoleGuard allowed={["super_admin", "hr", "cxo", "college_admin"]}>
-                    <BulkImportStudentsPage />
+                    <CollegeLegacyFeatureGuard>
+                      <BulkImportStudentsPage />
+                    </CollegeLegacyFeatureGuard>
                   </RoleGuard>
                 }
               />

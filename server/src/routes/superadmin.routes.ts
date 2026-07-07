@@ -7,6 +7,8 @@ import auditTrailRoutes from "./auditTrail.routes.js";
 import workflowsRoutes from "./workflows.routes.js";
 import questionBankRoutes from "./questionBank.routes.js";
 import superadminStudentsRoutes from "./superadminStudents.routes.js";
+import platformModulesRoutes from "./platformModules.routes.js";
+import * as modulesController from "../controllers/platformModules.controller.js";
 
 const router = Router();
 
@@ -14,6 +16,11 @@ const router = Router();
 // PHASE 3: GLOBAL STUDENTS
 // ────────────────────────────────────────────────────────────────────
 router.use("/students", superadminStudentsRoutes);
+
+// ────────────────────────────────────────────────────────────────────
+// PLATFORM MODULES (multi-tenant feature system)
+// ────────────────────────────────────────────────────────────────────
+router.use("/modules", platformModulesRoutes);
 
 // ────────────────────────────────────────────────────────────────────
 // PHASE 2: USERS MANAGEMENT
@@ -215,6 +222,27 @@ router.get(
   authenticate,
   authorize("super_admin"),
   superadminController.getCollegeStudents
+);
+
+router.get(
+  "/colleges/:id/modules",
+  authenticate,
+  authorize("super_admin"),
+  modulesController.getCollegeModules
+);
+
+router.put(
+  "/colleges/:id/modules",
+  authenticate,
+  authorize("super_admin"),
+  modulesController.setCollegeModules
+);
+
+router.post(
+  "/colleges/:id/modules/defaults",
+  authenticate,
+  authorize("super_admin"),
+  modulesController.applyCollegeModuleDefaults
 );
 
 router.put(
