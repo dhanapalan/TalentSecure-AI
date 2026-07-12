@@ -47,6 +47,18 @@ export default function AddCollegePage() {
       toast.error("Invalid college email");
       return false;
     }
+    if (!formData.phone.trim()) {
+      toast.error("Phone is required");
+      return false;
+    }
+    if (!formData.address.trim()) {
+      toast.error("Address is required");
+      return false;
+    }
+    if (!formData.tpoName.trim()) {
+      toast.error("TPO name is required");
+      return false;
+    }
     if (!formData.tpoEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
       toast.error("Invalid TPO email");
       return false;
@@ -130,6 +142,7 @@ export default function AddCollegePage() {
                     onChange={handleChange}
                     placeholder="+91 98765 43210"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-admin-accent focus:border-transparent"
+                    required
                   />
                 </div>
               </div>

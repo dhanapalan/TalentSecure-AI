@@ -122,10 +122,11 @@ export const forgotPassword = async (
 ) => {
   try {
     const { email } = req.body;
-    await authService.requestPasswordReset(email, req.ip);
+    const result = await authService.requestPasswordReset(email, req.ip);
     res.json({
       success: true,
       message: "If an account exists for that email, a reset link has been sent.",
+      data: result.resetUrl ? { resetUrl: result.resetUrl } : undefined,
     });
   } catch (err) {
     next(err);

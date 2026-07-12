@@ -17,7 +17,7 @@ import StatusBadge from "../../../components/superadmin/StatusBadge";
 import ConfirmModal from "../../../components/superadmin/ConfirmModal";
 import studentsService, { StudentListItem } from "../../../services/studentsService";
 import collegeService, { College } from "../../../services/collegeService";
-import { formatCourseYears } from "../../../lib/courseYears";
+import { formatCourseYears, getDegreeDurationYears } from "../../../lib/courseYears";
 
 function readinessLabel(score: number): { label: string; status: string } {
   if (score >= 70) return { label: `${score}%`, status: "active" };
@@ -77,6 +77,7 @@ export default function AllStudentsPage() {
     student_identifier: "",
     phone_number: "",
     degree: "",
+    course_start_year: "",
     passing_year: "",
     cgpa: "",
   });
@@ -135,7 +136,13 @@ export default function AllStudentsPage() {
     }
   }, [searchParams, setSearchParams]);
 
-  const activeColleges = colleges.filter((c) => c.status === "active");
+  const activeColleges = colleges.filter((c) => {
+    const row = c as College & { is_suspended?: boolean; is_active?: boolean };
+    if (row.status === "suspended" || row.status === "pending") return false;
+    if (row.is_suspended === true) return false;
+    if (row.is_active === false) return false;
+    return row.status === "active";
+  });
 
   useEffect(() => {
     collegeService
@@ -147,15 +154,33 @@ export default function AllStudentsPage() {
   // Keep create/import college selection limited to active colleges only.
   useEffect(() => {
     if (!colleges.length) return;
-    setCreateForm((prev) => {
-      if (!prev.college_id) return prev;
-      const ok = colleges.some((c) => c.id === prev.college_id && c.status === "active");
-      return ok ? prev : { ...prev, college_id: "" };
-    });
-    setImportCollegeId((prev) => {
-      if (!prev) return prev;
-      return colleges.some((c) => c.id === prev && c.status === "active") ? prev : "";
-    });
+        setCreateForm((prev) => {
+          if (!prev.college_id) return prev;
+          const ok = colleges.some((c) => {
+            if (c.id !== prev.college_id) return false;
+            const row = c as College & { is_suspended?: boolean; is_active?: boolean };
+            return (
+              row.status === "active" &&
+              row.is_suspended !== true &&
+              row.is_active !== false
+            );
+          });
+          return ok ? prev : { ...prev, college_id: "" };
+        });
+        setImportCollegeId((prev) => {
+          if (!prev) return prev;
+          return colleges.some((c) => {
+            if (c.id !== prev) return false;
+            const row = c as College & { is_suspended?: boolean; is_active?: boolean };
+            return (
+              row.status === "active" &&
+              row.is_suspended !== true &&
+              row.is_active !== false
+            );
+          })
+            ? prev
+            : "";
+        });
   }, [colleges]);
 
   const load = () => {
@@ -307,6 +332,7 @@ export default function AllStudentsPage() {
         student_identifier: "",
         phone_number: "",
         degree: "",
+        course_start_year: "",
         passing_year: "",
         cgpa: "",
       });
@@ -597,17 +623,66 @@ export default function AllStudentsPage() {
               className="border border-gray-200 rounded-lg px-3 py-2"
             />
             <input
-              placeholder="Degree / Department"
+              placeholder="Degree (e.g. B.E.)"
               value={createForm.degree}
-              onChange={(e) => setCreateForm({ ...createForm, degree: e.target.value })}
+              onChange={(e) => {
+                const degree = e.target.value;
+                const end = Number(createForm.passing_year);
+                setCreateForm({
+                  ...createForm,
+                  degree,
+                  course_start_year: Number.isFinite(end)
+                    ? String(end - getDegreeDurationYears(degree))
+                    : createForm.course_start_year,
+                });
+              }}
               className="border border-gray-200 rounded-lg px-3 py-2"
             />
-            <input
-              placeholder="Academic Year end (e.g. 2006)"
-              value={createForm.passing_year}
-              onChange={(e) => setCreateForm({ ...createForm, passing_year: e.target.value })}
-              className="border border-gray-200 rounded-lg px-3 py-2"
-            />
+            <div className="md:col-span-2 grid grid-cols-2 gap-3">
+              <input
+                placeholder="Academic Year start (e.g. 2002)"
+                value={createForm.course_start_year}
+                onChange={(e) => {
+                  const start = parseInt(e.target.value, 10);
+                  const duration = getDegreeDurationYears(createForm.degree);
+                  setCreateForm({
+                    ...createForm,
+                    course_start_year: e.target.value,
+                    passing_year: Number.isFinite(start)
+                      ? String(start + duration)
+                      : createForm.passing_year,
+                  });
+                }}
+                className="border border-gray-200 rounded-lg px-3 py-2"
+              />
+              <input
+                placeholder="Academic Year end (e.g. 2006)"
+                value={createForm.passing_year}
+                onChange={(e) => {
+                  const end = parseInt(e.target.value, 10);
+                  setCreateForm({
+                    ...createForm,
+                    passing_year: e.target.value,
+                    course_start_year: Number.isFinite(end)
+                      ? String(end - getDegreeDurationYears(createForm.degree))
+                      : createForm.course_start_year,
+                  });
+                }}
+                className="border border-gray-200 rounded-lg px-3 py-2"
+              />
+            </div>
+            {createForm.passing_year && (
+              <p className="md:col-span-2 -mt-1 text-xs text-gray-500">
+                Academic Year:{" "}
+                {formatCourseYears(
+                  createForm.degree,
+                  Number(createForm.passing_year),
+                  createForm.course_start_year && createForm.passing_year
+                    ? `${createForm.course_start_year} - ${createForm.passing_year}`
+                    : "—"
+                )}
+              </p>
+            )}
             <input
               placeholder="CGPA"
               value={createForm.cgpa}

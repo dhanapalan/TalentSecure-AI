@@ -793,8 +793,8 @@ export const createCollege = async (
   try {
     const { name, email, phone, address, city, state, tpoName, tpoEmail, studentLimit } = req.body;
 
-    // Validation
-    if (!name || !email || !city || !state) {
+    // Validation — keep in sync with Add College UI required fields
+    if (!name || !email || !phone || !address || !city || !state || !tpoName || !tpoEmail) {
       throw new AppError("Missing required fields", 400);
     }
 

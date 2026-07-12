@@ -43,7 +43,13 @@ export default function LoginPage() {
         navigate(landingPath);
       }, 100);
     } catch (err: any) {
-      toast.error(err.response?.data?.error || "Invalid email or password");
+      const apiError = err.response?.data?.error;
+      const fieldEmail = err.response?.data?.fieldErrors?.email;
+      toast.error(
+        fieldEmail || apiError === "Validation failed"
+          ? "Validation failed"
+          : apiError || "Invalid email or password"
+      );
     } finally {
       setLoading(false);
     }
@@ -75,7 +81,7 @@ export default function LoginPage() {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
         {/* Email */}
         <div>
           <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
@@ -85,7 +91,13 @@ export default function LoginPage() {
             <Mail className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input
               type="email"
-              {...register("email", { required: "Email is required" })}
+              {...register("email", {
+                required: "Validation failed",
+                pattern: {
+                  value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                  message: "Validation failed",
+                },
+              })}
               className={`w-full rounded-xl border bg-slate-50 py-3 pl-10 pr-4 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.email ? "border-rose-300 ring-1 ring-rose-300" : "border-slate-200"}`}
               placeholder="you@company.com"
               autoComplete="email"
@@ -102,7 +114,10 @@ export default function LoginPage() {
             <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">
               Password
             </label>
-            <Link to="/auth/forgot-password" className="text-xs font-semibold text-indigo-500 hover:text-indigo-700 hover:underline">
+            <Link
+              to="/auth/forgot-password"
+              className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline"
+            >
               Forgot password?
             </Link>
           </div>

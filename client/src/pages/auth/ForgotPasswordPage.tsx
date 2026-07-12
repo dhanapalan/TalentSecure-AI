@@ -10,16 +10,23 @@ type ForgotForm = { email: string };
 export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [resetUrl, setResetUrl] = useState<string | null>(null);
   const { register, handleSubmit, formState: { errors } } = useForm<ForgotForm>();
 
   const onSubmit = async (form: ForgotForm) => {
     setLoading(true);
     try {
-      await api.post("/auth/forgot-password", form);
+      const { data } = await api.post("/auth/forgot-password", form);
       // Server responds success regardless of whether the account exists.
+      // When SMTP is not configured, API may return a one-time resetUrl.
+      setResetUrl(data?.data?.resetUrl || null);
       setSent(true);
-    } catch {
-      toast.error("Something went wrong. Please try again.");
+    } catch (err: any) {
+      toast.error(
+        err.response?.data?.error ||
+          err.response?.data?.message ||
+          "Something went wrong. Please try again."
+      );
     } finally {
       setLoading(false);
     }
@@ -36,6 +43,19 @@ export default function ForgotPasswordPage() {
           If an account exists for that address, we've sent a link to reset your password.
           The link expires shortly for your security.
         </p>
+        {resetUrl && (
+          <div className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50 p-4 text-left">
+            <p className="text-xs font-semibold text-indigo-800 mb-2">
+              Email delivery is not configured — use this reset link:
+            </p>
+            <a
+              href={resetUrl}
+              className="text-sm font-bold text-indigo-600 hover:text-indigo-700 hover:underline break-all"
+            >
+              Reset your password →
+            </a>
+          </div>
+        )}
         <Link
           to="/auth/login"
           className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-indigo-600 hover:text-indigo-700 hover:underline"
@@ -55,7 +75,7 @@ export default function ForgotPasswordPage() {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
         <div>
           <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
             Email Address
@@ -64,7 +84,13 @@ export default function ForgotPasswordPage() {
             <Mail className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input
               type="email"
-              {...register("email", { required: "Email is required" })}
+              {...register("email", {
+                required: "Validation failed",
+                pattern: {
+                  value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                  message: "Validation failed",
+                },
+              })}
               className={`w-full rounded-xl border bg-slate-50 py-3 pl-10 pr-4 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 ${errors.email ? "border-rose-300 ring-1 ring-rose-300" : "border-slate-200"}`}
               placeholder="you@company.com"
               autoComplete="email"

@@ -597,7 +597,7 @@ export async function changePassword(
  * enumeration). If the account exists, a single-use reset token (hashed at
  * rest) is stored and an email is sent.
  */
-export async function requestPasswordReset(email: string, ip?: string) {
+export async function requestPasswordReset(email: string, ip?: string): Promise<{ resetUrl?: string }> {
   const normalizedEmail = email.toLowerCase().trim();
   const user = await queryOne<{ id: string; email: string; name: string | null; full_name: string | null }>(
     "SELECT id, email, name, full_name FROM users WHERE email = $1 AND is_active = TRUE",
@@ -605,18 +605,29 @@ export async function requestPasswordReset(email: string, ip?: string) {
   );
 
   // Do not reveal whether the account exists.
-  if (!user) return;
+  if (!user) return {};
 
   const rawToken = crypto.randomBytes(32).toString("base64url");
   const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
   const expiresAt = new Date(Date.now() + env.PASSWORD_RESET_EXPIRES_MIN * 60 * 1000);
 
-  await queryOne(
-    `UPDATE users
-     SET password_reset_token_hash = $1, password_reset_expires_at = $2, updated_at = NOW()
-     WHERE id = $3 RETURNING id`,
-    [tokenHash, expiresAt, user.id],
-  );
+  try {
+    await queryOne(
+      `UPDATE users
+       SET password_reset_token_hash = $1, password_reset_expires_at = $2, updated_at = NOW()
+       WHERE id = $3 RETURNING id`,
+      [tokenHash, expiresAt, user.id],
+    );
+  } catch (err: unknown) {
+    const code = (err as { code?: string })?.code;
+    if (code === "42703") {
+      throw new AppError(
+        "Password reset is not configured on this server yet. Please contact an administrator.",
+        503,
+      );
+    }
+    throw err;
+  }
 
   const resetUrl = `${env.CLIENT_URL}/auth/reset-password?token=${rawToken}`;
   await sendPasswordResetEmail({
@@ -632,6 +643,11 @@ export async function requestPasswordReset(email: string, ip?: string) {
     resourceId: user.id,
     ipAddress: ip,
   }).catch(() => { });
+
+  // When SMTP is not configured, emails are only logged. Return the link so
+  // forgot/reset password remains usable in that environment.
+  const smtpConfigured = Boolean(env.SMTP_USER && env.SMTP_PASS);
+  return smtpConfigured ? {} : { resetUrl };
 }
 
 /**
