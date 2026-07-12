@@ -1,24 +1,87 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
+import toast from "react-hot-toast";
 import StatusBadge from "../../../components/superadmin/StatusBadge";
 import studentsService, { StudentDetail } from "../../../services/studentsService";
 
 export default function StudentDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [detail, setDetail] = useState<StudentDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    degree: "",
+    specialization: "",
+    passing_year: "",
+    cgpa: "",
+    student_identifier: "",
+  });
 
-  useEffect(() => {
+  const load = () => {
     if (!id) return;
     setLoading(true);
     studentsService
       .getStudentProfile(id)
-      .then(setDetail)
+      .then((d) => {
+        setDetail(d);
+        setForm({
+          name: d.profile.name || "",
+          email: d.profile.email || "",
+          degree: d.profile.degree || "",
+          specialization: d.profile.specialization || "",
+          passing_year: d.profile.passing_year != null ? String(d.profile.passing_year) : "",
+          cgpa: d.profile.cgpa != null ? String(d.profile.cgpa) : "",
+          student_identifier: d.profile.student_identifier || "",
+        });
+      })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  const handleSave = async () => {
+    if (!id) return;
+    setSaving(true);
+    try {
+      await studentsService.updateStudent(id, {
+        name: form.name,
+        email: form.email,
+        degree: form.degree || null,
+        specialization: form.specialization || null,
+        passing_year: form.passing_year ? Number(form.passing_year) : null,
+        cgpa: form.cgpa ? Number(form.cgpa) : null,
+        student_identifier: form.student_identifier || null,
+      });
+      toast.success("Student updated");
+      setEditing(false);
+      load();
+    } catch {
+      toast.error("Failed to update student");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSoftDelete = async () => {
+    if (!id || !confirm("Soft-delete this student?")) return;
+    try {
+      await studentsService.softDeleteStudent(id);
+      toast.success("Student soft-deleted");
+      navigate("/app/superadmin/students");
+    } catch {
+      toast.error("Failed to delete student");
+    }
+  };
 
   if (loading) {
     return (
@@ -55,27 +118,73 @@ export default function StudentDetailPage() {
         Back to Students
       </Link>
 
-      {/* Header */}
-      <div className="flex items-start justify-between mb-8">
+      <div className="flex items-start justify-between mb-8 gap-4">
         <div>
           <h2 className="text-2xl font-semibold tracking-tight text-gray-900">{profile.name}</h2>
           <p className="text-gray-500 mt-1">
             {profile.email} {profile.college_name ? `· ${profile.college_name}` : ""}
           </p>
-          <p className="text-sm text-gray-500 mt-1">
-            {[profile.specialization, profile.passing_year ? `Batch ${profile.passing_year}` : null]
-              .filter(Boolean)
-              .join(" · ") || "No department/batch on file"}
-          </p>
         </div>
-        <StatusBadge status={profile.status} />
+        <div className="flex items-center gap-2">
+          <StatusBadge status={profile.status} />
+          <button
+            onClick={() => setEditing((v) => !v)}
+            className="px-3 py-1.5 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50"
+          >
+            {editing ? "Cancel edit" : "Edit"}
+          </button>
+          <button
+            onClick={handleSoftDelete}
+            className="px-3 py-1.5 text-sm font-medium border border-red-300 text-red-700 rounded-lg hover:bg-red-50"
+          >
+            Delete
+          </button>
+        </div>
       </div>
 
-      {/* Summary cards */}
+      {editing && (
+        <div className="bg-white rounded-xl border border-gray-200/70 shadow-admin-card p-6 mb-8">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Edit Student</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {(
+              [
+                ["name", "Name"],
+                ["email", "Email"],
+                ["student_identifier", "Student ID"],
+                ["degree", "Degree"],
+                ["specialization", "Specialization"],
+                ["passing_year", "Passing year"],
+                ["cgpa", "CGPA"],
+              ] as const
+            ).map(([key, label]) => (
+              <div key={key}>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+                <input
+                  value={form[key]}
+                  onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                />
+              </div>
+            ))}
+          </div>
+          <div className="mt-4">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-4 py-2 bg-navy-900 text-white rounded-lg font-medium hover:bg-navy-800 disabled:opacity-50"
+            >
+              {saving ? "Saving..." : "Save changes"}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <div className="bg-white rounded-xl border border-gray-200/70 shadow-admin-card p-4">
           <p className="text-xs text-gray-500 uppercase">Avg Exam Score</p>
-          <p className="text-2xl font-display font-semibold text-gray-900 mt-1">{avgScore !== null ? `${avgScore}%` : "N/A"}</p>
+          <p className="text-2xl font-display font-semibold text-gray-900 mt-1">
+            {avgScore !== null ? `${avgScore}%` : "N/A"}
+          </p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200/70 shadow-admin-card p-4">
           <p className="text-xs text-gray-500 uppercase">CGPA</p>
@@ -93,128 +202,63 @@ export default function StudentDetailPage() {
         </div>
       </div>
 
-      {/* Profile details */}
       <div className="bg-white rounded-xl border border-gray-200/70 shadow-admin-card p-6 mb-8">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Profile</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <div>
-            <p className="text-xs text-gray-500 uppercase">Student ID</p>
+            <p className="text-xs text-gray-500">Student ID</p>
             <p className="text-sm font-medium text-gray-900">{profile.student_identifier || "—"}</p>
           </div>
           <div>
-            <p className="text-xs text-gray-500 uppercase">Degree</p>
+            <p className="text-xs text-gray-500">Degree</p>
             <p className="text-sm font-medium text-gray-900">{profile.degree || "—"}</p>
           </div>
           <div>
-            <p className="text-xs text-gray-500 uppercase">Percentage</p>
+            <p className="text-xs text-gray-500">Specialization</p>
+            <p className="text-sm font-medium text-gray-900">{profile.specialization || "—"}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">Passing year</p>
+            <p className="text-sm font-medium text-gray-900">{profile.passing_year ?? "—"}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">Percentage</p>
             <p className="text-sm font-medium text-gray-900">{profile.percentage ?? "—"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 uppercase">LinkedIn</p>
-            <p className="text-sm font-medium text-gray-900 truncate">{profile.linkedin_url || "—"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 uppercase">GitHub</p>
-            <p className="text-sm font-medium text-gray-900 truncate">{profile.github_url || "—"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 uppercase">Registered</p>
-            <p className="text-sm font-medium text-gray-900">{new Date(profile.created_at).toLocaleDateString()}</p>
           </div>
         </div>
       </div>
 
-      {/* Exam results */}
-      <div className="mb-8">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Exam Results ({examResults.length})</h3>
-        {examResults.length === 0 ? (
-          <div className="bg-white rounded-xl border border-gray-200/70 shadow-admin-card p-8 text-center text-gray-600">
-            No exam attempts recorded yet
-          </div>
-        ) : (
-          <div className="bg-white rounded-xl border border-gray-200/70 shadow-admin-card overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-gray-50/70 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Exam</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Score</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Date</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {examResults.map((exam) => (
-                  <tr key={exam.id}>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{exam.title}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{exam.final_score}%</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{new Date(exam.created_at).toLocaleDateString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Learning progress */}
-      <div className="mb-8">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Learning Progress ({moduleProgress.length})</h3>
-        {moduleProgress.length === 0 ? (
-          <div className="bg-white rounded-xl border border-gray-200/70 shadow-admin-card p-8 text-center text-gray-600">
-            No learning modules started yet
-          </div>
-        ) : (
-          <div className="bg-white rounded-xl border border-gray-200/70 shadow-admin-card overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-gray-50/70 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Module</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Score</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Completed</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {moduleProgress.map((mp) => (
-                  <tr key={mp.id}>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{mp.module_title}</td>
-                    <td className="px-6 py-4">
-                      <StatusBadge
-                        status={mp.status === "completed" ? "active" : mp.status === "in_progress" ? "pending" : "inactive"}
-                        label={mp.status.replace("_", " ")}
-                        size="sm"
-                      />
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{mp.score ?? "—"}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {mp.completed_at ? new Date(mp.completed_at).toLocaleDateString() : "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Certifications */}
-      <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Certifications ({certifications.length})</h3>
-        {certifications.length === 0 ? (
-          <div className="bg-white rounded-xl border border-gray-200/70 shadow-admin-card p-8 text-center text-gray-600">
-            No certifications earned yet
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {certifications.map((cert) => (
-              <div key={cert.id} className="bg-white rounded-xl border border-gray-200/70 shadow-admin-card p-4">
-                <p className="font-medium text-gray-900">{cert.title}</p>
-                <p className="text-sm text-gray-500 mt-1">
-                  Issued {new Date(cert.issued_at).toLocaleDateString()}
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-xl border border-gray-200/70 shadow-admin-card p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Exam Results</h3>
+          {examResults.length === 0 ? (
+            <p className="text-sm text-gray-500">No exam results</p>
+          ) : (
+            <ul className="space-y-2">
+              {examResults.map((e) => (
+                <li key={e.id} className="flex justify-between text-sm">
+                  <span>{e.title}</span>
+                  <span className="font-medium">{e.final_score}%</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200/70 shadow-admin-card p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Module Progress</h3>
+          {moduleProgress.length === 0 ? (
+            <p className="text-sm text-gray-500">No module progress</p>
+          ) : (
+            <ul className="space-y-2">
+              {moduleProgress.map((m) => (
+                <li key={m.id} className="flex justify-between text-sm">
+                  <span>{m.module_title}</span>
+                  <span className="font-medium">{m.status}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -8,6 +8,13 @@ import { authenticate, authorize } from "../middleware/auth.js";
 import { query, queryOne } from "../config/database.js";
 import { sendPlacementConfirmedEmail } from "../services/email.service.js";
 import { sendNotification } from "../services/notification.service.js";
+import {
+  assertSameCollege,
+  effectiveCollegeId,
+  isCollegeScopedRole,
+  resolveCallerCollegeId,
+} from "../middleware/collegeIsolation.js";
+import { AppError } from "../middleware/errorHandler.js";
 
 const router = Router();
 router.use(authenticate);
@@ -28,10 +35,15 @@ router.get("/", authorize(...ADMIN_ROLES, "mentor"), async (req, res, next) => {
       college_id, drive_id, company, year, limit = "50", offset = "0",
     } = req.query as Record<string, string>;
 
+    const scopedCollegeId = await effectiveCollegeId(req, college_id);
+    if (isCollegeScopedRole(req.user?.role) && !scopedCollegeId) {
+      throw new AppError("Unauthorized: College context missing", 403);
+    }
+
     const conditions: string[] = [];
     const params: any[] = [];
 
-    if (college_id) { params.push(college_id); conditions.push(`pr.college_id = $${params.length}`); }
+    if (scopedCollegeId) { params.push(scopedCollegeId); conditions.push(`pr.college_id = $${params.length}`); }
     if (drive_id)   { params.push(drive_id);   conditions.push(`pr.drive_id = $${params.length}`); }
     if (company)    { params.push(`%${company}%`); conditions.push(`pr.company_name ILIKE $${params.length}`); }
     if (year)       { params.push(year);        conditions.push(`EXTRACT(YEAR FROM pr.placed_at) = $${params.length}`); }
@@ -89,6 +101,11 @@ router.post("/", authorize(...ADMIN_ROLES), async (req, res, next) => {
       [student_id]
     );
     if (!studentInfo) return res.status(404).json({ error: "Student not found" });
+
+    const callerCollegeId = await resolveCallerCollegeId(req);
+    if (callerCollegeId) {
+      assertSameCollege(callerCollegeId, (studentInfo as any).college_id);
+    }
 
     const resolvedDriveId = drive_id || null;
     const vals = [
@@ -202,11 +219,15 @@ router.delete("/:id", authorize("super_admin", "hr"), async (req, res, next) => 
 router.get("/stats", authorize(...ADMIN_ROLES, "mentor", "cxo"), async (req, res, next) => {
   try {
     const { college_id, year } = req.query as Record<string, string>;
+    const scopedCollegeId = await effectiveCollegeId(req, college_id);
+    if (isCollegeScopedRole(req.user?.role) && !scopedCollegeId) {
+      throw new AppError("Unauthorized: College context missing", 403);
+    }
 
     const filters: string[] = [];
     const params: any[] = [];
 
-    if (college_id) { params.push(college_id); filters.push(`pr.college_id = $${params.length}`); }
+    if (scopedCollegeId) { params.push(scopedCollegeId); filters.push(`pr.college_id = $${params.length}`); }
     if (year)       { params.push(year);        filters.push(`EXTRACT(YEAR FROM pr.placed_at) = $${params.length}`); }
 
     const where = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
@@ -267,10 +288,14 @@ router.get("/stats", authorize(...ADMIN_ROLES, "mentor", "cxo"), async (req, res
 router.get("/funnel", authorize(...ADMIN_ROLES, "cxo"), async (req, res, next) => {
   try {
     const { college_id } = req.query as Record<string, string>;
+    const scopedCollegeId = await effectiveCollegeId(req, college_id);
+    if (isCollegeScopedRole(req.user?.role) && !scopedCollegeId) {
+      throw new AppError("Unauthorized: College context missing", 403);
+    }
 
     const funnelParams: any[] = [];
-    const collegeFilter = college_id
-      ? (funnelParams.push(college_id), `AND COALESCE(u.college_id, sd.college_id) = $${funnelParams.length}`)
+    const collegeFilter = scopedCollegeId
+      ? (funnelParams.push(scopedCollegeId), `AND COALESCE(u.college_id, sd.college_id) = $${funnelParams.length}`)
       : "";
 
     const funnel = await queryOne(`
@@ -299,7 +324,12 @@ router.get("/funnel", authorize(...ADMIN_ROLES, "cxo"), async (req, res, next) =
  */
 router.get("/college/:collegeId", authorize(...ADMIN_ROLES, "mentor", "cxo"), async (req, res, next) => {
   try {
-    const { collegeId } = req.params;
+    const requestedId = req.params.collegeId;
+    const scoped = await resolveCallerCollegeId(req);
+    if (scoped && scoped !== requestedId) {
+      throw new AppError("Not authorized to access this college", 403);
+    }
+    const collegeId = scoped || requestedId;
 
     const [summary, recentPlacements, companyBreakdown] = await Promise.all([
       queryOne(`

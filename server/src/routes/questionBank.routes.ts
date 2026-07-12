@@ -116,29 +116,29 @@ router.get("/categories", authenticate, qbController.categoryCounts);
 router.get("/random", authenticate, validate(randomQuerySchema, "query"), qbController.random);
 router.get("/:id", authenticate, qbController.getById);
 
-// Admin / HR / college write endpoints
+// Platform admin / HR write endpoints (college roles: read-only — no global QB mutate)
 router.post(
   "/",
   authenticate,
-  authorize("admin", "super_admin", "hr", "college", "college_admin"),
+  authorize("admin", "super_admin", "hr"),
   validate(createQuestionSchema, "body"),
   qbController.create,
 );
 router.post(
   "/bulk",
   authenticate,
-  authorize("admin", "super_admin", "hr", "college", "college_admin"),
+  authorize("admin", "super_admin", "hr"),
   validate(bulkCreateSchema, "body"),
   qbController.bulkCreate,
 );
 router.put(
   "/:id",
   authenticate,
-  authorize("admin", "super_admin", "hr", "college", "college_admin"),
+  authorize("admin", "super_admin", "hr"),
   validate(updateQuestionSchema, "body"),
   qbController.update,
 );
-router.delete("/:id", authenticate, authorize("admin", "super_admin", "hr", "college", "college_admin"), qbController.deactivate);
+router.delete("/:id", authenticate, authorize("admin", "super_admin", "hr"), qbController.deactivate);
 router.delete("/:id/permanent", authenticate, authorize("admin", "super_admin"), qbController.hardDelete);
 
 export default router;

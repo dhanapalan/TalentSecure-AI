@@ -268,7 +268,8 @@ export const deleteUser = async (req: Request, res: Response) => {
     }
 
     await query(
-      `UPDATE users SET status = 'inactive', is_active = FALSE, updated_at = NOW()
+      `UPDATE users
+       SET status = 'inactive', is_active = FALSE, deleted_at = NOW(), updated_at = NOW()
        WHERE id = $1 AND deleted_at IS NULL`,
       [id]
     );
@@ -276,12 +277,12 @@ export const deleteUser = async (req: Request, res: Response) => {
     await query(
       `INSERT INTO audit_logs (user_id, action, resource_type, resource_id, ip_address)
        VALUES ($1, $2, $3, $4, $5)`,
-      [req.user?.userId || "system", "DEACTIVATE_USER", "user", id, req.ip]
+      [req.user?.userId || "system", "SOFT_DELETE_USER", "user", id, req.ip]
     );
 
     res.json({
       success: true,
-      message: "User deactivated successfully",
+      message: "User soft-deleted successfully",
     });
   } catch (error: any) {
     console.error("Error deactivating user:", error);
@@ -301,8 +302,9 @@ export const activateUser = async (req: Request, res: Response) => {
     const { id } = req.params;
 
     const result = await query(
-      `UPDATE users SET status = 'active', is_active = TRUE, updated_at = NOW()
-       WHERE id = $1 AND deleted_at IS NULL
+      `UPDATE users
+       SET status = 'active', is_active = TRUE, deleted_at = NULL, updated_at = NOW()
+       WHERE id = $1
        RETURNING id, full_name, email, status`,
       [id]
     );
@@ -521,9 +523,9 @@ export const bulkUserAction = async (req: Request, res: Response) => {
     if (action === "suspend") {
       updateQuery = "UPDATE users SET status = 'suspended', updated_at = NOW() WHERE id = ANY($1) AND deleted_at IS NULL";
     } else if (action === "delete" || action === "deactivate") {
-      updateQuery = "UPDATE users SET status = 'inactive', is_active = FALSE, updated_at = NOW() WHERE id = ANY($1) AND deleted_at IS NULL";
+      updateQuery = "UPDATE users SET status = 'inactive', is_active = FALSE, deleted_at = NOW(), updated_at = NOW() WHERE id = ANY($1) AND deleted_at IS NULL";
     } else if (action === "activate") {
-      updateQuery = "UPDATE users SET status = 'active', is_active = TRUE, updated_at = NOW() WHERE id = ANY($1) AND deleted_at IS NULL";
+      updateQuery = "UPDATE users SET status = 'active', is_active = TRUE, deleted_at = NULL, updated_at = NOW() WHERE id = ANY($1)";
     }
 
     const result = await query(updateQuery, [user_ids]);

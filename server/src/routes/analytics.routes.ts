@@ -6,6 +6,12 @@
 import { Router } from "express";
 import { authenticate, authorize } from "../middleware/auth.js";
 import { query, queryOne } from "../config/database.js";
+import {
+  effectiveCollegeId,
+  isCollegeScopedRole,
+  resolveCallerCollegeId,
+} from "../middleware/collegeIsolation.js";
+import { AppError } from "../middleware/errorHandler.js";
 
 const router = Router();
 router.use(authenticate);
@@ -18,24 +24,53 @@ const ADMIN_ROLES = ["super_admin", "hr", "cxo", "college_admin"] as const;
 
 router.get(
   "/dashboard",
-  authorize(...ADMIN_ROLES, "admin", "engineer", "college"),
-  async (_req, res, next) => {
+  authorize(...ADMIN_ROLES, "admin", "engineer", "college", "college_staff"),
+  async (req, res, next) => {
     try {
-      const metrics = await queryOne(`
-        SELECT
-          (SELECT COUNT(*)::int FROM student_details) AS total_students,
-          (SELECT COUNT(*)::int FROM exam_attempts WHERE status = 'completed') AS completed_attempts,
-          (SELECT COUNT(*)::int FROM exam_attempts) AS total_attempts,
-          (SELECT AVG(risk_score)::float FROM cheating_logs) AS avg_risk_score
-      `);
+      const collegeId = await resolveCallerCollegeId(req);
 
-      const segmentRows = await queryOne(`
-        SELECT COALESCE(jsonb_object_agg(bucket, count), '{}'::jsonb) AS segment_distribution
-        FROM (
-          SELECT COALESCE(NULLIF(TRIM(degree), ''), 'Unspecified') AS bucket, COUNT(*)::int AS count
-          FROM student_details GROUP BY 1
-        ) d
-      `);
+      const metrics = collegeId
+        ? await queryOne(`
+            SELECT
+              (SELECT COUNT(*)::int FROM student_details sd
+                 JOIN users u ON u.id = sd.user_id
+                 WHERE COALESCE(u.college_id, sd.college_id) = $1 AND u.deleted_at IS NULL) AS total_students,
+              (SELECT COUNT(*)::int FROM exam_attempts ea
+                 JOIN users u ON u.id = ea.student_id
+                 WHERE ea.status = 'completed' AND u.college_id = $1 AND u.deleted_at IS NULL) AS completed_attempts,
+              (SELECT COUNT(*)::int FROM exam_attempts ea
+                 JOIN users u ON u.id = ea.student_id
+                 WHERE u.college_id = $1 AND u.deleted_at IS NULL) AS total_attempts,
+              (SELECT AVG(cl.risk_score)::float FROM cheating_logs cl
+                 JOIN users u ON u.id = cl.student_id
+                 WHERE u.college_id = $1 AND u.deleted_at IS NULL) AS avg_risk_score
+          `, [collegeId])
+        : await queryOne(`
+            SELECT
+              (SELECT COUNT(*)::int FROM student_details) AS total_students,
+              (SELECT COUNT(*)::int FROM exam_attempts WHERE status = 'completed') AS completed_attempts,
+              (SELECT COUNT(*)::int FROM exam_attempts) AS total_attempts,
+              (SELECT AVG(risk_score)::float FROM cheating_logs) AS avg_risk_score
+          `);
+
+      const segmentRows = collegeId
+        ? await queryOne(`
+            SELECT COALESCE(jsonb_object_agg(bucket, count), '{}'::jsonb) AS segment_distribution
+            FROM (
+              SELECT COALESCE(NULLIF(TRIM(sd.degree), ''), 'Unspecified') AS bucket, COUNT(*)::int AS count
+              FROM student_details sd
+              JOIN users u ON u.id = sd.user_id
+              WHERE COALESCE(u.college_id, sd.college_id) = $1 AND u.deleted_at IS NULL
+              GROUP BY 1
+            ) d
+          `, [collegeId])
+        : await queryOne(`
+            SELECT COALESCE(jsonb_object_agg(bucket, count), '{}'::jsonb) AS segment_distribution
+            FROM (
+              SELECT COALESCE(NULLIF(TRIM(degree), ''), 'Unspecified') AS bucket, COUNT(*)::int AS count
+              FROM student_details GROUP BY 1
+            ) d
+          `);
 
       const total = (metrics as any)?.total_students ?? 0;
       const completed = (metrics as any)?.completed_attempts ?? 0;
@@ -62,14 +97,20 @@ router.get(
  * GET /api/analytics/drives
  * List all drives with aggregated stats for the analytics table view
  */
-router.get("/drives", authorize(...ADMIN_ROLES), async (req, res, next) => {
+router.get("/drives", authorize(...ADMIN_ROLES, "college", "college_staff"), async (req, res, next) => {
   try {
     const { college_id } = req.query as Record<string, string>;
+    const collegeId = await effectiveCollegeId(req, college_id);
 
     const params: any[] = [];
-    const collegeFilter = college_id
-      ? (params.push(college_id), `AND COALESCE(u.college_id, sd.college_id) = $${params.length}`)
+    const collegeFilter = collegeId
+      ? (params.push(collegeId), `AND COALESCE(u.college_id, sd.college_id) = $${params.length}`)
       : "";
+
+    // College-scoped roles must always filter — never return cross-tenant drive analytics
+    if (isCollegeScopedRole(req.user?.role) && !collegeId) {
+      throw new AppError("Unauthorized: College context missing", 403);
+    }
 
     const rows = await query(`
       SELECT

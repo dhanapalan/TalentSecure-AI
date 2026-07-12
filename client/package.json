@@ -16,6 +16,9 @@
     "test:phase3": "playwright test --project=phase3-candidate",
     "test:phase4": "playwright test --project=phase4-e2e",
     "test:phase5": "playwright test --project=phase5-edge",
+    "test:superadmin": "playwright test --project=superadmin",
+    "test:superadmin:ui": "playwright test --project=superadmin --ui",
+    "test:superadmin:headed": "playwright test --project=superadmin --headed",
     "test:e2e:report": "playwright show-report playwright-report"
   },
   "dependencies": {

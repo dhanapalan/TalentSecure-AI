@@ -7,6 +7,7 @@
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "cd server && npm run dev",
     "dev:client": "cd client && npm run dev",
+    "dev:mobile": "cd mobile && npm start",
     "dev:frontend": "cd frontend && npm run dev",
     "dev:lendershub": "cd frontend && npm run dev",
     "dev:ai": "cd ai-engine && python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000",

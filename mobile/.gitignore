@@ -1,0 +1,20 @@
+# Dependencies / build
+node_modules/
+.expo/
+dist/
+web-build/
+
+# Secrets / env
+.env
+.env.local
+
+# Native credentials
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# @generated expo-cli
+expo-env.d.ts

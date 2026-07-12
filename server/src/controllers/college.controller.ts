@@ -362,7 +362,12 @@ export const removeStaff = async (
       throw new AppError("Staff member not found or cannot be removed", 404);
     }
 
-    await pool.query("DELETE FROM users WHERE id = $1", [id]);
+    await pool.query(
+      `UPDATE users
+       SET is_active = FALSE, status = 'inactive', deleted_at = NOW(), updated_at = NOW()
+       WHERE id = $1 AND college_id = $2 AND role = 'college_staff'`,
+      [id, collegeId],
+    );
 
     res.json({ success: true, message: "Staff member removed successfully" });
   } catch (err) {

@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import * as cheatingService from "../services/cheating.service.js";
+import { resolveCallerCollegeId } from "../middleware/collegeIsolation.js";
 import { ApiResponse } from "../types/index.js";
 
 /**
@@ -45,11 +46,12 @@ export const listLogs = async (
   next: NextFunction,
 ) => {
   try {
+    const collegeId = await resolveCallerCollegeId(req);
     const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
     const offset = parseInt(req.query.offset as string) || 0;
     const [logs, total] = await Promise.all([
-      cheatingService.listCheatingLogs(limit, offset),
-      cheatingService.countCheatingLogs(),
+      cheatingService.listCheatingLogs(limit, offset, collegeId),
+      cheatingService.countCheatingLogs(collegeId),
     ]);
     res.json({
       success: true,
@@ -72,12 +74,13 @@ export const listLogs = async (
  * Auth: JWT (admin / college)
  */
 export const stats = async (
-  _req: Request,
+  req: Request,
   res: Response<ApiResponse>,
   next: NextFunction,
 ) => {
   try {
-    const data = await cheatingService.getDashboardStats();
+    const collegeId = await resolveCallerCollegeId(req);
+    const data = await cheatingService.getDashboardStats(collegeId);
     res.json({ success: true, data });
   } catch (err) {
     next(err);

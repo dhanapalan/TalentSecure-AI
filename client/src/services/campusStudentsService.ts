@@ -64,6 +64,29 @@ export interface UpdateStudentPayload {
   cgpa?: number;
 }
 
+export interface CreateStudentPayload {
+  name: string;
+  email: string;
+  password?: string;
+  student_identifier?: string;
+  phone_number?: string;
+  degree?: string;
+  specialization?: string;
+  passing_year?: number;
+  cgpa?: number;
+}
+
+export interface BulkImportStudent {
+  name: string;
+  email: string;
+  student_identifier?: string;
+  phone_number?: string;
+  degree?: string;
+  specialization?: string;
+  passing_year?: number;
+  cgpa?: number;
+}
+
 export interface StudentAnalytics {
   totalStudents: number;
   activeStudents: number;
@@ -93,7 +116,12 @@ export interface Pagination {
   pages: number;
 }
 
-export type BulkActionType = "suspend" | "update_placement" | "assign_workflow";
+export type BulkActionType =
+  | "suspend"
+  | "activate"
+  | "soft_delete"
+  | "update_placement"
+  | "assign_workflow";
 
 const campusStudentsService = {
   async list(params: StudentListParams = {}) {
@@ -111,8 +139,23 @@ const campusStudentsService = {
     return data.data;
   },
 
+  async create(payload: CreateStudentPayload) {
+    const { data } = await api.post("/campus/students", payload);
+    return data;
+  },
+
+  async bulkImport(students: BulkImportStudent[]) {
+    const { data } = await api.post("/campus/students/bulk-import", { students });
+    return data;
+  },
+
   async update(id: string, payload: UpdateStudentPayload) {
     const { data } = await api.put(`/campus/students/${id}`, payload);
+    return data;
+  },
+
+  async softDelete(id: string) {
+    const { data } = await api.delete(`/campus/students/${id}`);
     return data;
   },
 

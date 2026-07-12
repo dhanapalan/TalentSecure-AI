@@ -246,6 +246,16 @@ export default function AllQuestionsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingImport, setPendingImport] = useState<ParsedImport | null>(null);
   const [importing, setImporting] = useState(false);
+  const [editing, setEditing] = useState<Question | null>(null);
+  const [editForm, setEditForm] = useState({
+    question_text: "",
+    category: "",
+    type: "",
+    difficulty_level: "medium",
+    bloom_level: "",
+    status: "published",
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -326,13 +336,51 @@ export default function AllQuestionsPage() {
   };
 
   const handleDeactivateQuestion = async (id: string) => {
-    if (!confirm("Deactivate this question?")) return;
+    if (!confirm("Soft-delete this question?")) return;
     try {
       await questionBankService.deactivateQuestion(id);
-      toast.success("Question deactivated");
+      toast.success("Question soft-deleted");
       load();
     } catch {
-      toast.error("Failed to deactivate question");
+      toast.error("Failed to delete question");
+    }
+  };
+
+  const openEdit = (q: Question) => {
+    setEditing(q);
+    setEditForm({
+      question_text: q.question_text,
+      category: q.category,
+      type: q.type,
+      difficulty_level: q.difficulty_level,
+      bloom_level: q.bloom_level || "",
+      status: q.status || "published",
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!editing) return;
+    if (!editForm.question_text.trim()) {
+      toast.error("Question text is required");
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      await questionBankService.updateQuestion(editing.id, {
+        question_text: editForm.question_text,
+        category: editForm.category,
+        type: editForm.type,
+        difficulty_level: editForm.difficulty_level,
+        bloom_level: editForm.bloom_level || null,
+        status: editForm.status,
+      });
+      toast.success("Question updated");
+      setEditing(null);
+      load();
+    } catch {
+      toast.error("Failed to update question");
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -635,14 +683,22 @@ export default function AllQuestionsPage() {
                       />
                     </td>
                     <td className="px-6 py-4 text-sm">
-                      {question.is_active !== false && question.status !== "archived" && (
+                      <div className="flex items-center gap-3">
                         <button
-                          onClick={() => handleDeactivateQuestion(question.id)}
-                          className="text-sm text-red-600 hover:text-red-800 font-medium"
+                          onClick={() => openEdit(question)}
+                          className="text-sm text-admin-accent hover:underline font-medium"
                         >
-                          Deactivate
+                          Edit
                         </button>
-                      )}
+                        {question.is_active !== false && question.status !== "archived" && (
+                          <button
+                            onClick={() => handleDeactivateQuestion(question.id)}
+                            className="text-sm text-red-600 hover:text-red-800 font-medium"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -679,6 +735,99 @@ export default function AllQuestionsPage() {
             >
               Next
             </button>
+          </div>
+        </div>
+      )}
+
+      {editing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-xl rounded-xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Edit Question</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Question text</label>
+                <textarea
+                  value={editForm.question_text}
+                  onChange={(e) => setEditForm({ ...editForm, question_text: e.target.value })}
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <select
+                    value={editForm.category}
+                    onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  >
+                    {CATEGORIES.map((c) => (
+                      <option key={c} value={c}>
+                        {label(c)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                  <select
+                    value={editForm.type}
+                    onChange={(e) => setEditForm({ ...editForm, type: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  >
+                    {TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {label(t)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Difficulty</label>
+                  <select
+                    value={editForm.difficulty_level}
+                    onChange={(e) => setEditForm({ ...editForm, difficulty_level: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  >
+                    {DIFFICULTIES.map((d) => (
+                      <option key={d} value={d}>
+                        {label(d)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Bloom level</label>
+                  <select
+                    value={editForm.bloom_level}
+                    onChange={(e) => setEditForm({ ...editForm, bloom_level: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  >
+                    <option value="">Unclassified</option>
+                    {BLOOM_LEVELS.map((b) => (
+                      <option key={b} value={b}>
+                        {label(b)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setEditing(null)}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveEdit}
+                disabled={savingEdit}
+                className="px-4 py-2 bg-navy-900 text-white rounded-lg text-sm font-medium hover:bg-navy-800 disabled:opacity-50"
+              >
+                {savingEdit ? "Saving..." : "Save"}
+              </button>
+            </div>
           </div>
         </div>
       )}

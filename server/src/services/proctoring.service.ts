@@ -1,7 +1,9 @@
 import { query, queryOne } from "../config/database.js";
 
-// Define weighted scores for different event types
-const EVENT_WEIGHTS: Record<string, number> = {
+export type ExamClientType = "web" | "mobile_app";
+
+// Browser/desktop event weights
+const WEB_EVENT_WEIGHTS: Record<string, number> = {
     TAB_SWITCH: 2,
     WINDOW_BLUR: 2,
     COPY_ATTEMPT: 3,
@@ -14,28 +16,59 @@ const EVENT_WEIGHTS: Record<string, number> = {
     MULTIPLE_FACES: 8,
     FACE_MISMATCH: 10,
     TIME_TAMPER_ATTEMPT: 10,
-    mobile_detected: 15, // AI Engine Label
-    multiple_faces: 8,   // AI Engine Label
-    suspicious: 5        // AI Engine Label
+    mobile_detected: 15,
+    multiple_faces: 8,
+    suspicious: 5,
 };
 
-// Auto-termination thresholds
+// Mobile app event weights — no browser-only violations; mobile_detected is ignored.
+const MOBILE_EVENT_WEIGHTS: Record<string, number> = {
+    APP_BACKGROUNDED: 3,
+    APP_FOREGROUNDED: 0,
+    NETWORK_DISCONNECT: 1,
+    FACE_NOT_DETECTED: 4,
+    MULTIPLE_FACES: 8,
+    FACE_MISMATCH: 10,
+    TIME_TAMPER_ATTEMPT: 10,
+    multiple_faces: 8,
+    suspicious: 5,
+    CAMERA_DENIED: 8,
+    CAMERA_INTERRUPTED: 4,
+};
+
+const WEB_CRITICAL_EVENTS = ["FACE_MISMATCH", "TIME_TAMPER_ATTEMPT", "mobile_detected"];
+const MOBILE_CRITICAL_EVENTS = ["FACE_MISMATCH", "TIME_TAMPER_ATTEMPT"];
+
 const TERMINATION_THRESHOLD = 50;
-const CRITICAL_EVENTS = ["FACE_MISMATCH", "TIME_TAMPER_ATTEMPT", "mobile_detected"];
+
+function getEventWeights(clientType: ExamClientType): Record<string, number> {
+    return clientType === "mobile_app" ? MOBILE_EVENT_WEIGHTS : WEB_EVENT_WEIGHTS;
+}
+
+function getCriticalEvents(clientType: ExamClientType): string[] {
+    return clientType === "mobile_app" ? MOBILE_CRITICAL_EVENTS : WEB_CRITICAL_EVENTS;
+}
+
+async function getSessionClientType(sessionId: string): Promise<ExamClientType> {
+    const row = await queryOne<{ client_type: string | null }>(
+        `SELECT client_type FROM drive_students WHERE id = $1`,
+        [sessionId],
+    );
+    return row?.client_type === "mobile_app" ? "mobile_app" : "web";
+}
 
 export const proctoringService = {
     /**
      * Log a proctoring event async (does not block standard exam flow)
      */
-    async logEvent(sessionId: string, eventType: string, metadata?: any) {
+    async logEvent(sessionId: string, eventType: string, metadata?: unknown) {
         await query(
             `INSERT INTO proctoring_events (session_id, event_type, metadata)
              VALUES ($1, $2, $3)`,
-            [sessionId, eventType, JSON.stringify(metadata || {})]
+            [sessionId, eventType, JSON.stringify(metadata || {})],
         );
 
-        // Trigger async scoring evaluation (don't await to keep endpoint fast)
-        this.evaluateIntegrity(sessionId).catch(err => {
+        this.evaluateIntegrity(sessionId).catch((err) => {
             console.error(`Scoring error for session ${sessionId}:`, err);
         });
 
@@ -43,26 +76,36 @@ export const proctoringService = {
     },
 
     /**
-     * Calculates session integrity score based on all logged events
+     * Calculates session integrity score based on all logged events.
+     * Uses client-specific weights (web vs mobile_app).
      */
     async evaluateIntegrity(sessionId: string) {
+        const clientType = await getSessionClientType(sessionId);
+        const eventWeights = getEventWeights(clientType);
+        const criticalEvents = getCriticalEvents(clientType);
+
         const events = await query<{ event_type: string }>(
             `SELECT event_type FROM proctoring_events WHERE session_id = $1`,
-            [sessionId]
+            [sessionId],
         );
 
         let totalPenalty = 0;
         let hasCriticalEvent = false;
 
         for (const event of events) {
-            const weight = EVENT_WEIGHTS[event.event_type] || 0;
+            // mobile_detected from AI is expected on phones — skip for mobile_app sessions
+            if (clientType === "mobile_app" && event.event_type === "mobile_detected") {
+                continue;
+            }
+
+            const weight = eventWeights[event.event_type] ?? 0;
             totalPenalty += weight;
-            if (CRITICAL_EVENTS.includes(event.event_type)) {
+            if (criticalEvents.includes(event.event_type)) {
                 hasCriticalEvent = true;
             }
         }
 
-        let newScore = Math.max(0, 100 - totalPenalty);
+        const newScore = Math.max(0, 100 - totalPenalty);
 
         let riskLevel = "low";
         if (newScore < 50 || hasCriticalEvent) riskLevel = "high";
@@ -72,13 +115,13 @@ export const proctoringService = {
             `UPDATE drive_students
              SET integrity_score = $1, violations = $2
              WHERE id = $3`,
-            [newScore, events.length, sessionId]
+            [newScore, events.length, sessionId],
         );
 
         if (riskLevel === "high" || riskLevel === "medium") {
             const existing = await queryOne<{ id: string }>(
                 `SELECT id FROM proctoring_incidents WHERE session_id = $1 LIMIT 1`,
-                [sessionId]
+                [sessionId],
             );
 
             if (existing) {
@@ -86,13 +129,13 @@ export const proctoringService = {
                     `UPDATE proctoring_incidents
                      SET score = $1, risk_level = $2, updated_at = NOW()
                      WHERE id = $3`,
-                    [newScore, riskLevel, existing.id]
+                    [newScore, riskLevel, existing.id],
                 );
             } else {
                 await query(
                     `INSERT INTO proctoring_incidents (session_id, score, risk_level, status)
                      VALUES ($1, $2, $3, 'pending')`,
-                    [sessionId, newScore, riskLevel]
+                    [sessionId, newScore, riskLevel],
                 );
             }
         }
@@ -104,30 +147,24 @@ export const proctoringService = {
         return newScore;
     },
 
-    /**
-     * Terminate session immediately due to violations
-     */
     async terminateSession(sessionId: string, reason: string) {
         await query(
             `UPDATE drive_students
              SET status = 'terminated', completed_at = NOW()
              WHERE id = $1`,
-            [sessionId]
+            [sessionId],
         );
 
         await query(
             `INSERT INTO proctoring_events (session_id, event_type, metadata)
              VALUES ($1, 'AUTO_TERMINATED', $2)`,
-            [sessionId, JSON.stringify({ reason })]
+            [sessionId, JSON.stringify({ reason })],
         );
     },
 
-    /**
-     * Get live sessions for the monitoring dashboard
-     */
     async getLiveMonitoring(driveId?: string) {
         const statuses = ["in_progress", "terminated"];
-        const params: any[] = [statuses];
+        const params: unknown[] = [statuses];
         let driveFilter = "";
         if (driveId) {
             params.push(driveId);
@@ -137,16 +174,17 @@ export const proctoringService = {
         const sessions = await query(
             `SELECT ds.id, ds.student_id, ds.status, ds.integrity_score,
                     ds.violations, ds.started_at, ds.time_remaining_seconds,
+                    COALESCE(ds.client_type, 'web') AS client_type,
                     ad.name AS drive_name
              FROM drive_students ds
              LEFT JOIN assessment_drives ad ON ad.id = ds.drive_id
              WHERE ds.status = ANY($1::text[])
              ${driveFilter}
              ORDER BY ds.started_at DESC`,
-            params
+            params,
         );
 
-        return sessions.map((s: any) => ({
+        return sessions.map((s: Record<string, unknown>) => ({
             id: s.id,
             studentId: s.student_id,
             driveName: s.drive_name || "Unknown",
@@ -154,43 +192,38 @@ export const proctoringService = {
             integrityScore: s.integrity_score ?? 100,
             violations: s.violations ?? 0,
             startedAt: s.started_at,
-            timeRemaining: s.time_remaining_seconds
+            timeRemaining: s.time_remaining_seconds,
+            clientType: s.client_type ?? "web",
         }));
     },
 
-    /**
-     * Get chronological event timeline for a specific session
-     */
     async getSessionTimeline(sessionId: string) {
         const events = await query(
             `SELECT * FROM proctoring_events WHERE session_id = $1 ORDER BY timestamp DESC`,
-            [sessionId]
+            [sessionId],
         );
 
         const incident = await queryOne(
             `SELECT * FROM proctoring_incidents WHERE session_id = $1 LIMIT 1`,
-            [sessionId]
+            [sessionId],
         );
 
         const session = await queryOne(
-            `SELECT integrity_score, violations, status FROM drive_students WHERE id = $1`,
-            [sessionId]
+            `SELECT integrity_score, violations, status, client_type FROM drive_students WHERE id = $1`,
+            [sessionId],
         );
 
         return {
             events,
             incident,
-            summary: session
+            summary: session,
         };
     },
 
-    /**
-     * Admin action to manually clear an incident
-     */
     async clearIncident(sessionId: string, notes: string) {
         const incident = await queryOne<{ id: string }>(
             `SELECT id FROM proctoring_incidents WHERE session_id = $1 LIMIT 1`,
-            [sessionId]
+            [sessionId],
         );
 
         if (incident) {
@@ -198,10 +231,10 @@ export const proctoringService = {
                 `UPDATE proctoring_incidents
                  SET status = 'false_positive', notes = $1, updated_at = NOW()
                  WHERE id = $2`,
-                [notes, incident.id]
+                [notes, incident.id],
             );
         }
 
         return { success: true };
-    }
+    },
 };

@@ -1,5 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// When BASE_URL points at a remote (staging/production) target we must NOT spin
+// up the local dev server. Only start it for localhost runs.
+const BASE_URL = process.env.BASE_URL || 'http://localhost:5173';
+const IS_LOCAL = /localhost|127\.0\.0\.1/.test(BASE_URL);
+
 export default defineConfig({
     testDir: './tests/e2e',
     fullyParallel: false,
@@ -9,7 +14,7 @@ export default defineConfig({
     reporter: [['html', { outputFolder: 'playwright-report' }], ['list']],
 
     use: {
-        baseURL: process.env.BASE_URL || 'http://localhost:5173',
+        baseURL: BASE_URL,
         trace: 'on-first-retry',
         screenshot: 'only-on-failure',
         video: 'retain-on-failure',
@@ -41,12 +46,21 @@ export default defineConfig({
             testMatch: '**/phase5-edge/**/*.spec.ts',
             use: { ...devices['Desktop Chrome'] },
         },
+        {
+            name: 'superadmin',
+            testMatch: '**/superadmin/**/*.spec.ts',
+            use: { ...devices['Desktop Chrome'] },
+        },
     ],
 
-    webServer: {
-        command: 'npm run dev',
-        url: 'http://localhost:5173',
-        reuseExistingServer: !process.env.CI,
-        timeout: 120_000,
-    },
+    // Only auto-start the dev server for localhost targets. For staging/prod
+    // runs (BASE_URL set to a remote host) the app is already deployed.
+    webServer: IS_LOCAL
+        ? {
+              command: 'npm run dev',
+              url: 'http://localhost:5173',
+              reuseExistingServer: !process.env.CI,
+              timeout: 120_000,
+          }
+        : undefined,
 });
