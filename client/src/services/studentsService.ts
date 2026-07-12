@@ -146,6 +146,49 @@ class StudentsService {
     });
     return response.data;
   }
+
+  async createStudent(data: {
+    name: string;
+    email: string;
+    college_id: string;
+    password?: string;
+    student_identifier?: string;
+    phone_number?: string;
+    degree?: string;
+    specialization?: string;
+    passing_year?: number;
+    cgpa?: number;
+  }) {
+    const response = await api.post("/superadmin/students", data);
+    return response.data;
+  }
+
+  async bulkImport(data: {
+    college_id: string;
+    students: Array<{
+      name: string;
+      email: string;
+      student_identifier?: string;
+      phone_number?: string;
+      degree?: string;
+      specialization?: string;
+      passing_year?: number;
+      cgpa?: number;
+    }>;
+  }) {
+    const response = await api.post("/superadmin/students/bulk-import", data);
+    return response.data;
+  }
+
+  async updateStudent(id: string, data: Partial<StudentProfile> & Record<string, unknown>) {
+    const response = await api.put(`/superadmin/students/${id}`, data);
+    return response.data;
+  }
+
+  async softDeleteStudent(id: string) {
+    const response = await api.delete(`/superadmin/students/${id}`);
+    return response.data;
+  }
 }
 
 export default new StudentsService();

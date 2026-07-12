@@ -394,6 +394,14 @@ router.post(
   superadminController.createAnnouncement
 );
 
+router.put(
+  "/announcements/:id",
+  authenticate,
+  authorize("super_admin"),
+  requirePermission("notifications_manage"),
+  superadminController.updateAnnouncement
+);
+
 router.post(
   "/announcements/:id/activate",
   authenticate,

@@ -195,7 +195,7 @@ export const deactivate = async (
 
 /**
  * DELETE /api/question-bank/:id/permanent
- * Hard-delete a question.
+ * Soft-delete a question (deleted_at). Kept route name for API compatibility.
  */
 export const hardDelete = async (
   req: Request,
@@ -207,7 +207,7 @@ export const hardDelete = async (
     if (!result) {
       return res.status(404).json({ success: false, error: "Question not found" });
     }
-    res.json({ success: true, message: "Question permanently deleted" });
+    res.json({ success: true, message: "Question soft-deleted" });
   } catch (err) {
     next(err);
   }

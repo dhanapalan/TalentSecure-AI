@@ -64,6 +64,7 @@ const CollegePortalStudents = lazy(() => import("./pages/college-portal/Students
 const CollegePortalStudentDetail = lazy(() => import("./pages/college-portal/StudentDetailPage"));
 const CollegePortalAnalytics = lazy(() => import("./pages/college-portal/AnalyticsPage"));
 const CollegePortalComingSoon = lazy(() => import("./pages/college-portal/ComingSoonPage"));
+const CollegeSkillsPage = lazy(() => import("./pages/college/CollegeSkillsPage"));
 const LmsModulePage = lazy(() => import("./pages/lms/LmsModulePage"));
 const StudentPaymentsPage = lazy(() => import("./pages/student/PaymentsPage"));
 const StudentQuestionBankPage = lazy(() => import("./pages/student/QuestionBankPage"));
@@ -411,16 +412,10 @@ export default function App() {
                 }
               />
               <Route path="assessments" element={<CampusDrivesListPage />} />
+              <Route path="assessments/:id" element={<CampusDriveDetailPage />} />
               <Route path="analytics" element={<CollegePortalAnalytics />} />
-              <Route
-                path="soft-skills"
-                element={
-                  <CollegePortalComingSoon
-                    title="Soft Skills"
-                    description="Communication, teamwork, and interview readiness programs."
-                  />
-                }
-              />
+              <Route path="integrity" element={<CampusIntegrityPage />} />
+              <Route path="soft-skills" element={<CollegeSkillsPage />} />
               <Route
                 path="technical-skills"
                 element={

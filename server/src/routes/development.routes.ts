@@ -10,6 +10,8 @@ import { query, queryOne } from "../config/database.js";
 import { env } from "../config/env.js";
 import { awardXP, checkAndAwardBadges, XP_VALUES } from "./gamification.routes.js";
 import { sendNotification } from "../services/notification.service.js";
+import { resolveCallerCollegeId } from "../middleware/collegeIsolation.js";
+import { AppError } from "../middleware/errorHandler.js";
 
 const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 
@@ -388,9 +390,14 @@ router.post("/skills/upsert", authorize("student"), async (req, res, next) => {
  * GET /api/development/campus/:collegeId/overview
  * Campus admin: view student development activity for their college
  */
-router.get("/campus/:collegeId/overview", authorize("super_admin", "hr", "college_admin", "college"), async (req, res, next) => {
+router.get("/campus/:collegeId/overview", authorize("super_admin", "hr", "college_admin", "college", "college_staff"), async (req, res, next) => {
   try {
-    const { collegeId } = req.params;
+    const requestedId = req.params.collegeId;
+    const scoped = await resolveCallerCollegeId(req);
+    if (scoped && scoped !== requestedId) {
+      throw new AppError("Not authorized to access this college", 403);
+    }
+    const collegeId = scoped || requestedId;
 
     const [planStats, goalStats, topSkills] = await Promise.all([
       queryOne(`

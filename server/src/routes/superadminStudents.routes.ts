@@ -14,6 +14,22 @@ router.get(
 );
 
 router.post(
+  "/",
+  authenticate,
+  authorize("super_admin"),
+  requirePermission("students_manage"),
+  superadminStudentsController.createStudent
+);
+
+router.post(
+  "/bulk-import",
+  authenticate,
+  authorize("super_admin"),
+  requirePermission("students_manage"),
+  superadminStudentsController.bulkImport
+);
+
+router.post(
   "/bulk-action",
   authenticate,
   authorize("super_admin"),
@@ -27,6 +43,22 @@ router.get(
   authorize("super_admin"),
   requirePermission("students_view"),
   superadminStudentsController.getStudentProfile
+);
+
+router.put(
+  "/:id",
+  authenticate,
+  authorize("super_admin"),
+  requirePermission("students_manage"),
+  superadminStudentsController.updateStudent
+);
+
+router.delete(
+  "/:id",
+  authenticate,
+  authorize("super_admin"),
+  requirePermission("students_manage"),
+  superadminStudentsController.softDeleteStudent
 );
 
 export default router;

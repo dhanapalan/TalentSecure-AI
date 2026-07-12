@@ -8,6 +8,8 @@ import { authenticate, authorize } from "../middleware/auth.js";
 import { query, queryOne } from "../config/database.js";
 import { sendNotification } from "../services/notification.service.js";
 import { sendBadgeEarnedEmail } from "../services/email.service.js";
+import { resolveCallerCollegeId } from "../middleware/collegeIsolation.js";
+import { AppError } from "../middleware/errorHandler.js";
 
 const router = Router();
 router.use(authenticate);
@@ -431,9 +433,14 @@ router.post("/xp", authorize("super_admin", "hr"), async (req, res, next) => {
  * GET /api/gamification/stats/:collegeId
  * College-level gamification overview for admins
  */
-router.get("/stats/:collegeId", authorize("super_admin", "hr", "college_admin"), async (req, res, next) => {
+router.get("/stats/:collegeId", authorize("super_admin", "hr", "college_admin", "college", "college_staff"), async (req, res, next) => {
   try {
-    const { collegeId } = req.params;
+    const requestedId = req.params.collegeId;
+    const scoped = await resolveCallerCollegeId(req);
+    if (scoped && scoped !== requestedId) {
+      throw new AppError("Not authorized to access this college", 403);
+    }
+    const collegeId = scoped || requestedId;
 
     const [topStudents, badgeStats, streakStats] = await Promise.all([
       query(`

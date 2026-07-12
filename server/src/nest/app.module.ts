@@ -2,6 +2,7 @@ import { Module, MiddlewareConsumer, NestModule, RequestMethod } from "@nestjs/c
 import { APP_FILTER, APP_GUARD } from "@nestjs/core";
 import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
 
+import { env } from "../config/env.js";
 import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter.js";
 import { JwtAuthGuard } from "./common/guards/jwt-auth.guard.js";
 import { RolesGuard } from "./common/guards/roles.guard.js";
@@ -17,11 +18,14 @@ import { CampusLegacyModule } from "./modules/campus/campus-legacy.module.js";
 import { LearningLegacyModule } from "./modules/learning/learning-legacy.module.js";
 import { HiringLegacyModule } from "./modules/hiring/hiring-legacy.module.js";
 import { SharedLegacyModule } from "./modules/shared/shared-legacy.module.js";
+import { SuperAdminLegacyModule } from "./modules/superadmin/superadmin-legacy.module.js";
 
 @Module({
   imports: [
-    // Global rate limiting — 100 req / 15 min per IP
-    ThrottlerModule.forRoot([{ ttl: 15 * 60 * 1000, limit: 100 }]),
+    // Global rate limiting — 100 req / 15 min per IP.
+    // Mirrors the legacy app.ts DISABLE_RATE_LIMIT escape hatch (see docker-compose.yml),
+    // which this NestJS bootstrap previously ignored, hard-blocking automated test runs.
+    ThrottlerModule.forRoot([{ ttl: 15 * 60 * 1000, limit: env.DISABLE_RATE_LIMIT ? 1_000_000 : 100 }]),
 
     // Fully-ported modules
     IdentityModule,
@@ -34,6 +38,7 @@ import { SharedLegacyModule } from "./modules/shared/shared-legacy.module.js";
     LearningLegacyModule,
     HiringLegacyModule,
     SharedLegacyModule,
+    SuperAdminLegacyModule,
   ],
   providers: [
     // Global exception filter — replaces Express errorHandler

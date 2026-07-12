@@ -51,15 +51,30 @@ export async function createCheatingLog(input: CreateCheatingLogInput) {
 
 /**
  * List cheating logs with student name and exam title.
+ * Optionally scope to a college (for college_admin isolation).
  */
-export async function listCheatingLogs(limit = 50, offset = 0) {
+export async function listCheatingLogs(limit = 50, offset = 0, collegeId?: string | null) {
+  if (collegeId) {
+    return query<CheatingLogRow & { student_name: string; exam_title: string }>(
+      `SELECT cl.*,
+              u.name  AS student_name,
+              e.title AS exam_title
+       FROM   cheating_logs cl
+       JOIN   users u ON u.id = cl.student_id
+       LEFT JOIN exams e ON e.id = cl.exam_id
+       WHERE  u.college_id = $3 AND u.deleted_at IS NULL
+       ORDER  BY cl.timestamp DESC
+       LIMIT  $1 OFFSET $2`,
+      [limit, offset, collegeId],
+    );
+  }
   return query<CheatingLogRow & { student_name: string; exam_title: string }>(
     `SELECT cl.*,
             u.name  AS student_name,
             e.title AS exam_title
      FROM   cheating_logs cl
      JOIN   users u ON u.id = cl.student_id
-     JOIN   exams e ON e.id = cl.exam_id
+     LEFT JOIN exams e ON e.id = cl.exam_id
      ORDER  BY cl.timestamp DESC
      LIMIT  $1 OFFSET $2`,
     [limit, offset],
@@ -67,9 +82,19 @@ export async function listCheatingLogs(limit = 50, offset = 0) {
 }
 
 /**
- * Count all cheating log rows.
+ * Count cheating log rows (optionally college-scoped).
  */
-export async function countCheatingLogs() {
+export async function countCheatingLogs(collegeId?: string | null) {
+  if (collegeId) {
+    const result = await queryOne<{ count: string }>(
+      `SELECT COUNT(*) AS count
+       FROM cheating_logs cl
+       JOIN users u ON u.id = cl.student_id
+       WHERE u.college_id = $1 AND u.deleted_at IS NULL`,
+      [collegeId],
+    );
+    return parseInt(result?.count || "0", 10);
+  }
   const result = await queryOne<{ count: string }>(
     "SELECT COUNT(*) AS count FROM cheating_logs",
   );
@@ -77,9 +102,21 @@ export async function countCheatingLogs() {
 }
 
 /**
- * Count cheating logs with risk_score > threshold.
+ * Count cheating logs with risk_score > threshold (optionally college-scoped).
  */
-export async function countHighRiskAlerts(threshold = 70) {
+export async function countHighRiskAlerts(threshold = 70, collegeId?: string | null) {
+  if (collegeId) {
+    const result = await queryOne<{ count: string }>(
+      `SELECT COUNT(*) AS count
+       FROM cheating_logs cl
+       JOIN users u ON u.id = cl.student_id
+       WHERE cl.risk_score > $1
+         AND u.college_id = $2
+         AND u.deleted_at IS NULL`,
+      [threshold, collegeId],
+    );
+    return parseInt(result?.count || "0", 10);
+  }
   const result = await queryOne<{ count: string }>(
     "SELECT COUNT(*) AS count FROM cheating_logs WHERE risk_score > $1",
     [threshold],
@@ -88,18 +125,38 @@ export async function countHighRiskAlerts(threshold = 70) {
 }
 
 /**
- * Dashboard summary stats for admin view.
+ * Dashboard summary stats for admin view (optionally college-scoped).
  */
-export async function getDashboardStats() {
+export async function getDashboardStats(collegeId?: string | null) {
   const [totalLogs, highRisk, uniqueStudents, activeExams] = await Promise.all([
-    countCheatingLogs(),
-    countHighRiskAlerts(70),
-    queryOne<{ count: string }>(
-      "SELECT COUNT(DISTINCT student_id) AS count FROM cheating_logs",
-    ),
-    queryOne<{ count: string }>(
-      "SELECT COUNT(*) AS count FROM exams WHERE is_active = TRUE",
-    ),
+    countCheatingLogs(collegeId),
+    countHighRiskAlerts(70, collegeId),
+    collegeId
+      ? queryOne<{ count: string }>(
+          `SELECT COUNT(DISTINCT cl.student_id) AS count
+           FROM cheating_logs cl
+           JOIN users u ON u.id = cl.student_id
+           WHERE u.college_id = $1 AND u.deleted_at IS NULL`,
+          [collegeId],
+        )
+      : queryOne<{ count: string }>(
+          "SELECT COUNT(DISTINCT student_id) AS count FROM cheating_logs",
+        ),
+    collegeId
+      ? queryOne<{ count: string }>(
+          `SELECT COUNT(DISTINCT e.id) AS count
+           FROM exams e
+           JOIN exam_colleges ec ON ec.exam_id = e.id
+           WHERE e.is_active = TRUE AND ec.college_id = $1`,
+          [collegeId],
+        ).catch(() =>
+          queryOne<{ count: string }>(
+            "SELECT COUNT(*) AS count FROM exams WHERE is_active = TRUE",
+          ),
+        )
+      : queryOne<{ count: string }>(
+          "SELECT COUNT(*) AS count FROM exams WHERE is_active = TRUE",
+        ),
   ]);
   return {
     totalViolations: totalLogs,

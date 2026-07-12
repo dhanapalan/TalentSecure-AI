@@ -354,23 +354,42 @@ router.get(
 
 /**
  * PUT /api/campuses/:id
- * Update campus details (Central Admin/HR only)
+ * Update campus details.
+ * - Central Admin/HR: full whitelist
+ * - College admin: own campus only, profile fields only
  */
 router.put(
   "/:id",
   authenticate,
-  authorize("super_admin", "admin", "hr"),
+  authorize("super_admin", "admin", "hr", "college_admin", "college"),
   validate(updateCampusSchema),
   async (req, res, next) => {
     try {
       const id: string = getParamAsString(req.params.id);
+      const role = (req.user?.role || "").toLowerCase();
+      const isCentral = ["super_admin", "admin", "hr"].includes(role);
+      const isCollege = ["college_admin", "college"].includes(role);
+
+      if (isCollege) {
+        if (!req.user?.college_id || req.user.college_id !== id) {
+          return res.status(403).json({ success: false, error: "Access denied" });
+        }
+      } else if (!isCentral) {
+        return res.status(403).json({ success: false, error: "Access denied" });
+      }
+
+      const collegeSafeKeys = new Set([
+        "name", "city", "state", "tier", "category", "institution_type", "region",
+        "naac_grade", "nirf_rank", "address", "website", "contact_email", "contact_phone",
+      ]);
+      const allowedKeys = isCollege ? collegeSafeKeys : ALLOWED_CAMPUS_UPDATE_KEYS;
+
       const updates: string[] = [];
       const values: any[] = [];
       let paramIdx = 1;
 
-      // Whitelist: only allow explicitly permitted columns to prevent mass-assignment
       for (const [key, value] of Object.entries(req.body)) {
-        if (value !== undefined && ALLOWED_CAMPUS_UPDATE_KEYS.has(key)) {
+        if (value !== undefined && allowedKeys.has(key)) {
           updates.push(`${key} = $${paramIdx++}`);
           values.push(value);
         }
@@ -393,7 +412,6 @@ router.put(
         return res.status(404).json({ success: false, error: "Campus not found" });
       }
 
-      // Audit log
       writeAuditLog({
         actor_id: req.user!.userId,
         actor_role: req.user!.role,

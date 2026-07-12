@@ -21,7 +21,12 @@ export async function startSession(req: Request, res: Response, next: NextFuncti
     try {
         const studentId = req.user!.userId;
         const { driveId } = req.params as { driveId: string };
-        const session = await examSessionService.startSession(driveId, studentId);
+        const clientType =
+            req.body?.clientType === "mobile_app" ||
+            req.headers["x-client-type"] === "mobile_app"
+                ? "mobile_app"
+                : "web";
+        const session = await examSessionService.startSession(driveId, studentId, clientType);
         res.json({ success: true, data: session });
     } catch (err) {
         next(err);

@@ -93,7 +93,8 @@ export async function filterQuestions(filters: QuestionFilters = {}) {
     params.push(filters.search);
   }
 
-  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  conditions.push("deleted_at IS NULL");
+  const where = `WHERE ${conditions.join(" AND ")}`;
 
   const limit = filters.limit ?? 50;
   const offset = filters.offset ?? 0;
@@ -121,7 +122,7 @@ export async function filterQuestions(filters: QuestionFilters = {}) {
  */
 export async function getQuestionById(id: string) {
   return queryOne<QuestionBankRow>(
-    "SELECT * FROM question_bank WHERE id = $1",
+    "SELECT * FROM question_bank WHERE id = $1 AND deleted_at IS NULL",
     [id],
   );
 }
@@ -235,27 +236,35 @@ export async function updateQuestion(id: string, input: Partial<CreateQuestionIn
 
   params.push(id);
   return queryOne<QuestionBankRow>(
-    `UPDATE question_bank SET ${sets.join(", ")} WHERE id = $${idx} RETURNING *`,
+    `UPDATE question_bank SET ${sets.join(", ")}, updated_at = NOW()
+     WHERE id = $${idx} AND deleted_at IS NULL
+     RETURNING *`,
     params,
   );
 }
 
 /**
- * Soft-delete: set is_active = false.
+ * Soft-delete: set is_active = false and deleted_at.
  */
 export async function deactivateQuestion(id: string) {
   return queryOne<QuestionBankRow>(
-    "UPDATE question_bank SET is_active = FALSE WHERE id = $1 RETURNING *",
+    `UPDATE question_bank
+     SET is_active = FALSE, deleted_at = NOW(), updated_at = NOW()
+     WHERE id = $1 AND deleted_at IS NULL
+     RETURNING *`,
     [id],
   );
 }
 
 /**
- * Hard-delete a question.
+ * Soft-delete a question (same as deactivate — no hard delete).
  */
 export async function deleteQuestion(id: string) {
   return queryOne<{ id: string }>(
-    "DELETE FROM question_bank WHERE id = $1 RETURNING id",
+    `UPDATE question_bank
+     SET is_active = FALSE, deleted_at = NOW(), updated_at = NOW()
+     WHERE id = $1 AND deleted_at IS NULL
+     RETURNING id`,
     [id],
   );
 }

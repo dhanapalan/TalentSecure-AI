@@ -7,6 +7,11 @@ import { Router } from "express";
 import { authenticate, authorize } from "../middleware/auth.js";
 import { query, queryOne } from "../config/database.js";
 import * as platformModulesController from "../controllers/platformModules.controller.js";
+import {
+  assertSameCollege,
+  resolveCallerCollegeId,
+} from "../middleware/collegeIsolation.js";
+import { AppError } from "../middleware/errorHandler.js";
 
 const router = Router();
 
@@ -366,10 +371,24 @@ router.post("/courses/:courseId/enroll", authorize("student"), async (req, res, 
  * POST /api/lms/courses/:courseId/bulk-enroll
  * Admin/Instructor bulk enroll students
  */
-router.post("/courses/:courseId/bulk-enroll", authorize("super_admin", "hr", "instructor", "college_admin"), async (req, res, next) => {
+router.post("/courses/:courseId/bulk-enroll", authorize("super_admin", "hr", "instructor", "college_admin", "college"), async (req, res, next) => {
   try {
     const { student_ids } = req.body as { student_ids: string[] };
     if (!student_ids?.length) return res.status(400).json({ error: "student_ids required" });
+
+    const callerCollegeId = await resolveCallerCollegeId(req);
+    if (callerCollegeId) {
+      const students = await query<{ id: string; college_id: string | null }>(
+        `SELECT id, college_id FROM users WHERE id = ANY($1::uuid[]) AND role = 'student' AND deleted_at IS NULL`,
+        [student_ids],
+      );
+      if (students.length !== student_ids.length) {
+        throw new AppError("One or more students were not found", 404);
+      }
+      for (const s of students) {
+        assertSameCollege(callerCollegeId, s.college_id);
+      }
+    }
 
     let enrolled = 0;
     for (const sid of student_ids) {
