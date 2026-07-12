@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "GradLogic Student",
+    "slug": "gradlogic-student",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "gradlogic",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.gradlogic.student",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Camera is required for proctored exams to verify your identity during the test.",
+        "UIBackgroundModes": []
+      }
+    },
+    "android": {
+      "backgroundColor": "#1e40af",
+      "package": "com.gradlogic.student",
+      "permissions": ["CAMERA"]
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow GradLogic to use your camera for proctored exams."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {}
+    }
+  }
+}

@@ -13,7 +13,10 @@ import { setupPasswordSchema } from "../../../validators/password.js";
 
 // Strict brute-force guard for credential endpoints: 10 attempts / 15 min per IP.
 // Mirrors the legacy Express authLimiter that the global 100/15min throttle replaced.
-const AUTH_THROTTLE = { default: { limit: 10, ttl: 15 * 60 * 1000 } };
+// This per-route @Throttle() override is NOT affected by the global default in
+// app.module.ts, so it needs its own DISABLE_RATE_LIMIT check (dev/test escape
+// hatch — see docker-compose.yml) to avoid hard-blocking automated test runs.
+const AUTH_THROTTLE = { default: { limit: env.DISABLE_RATE_LIMIT ? 1_000_000 : 10, ttl: 15 * 60 * 1000 } };
 
 function generateOAuthState(): string {
   const nonce = crypto.randomBytes(16).toString("hex");

@@ -15,6 +15,7 @@ import {
   LogOut,
   Menu,
   X,
+  ShieldCheck,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuthStore } from "../stores/authStore";
@@ -41,6 +42,7 @@ const NAV_ITEMS: {
   { name: "Workflows", href: `${BASE}/workflows`, icon: Workflow, segment: "workflows", featureKey: "workflows" },
   { name: "Tests & Assessments", href: `${BASE}/assessments`, icon: ClipboardList, segment: "assessments", featureKey: "assessments" },
   { name: "Analytics & Reports", href: `${BASE}/analytics`, icon: BarChart3, segment: "analytics", featureKey: "analytics" },
+  { name: "Integrity", href: `${BASE}/integrity`, icon: ShieldCheck, segment: "integrity", featureKey: "analytics" },
   { name: "Soft Skills", href: `${BASE}/soft-skills`, icon: MessageSquare, segment: "soft-skills", featureKey: "soft_skills" },
   { name: "Technical Skills", href: `${BASE}/technical-skills`, icon: Code2, segment: "technical-skills", featureKey: "technical_skills" },
   { name: "Settings", href: `${BASE}/settings`, icon: Settings, segment: "settings", featureKey: "settings" },

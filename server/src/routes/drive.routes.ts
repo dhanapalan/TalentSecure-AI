@@ -18,17 +18,17 @@ const csvUpload = multer({
 // All routes require authentication
 router.use(authenticate);
 
-// GET  /api/drives
+// GET  /api/drives — platform admins only (college roles use /api/campus/drives)
 router.get(
     "/",
-    authorize("super_admin", "hr", "engineer", "college_admin"),
+    authorize("super_admin", "hr", "engineer"),
     ctrl.list,
 );
 
 // GET  /api/drives/:id
 router.get(
     "/:id",
-    authorize("super_admin", "hr", "engineer", "college_admin"),
+    authorize("super_admin", "hr", "engineer"),
     ctrl.getById,
 );
 
@@ -56,7 +56,7 @@ router.post(
 // GET /api/drives/:id/pool
 router.get(
     "/:id/pool",
-    authorize("super_admin", "hr", "engineer", "college_admin"),
+    authorize("super_admin", "hr", "engineer"),
     ctrl.getPool,
 );
 
@@ -119,7 +119,7 @@ router.post(
 // GET  /api/drives/:id/students
 router.get(
     "/:id/students",
-    authorize("super_admin", "hr", "engineer", "college_admin"),
+    authorize("super_admin", "hr", "engineer"),
     ctrl.getStudents,
 );
 
@@ -155,7 +155,7 @@ router.delete(
 // GET  /api/drives/:id/assignments
 router.get(
     "/:id/assignments",
-    authorize("super_admin", "hr", "engineer", "college_admin"),
+    authorize("super_admin", "hr", "engineer"),
     ctrl.getAssignments,
 );
 

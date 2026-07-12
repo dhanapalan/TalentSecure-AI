@@ -76,7 +76,9 @@ export async function listStudents(req: Request, res: Response, next: NextFuncti
                 COALESCE((SELECT AVG(ms.final_score) FROM marks_scored ms WHERE ms.student_id = u.id), 0)::float as avg_score
             FROM users u
             JOIN student_details sd ON u.id = sd.user_id
-            WHERE COALESCE(u.college_id, sd.college_id) = $1 AND u.role = 'student'
+            WHERE COALESCE(u.college_id, sd.college_id) = $1
+              AND u.role = 'student'
+              AND u.deleted_at IS NULL
         `;
 
         const params: any[] = [collegeId];
@@ -312,10 +314,83 @@ export async function updateStudent(req: Request, res: Response, next: NextFunct
 
 /**
  * POST /api/campus/students/bulk-import
- * Placeholders for bulk operations
+ * Body: { students: [{ name, email, student_id?, phone_number? }] }
  */
 export async function bulkImport(req: Request, res: Response, next: NextFunction) {
-    res.json({ success: true, message: "Bulk import queued" });
+    try {
+        const collegeId = await resolveCollegeId(req);
+        const students = Array.isArray(req.body?.students) ? req.body.students : null;
+        if (!students?.length) {
+            throw new AppError("students array is required", 400);
+        }
+
+        const created: Array<{ user_id: string; email: string; temporary_password: string }> = [];
+        const skipped: Array<{ email: string; reason: string }> = [];
+        const client = await pool.connect();
+        try {
+            await client.query("BEGIN");
+            for (const row of students) {
+                const name = String(row.name || "").trim();
+                const email = String(row.email || "").trim().toLowerCase();
+                if (!name || !email) {
+                    skipped.push({ email: email || "(missing)", reason: "name and email required" });
+                    continue;
+                }
+                const existing = await client.query(
+                    `SELECT id FROM users WHERE email = $1 AND deleted_at IS NULL`,
+                    [email],
+                );
+                if (existing.rows.length) {
+                    skipped.push({ email, reason: "email already exists" });
+                    continue;
+                }
+                const tempPassword = `Campus${Math.random().toString(36).slice(2, 8)}!`;
+                const hashed = await bcrypt.hash(tempPassword, 12);
+                const parts = name.split(/\s+/);
+                const userRes = await client.query(
+                    `INSERT INTO users
+                       (role, name, email, password, college_id, is_active, is_profile_complete, must_change_password, status)
+                     VALUES ('student', $1, $2, $3, $4, TRUE, FALSE, TRUE, 'active')
+                     RETURNING id`,
+                    [name, email, hashed, collegeId],
+                );
+                const userId = userRes.rows[0].id;
+                await client.query(
+                    `INSERT INTO student_details
+                       (user_id, college_id, first_name, last_name, student_identifier, phone_number)
+                     VALUES ($1, $2, $3, $4, $5, $6)`,
+                    [
+                        userId,
+                        collegeId,
+                        parts[0] || name,
+                        parts.slice(1).join(" ") || "",
+                        row.student_id || row.student_identifier || null,
+                        row.phone_number || null,
+                    ],
+                );
+                created.push({ user_id: userId, email, temporary_password: tempPassword });
+            }
+            await client.query("COMMIT");
+        } catch (e) {
+            await client.query("ROLLBACK");
+            throw e;
+        } finally {
+            client.release();
+        }
+
+        res.status(201).json({
+            success: true,
+            data: {
+                created_count: created.length,
+                skipped_count: skipped.length,
+                created,
+                skipped,
+            },
+            message: `Imported ${created.length} student(s)`,
+        });
+    } catch (err) {
+        next(err);
+    }
 }
 
 export async function bulkAction(req: Request, res: Response, next: NextFunction) {
@@ -327,22 +402,51 @@ export async function bulkAction(req: Request, res: Response, next: NextFunction
             throw new AppError("Student IDs required", 400);
         }
 
-        if (action === 'suspend') {
-            await query(`
-                UPDATE users SET is_active = false
+        if (action === "suspend" || action === "soft_delete") {
+            await query(
+                `
+                UPDATE users
+                SET is_active = FALSE,
+                    status = 'inactive',
+                    deleted_at = CASE WHEN $3::text = 'soft_delete' THEN NOW() ELSE deleted_at END,
+                    updated_at = NOW()
                 WHERE id IN (
                     SELECT u.id FROM users u JOIN student_details sd ON sd.user_id = u.id
-                    WHERE u.id = ANY($2::uuid[]) AND COALESCE(u.college_id, sd.college_id) = $1
+                    WHERE u.id = ANY($2::uuid[])
+                      AND COALESCE(u.college_id, sd.college_id) = $1
+                      AND u.deleted_at IS NULL
                 )
-            `, [collegeId, studentIds]);
-        } else if (action === 'update_placement') {
-            await query(`
-                INSERT INTO student_summary (student_id, college_id, placement_status)
-                SELECT u.id, $1, $2
-                FROM users u JOIN student_details sd ON sd.user_id = u.id
-                WHERE u.id = ANY($3::uuid[]) AND COALESCE(u.college_id, sd.college_id) = $1
-                ON CONFLICT (student_id) DO UPDATE SET placement_status = EXCLUDED.placement_status
-            `, [collegeId, payload.placement_status, studentIds]);
+            `,
+                [collegeId, studentIds, action],
+            );
+        } else if (action === "activate") {
+            await query(
+                `
+                UPDATE users
+                SET is_active = TRUE, status = 'active', deleted_at = NULL, updated_at = NOW()
+                WHERE id IN (
+                    SELECT u.id FROM users u JOIN student_details sd ON sd.user_id = u.id
+                    WHERE u.id = ANY($2::uuid[])
+                      AND COALESCE(u.college_id, sd.college_id) = $1
+                )
+            `,
+                [collegeId, studentIds],
+            );
+        } else if (action === "update_placement") {
+            await query(
+                `
+                UPDATE student_details sd
+                SET placement_status = $2
+                FROM users u
+                WHERE sd.user_id = u.id
+                  AND u.id = ANY($3::uuid[])
+                  AND COALESCE(u.college_id, sd.college_id) = $1
+                  AND u.deleted_at IS NULL
+            `,
+                [collegeId, payload?.placement_status, studentIds],
+            );
+        } else {
+            throw new AppError(`Unknown bulk action: ${action}`, 400);
         }
         res.json({ success: true, message: `Action ${action} executed` });
     } catch (err) {
@@ -350,6 +454,112 @@ export async function bulkAction(req: Request, res: Response, next: NextFunction
     }
 }
 
+/**
+ * POST /api/campus/students — create student in caller's college only
+ */
 export async function createStudent(req: Request, res: Response, next: NextFunction) {
-    res.json({ success: true, message: "Student created" });
+    try {
+        const collegeId = await resolveCollegeId(req);
+        const {
+            name,
+            email,
+            password,
+            student_identifier,
+            phone_number,
+            degree,
+            specialization,
+            passing_year,
+            cgpa,
+        } = req.body;
+
+        if (!name || !email) {
+            throw new AppError("name and email are required", 400);
+        }
+
+        // Ignore any client-supplied college_id — always JWT college
+        const existing = await queryOne(
+            "SELECT id FROM users WHERE email = $1 AND deleted_at IS NULL",
+            [String(email).toLowerCase().trim()],
+        );
+        if (existing) throw new AppError("Email already in use", 409);
+
+        const tempPassword = password || `Campus${Math.random().toString(36).slice(2, 8)}!`;
+        const hashed = await bcrypt.hash(tempPassword, 12);
+        const parts = String(name).trim().split(/\s+/);
+
+        const client = await pool.connect();
+        try {
+            await client.query("BEGIN");
+            const userRes = await client.query(
+                `INSERT INTO users
+                   (role, name, email, password, college_id, is_active, is_profile_complete, must_change_password, status)
+                 VALUES
+                   ('student', $1, $2, $3, $4, TRUE, FALSE, TRUE, 'active')
+                 RETURNING id, name, email, college_id, status, created_at`,
+                [name, String(email).toLowerCase().trim(), hashed, collegeId],
+            );
+            const user = userRes.rows[0];
+            await client.query(
+                `INSERT INTO student_details
+                   (user_id, college_id, first_name, last_name, student_identifier, phone_number,
+                    degree, specialization, passing_year, cgpa)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+                [
+                    user.id,
+                    collegeId,
+                    parts[0] || name,
+                    parts.slice(1).join(" ") || "",
+                    student_identifier || null,
+                    phone_number || null,
+                    degree || null,
+                    specialization || null,
+                    passing_year || null,
+                    cgpa || null,
+                ],
+            );
+            await client.query("COMMIT");
+            res.status(201).json({
+                success: true,
+                data: { ...user, temporary_password: password ? undefined : tempPassword },
+                message: "Student created successfully",
+            });
+        } catch (e) {
+            await client.query("ROLLBACK");
+            throw e;
+        } finally {
+            client.release();
+        }
+    } catch (err) {
+        next(err);
+    }
+}
+
+/**
+ * DELETE /api/campus/students/:id — soft delete (own college only)
+ */
+export async function softDeleteStudent(req: Request, res: Response, next: NextFunction) {
+    try {
+        const collegeId = await resolveCollegeId(req);
+        const studentId = req.params.id;
+
+        const result = await query(
+            `
+            UPDATE users u
+            SET status = 'inactive', is_active = FALSE, deleted_at = NOW(), updated_at = NOW()
+            FROM student_details sd
+            WHERE u.id = sd.user_id
+              AND u.id = $2
+              AND u.role = 'student'
+              AND u.deleted_at IS NULL
+              AND COALESCE(u.college_id, sd.college_id) = $1
+            RETURNING u.id
+        `,
+            [collegeId, studentId],
+        );
+
+        if (!result.length) throw new AppError("Student not found", 404);
+        res.json({ success: true, message: "Student soft-deleted successfully" });
+    } catch (err) {
+        next(err);
+    }
 }

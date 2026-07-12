@@ -4,19 +4,17 @@ import * as campusStudentsController from "../controllers/campus.students.contro
 
 const router = Router();
 
-// Secure all routes in this file
 router.use(authenticate);
-router.use(authorize("college_admin", "college", "college_staff", "company", "hr", "super_admin"));
+router.use(authorize("college_admin", "college", "college_staff"));
 
 router.get("/analytics", campusStudentsController.getAnalytics);
 
 router.get("/", campusStudentsController.listStudents);
-router.get("/:id", campusStudentsController.getStudentProfile);
 router.post("/", campusStudentsController.createStudent);
-router.put("/:id", campusStudentsController.updateStudent);
-
-// Bulk operations
 router.post("/bulk-import", campusStudentsController.bulkImport);
 router.post("/bulk-action", campusStudentsController.bulkAction);
+router.get("/:id", campusStudentsController.getStudentProfile);
+router.put("/:id", campusStudentsController.updateStudent);
+router.delete("/:id", campusStudentsController.softDeleteStudent);
 
 export default router;

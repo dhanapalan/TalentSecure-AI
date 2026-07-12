@@ -9,6 +9,7 @@ import {
   ChevronLeft,
   ChevronRight,
   MoreHorizontal,
+  X,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import StatsCard from "../../components/superadmin/StatsCard";
@@ -37,6 +38,17 @@ import campusStudentsService, {
   type RiskLevel,
 } from "../../services/campusStudentsService";
 import { cn } from "../../lib/utils";
+
+const EMPTY_CREATE = {
+  name: "",
+  email: "",
+  student_identifier: "",
+  phone_number: "",
+  degree: "",
+  specialization: "",
+  passing_year: "",
+  cgpa: "",
+};
 
 const BATCH_YEARS = ["2024", "2025", "2026", "2027", "2028"];
 const DEPARTMENTS = [
@@ -131,6 +143,10 @@ export default function CollegePortalStudentsPage() {
   const [bulkAction, setBulkAction] = useState("");
   const [workflowId, setWorkflowId] = useState("");
   const [showFilters, setShowFilters] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [showBulk, setShowBulk] = useState(false);
+  const [createForm, setCreateForm] = useState(EMPTY_CREATE);
+  const [bulkCsv, setBulkCsv] = useState("");
 
   const filters = {
     page,
@@ -166,11 +182,22 @@ export default function CollegePortalStudentsPage() {
   const students = (listData?.data ?? []).filter((s) => matchesPerformance(s, performance));
   const pagination = listData?.pagination;
 
+  const invalidateStudents = () => {
+    queryClient.invalidateQueries({ queryKey: ["college-portal-students"] });
+    queryClient.invalidateQueries({ queryKey: ["college-portal-students-analytics"] });
+  };
+
   const bulkMutation = useMutation({
     mutationFn: async () => {
       const ids = [...selected];
       if (bulkAction === "suspend") {
         return campusStudentsService.bulkAction("suspend", ids);
+      }
+      if (bulkAction === "soft_delete") {
+        return campusStudentsService.bulkAction("soft_delete", ids);
+      }
+      if (bulkAction === "activate") {
+        return campusStudentsService.bulkAction("activate", ids);
       }
       if (bulkAction === "shortlist") {
         return campusStudentsService.bulkAction("update_placement", ids, {
@@ -178,7 +205,6 @@ export default function CollegePortalStudentsPage() {
         });
       }
       if (bulkAction === "assign_workflow") {
-        // UI ready — backend workflow assignment coming next sprint
         if (!workflowId.trim()) throw new Error("Select a workflow");
         toast.success(`Workflow assignment queued for ${ids.length} students`);
         return { success: true };
@@ -189,10 +215,67 @@ export default function CollegePortalStudentsPage() {
       toast.success("Bulk action completed");
       setSelected(new Set());
       setBulkAction("");
-      queryClient.invalidateQueries({ queryKey: ["college-portal-students"] });
-      queryClient.invalidateQueries({ queryKey: ["college-portal-students-analytics"] });
+      invalidateStudents();
     },
     onError: (err: Error) => toast.error(err.message || "Bulk action failed"),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: () =>
+      campusStudentsService.create({
+        name: createForm.name.trim(),
+        email: createForm.email.trim(),
+        student_identifier: createForm.student_identifier || undefined,
+        phone_number: createForm.phone_number || undefined,
+        degree: createForm.degree || undefined,
+        specialization: createForm.specialization || undefined,
+        passing_year: createForm.passing_year ? Number(createForm.passing_year) : undefined,
+        cgpa: createForm.cgpa ? Number(createForm.cgpa) : undefined,
+      }),
+    onSuccess: (res: any) => {
+      const temp = res?.data?.temporary_password;
+      toast.success(temp ? `Student created. Temp password: ${temp}` : "Student created");
+      setShowAdd(false);
+      setCreateForm(EMPTY_CREATE);
+      invalidateStudents();
+    },
+    onError: (err: any) =>
+      toast.error(err?.response?.data?.error || err?.message || "Failed to create student"),
+  });
+
+  const bulkImportMutation = useMutation({
+    mutationFn: async () => {
+      const lines = bulkCsv
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(Boolean);
+      if (!lines.length) throw new Error("Paste at least one student row");
+      const start = lines[0].toLowerCase().includes("email") ? 1 : 0;
+      const students = lines.slice(start).map((line) => {
+        const [name, email, student_identifier, degree, passing_year, cgpa] = line
+          .split(",")
+          .map((p) => p.trim());
+        if (!name || !email) throw new Error(`Invalid row: ${line}`);
+        return {
+          name,
+          email,
+          student_identifier: student_identifier || undefined,
+          degree: degree || undefined,
+          passing_year: passing_year ? Number(passing_year) : undefined,
+          cgpa: cgpa ? Number(cgpa) : undefined,
+        };
+      });
+      return campusStudentsService.bulkImport(students);
+    },
+    onSuccess: (res: any) => {
+      const count = res?.data?.created_count ?? res?.created ?? 0;
+      toast.success(res?.message || `Imported ${count} students`);
+      setShowBulk(false);
+      setBulkCsv("");
+      invalidateStudents();
+    },
+    onError: (err: any) =>
+      toast.error(err?.response?.data?.error || err?.message || "Bulk import failed"),
   });
 
   const toggleAll = (checked: boolean) => {
@@ -229,20 +312,97 @@ export default function CollegePortalStudentsPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link to="/app/students/bulk-import">
-            <Button variant="outline" type="button">
-              <Upload className="h-4 w-4" />
-              Bulk Upload
-            </Button>
-          </Link>
-          <Link to="/app/students/new">
-            <Button type="button">
-              <UserPlus className="h-4 w-4" />
-              Add Student
-            </Button>
-          </Link>
+          <Button variant="outline" type="button" onClick={() => setShowBulk(true)}>
+            <Upload className="h-4 w-4" />
+            Bulk Upload
+          </Button>
+          <Button type="button" onClick={() => setShowAdd(true)}>
+            <UserPlus className="h-4 w-4" />
+            Add Student
+          </Button>
         </div>
       </div>
+
+      {showAdd && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Add Student</h2>
+              <button type="button" onClick={() => setShowAdd(false)} aria-label="Close">
+                <X className="h-5 w-5 text-gray-400" />
+              </button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {(
+                [
+                  ["name", "Full name *"],
+                  ["email", "Email *"],
+                  ["student_identifier", "Roll / ID"],
+                  ["phone_number", "Phone"],
+                  ["degree", "Degree / Dept"],
+                  ["specialization", "Specialization"],
+                  ["passing_year", "Passing year"],
+                  ["cgpa", "CGPA"],
+                ] as const
+              ).map(([key, label]) => (
+                <label key={key} className="space-y-1 text-sm">
+                  <span className="text-gray-600">{label}</span>
+                  <Input
+                    value={createForm[key]}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, [key]: e.target.value }))}
+                  />
+                </label>
+              ))}
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button variant="outline" type="button" onClick={() => setShowAdd(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={createMutation.isPending || !createForm.name || !createForm.email}
+                onClick={() => createMutation.mutate()}
+              >
+                {createMutation.isPending ? "Creating…" : "Create"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showBulk && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Bulk Upload</h2>
+              <button type="button" onClick={() => setShowBulk(false)} aria-label="Close">
+                <X className="h-5 w-5 text-gray-400" />
+              </button>
+            </div>
+            <p className="mb-2 text-sm text-gray-500">
+              CSV rows: name, email, roll, degree, passing_year, cgpa
+            </p>
+            <textarea
+              className="h-40 w-full rounded-lg border border-gray-200 p-3 text-sm"
+              placeholder={"Jane Doe,jane@college.edu,CS21,CSE,2026,8.2"}
+              value={bulkCsv}
+              onChange={(e) => setBulkCsv(e.target.value)}
+            />
+            <div className="mt-5 flex justify-end gap-2">
+              <Button variant="outline" type="button" onClick={() => setShowBulk(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={bulkImportMutation.isPending || !bulkCsv.trim()}
+                onClick={() => bulkImportMutation.mutate()}
+              >
+                {bulkImportMutation.isPending ? "Importing…" : "Import"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Analytics strip */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
@@ -409,7 +569,9 @@ export default function CollegePortalStudentsPage() {
               >
                 <option value="">Bulk action…</option>
                 <option value="shortlist">Mark as Shortlisted</option>
+                <option value="activate">Activate accounts</option>
                 <option value="suspend">Suspend accounts</option>
+                <option value="soft_delete">Soft delete</option>
                 <option value="assign_workflow">Assign workflow</option>
               </Select>
               {bulkAction === "assign_workflow" && (

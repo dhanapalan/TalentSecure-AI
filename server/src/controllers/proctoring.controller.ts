@@ -1,17 +1,16 @@
 import { NextFunction, Request, Response } from "express";
 import { query, queryOne } from "../config/database.js";
 import { AppError } from "../middleware/errorHandler.js";
+import {
+  isCollegeScopedRole,
+  resolveCallerCollegeId,
+} from "../middleware/collegeIsolation.js";
 import { proctoringService } from "../services/proctoring.service.js";
 
 interface SessionScopeRow {
   id: string;
   student_id: string;
   college_id: string | null;
-}
-
-function isCollegeScopedRole(role?: string): boolean {
-  const normalized = (role || "").toLowerCase();
-  return normalized === "college_admin" || normalized === "college";
 }
 
 async function getSessionScope(sessionId: string): Promise<SessionScopeRow | null> {
@@ -31,10 +30,11 @@ async function assertCollegeScope(req: Request, sessionId: string): Promise<void
   }
 
   if (isCollegeScopedRole(req.user?.role)) {
-    if (!req.user?.college_id) {
+    const collegeId = await resolveCallerCollegeId(req);
+    if (!collegeId) {
       throw new AppError("User is not associated with a college", 400);
     }
-    if (session.college_id !== req.user.college_id) {
+    if (session.college_id !== collegeId) {
       throw new AppError("Not authorized to access this session", 403);
     }
   }
@@ -48,17 +48,26 @@ export const proctoringController = {
   async getEvents(req: Request, res: Response, next: NextFunction) {
     try {
       const limit = Math.min(parseInt(String(req.query.limit)) || 100, 500);
+      const collegeId = await resolveCallerCollegeId(req);
 
-      const events = await query(
-        `SELECT pe.id, pe.session_id, pe.event_type, pe.metadata, pe.created_at as timestamp
-         FROM proctoring_events pe
-         ORDER BY pe.created_at DESC
-         LIMIT $1`,
-        [limit],
-      ).catch(() => {
-        // Table may not exist yet — return empty gracefully
-        return [];
-      });
+      const events = collegeId
+        ? await query(
+            `SELECT pe.id, pe.session_id, pe.event_type, pe.metadata, pe.created_at as timestamp
+             FROM proctoring_events pe
+             JOIN drive_students ds ON ds.id = pe.session_id
+             JOIN users u ON u.id = ds.student_id
+             WHERE u.college_id = $2 AND u.deleted_at IS NULL
+             ORDER BY pe.created_at DESC
+             LIMIT $1`,
+            [limit, collegeId],
+          ).catch(() => [])
+        : await query(
+            `SELECT pe.id, pe.session_id, pe.event_type, pe.metadata, pe.created_at as timestamp
+             FROM proctoring_events pe
+             ORDER BY pe.created_at DESC
+             LIMIT $1`,
+            [limit],
+          ).catch(() => []);
 
       res.json({ success: true, data: events });
     } catch (error) {

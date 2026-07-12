@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import {
   ArrowLeft, Mail, Hash, Building2, GraduationCap, Calendar,
-  Edit2, Save, X, ShieldCheck, ClipboardList, AlertTriangle,
+  Edit2, Save, X, ShieldCheck, ClipboardList, AlertTriangle, Trash2,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
@@ -56,6 +56,17 @@ export default function CollegePortalStudentDetailPage() {
       setIsEditing(false);
     },
     onError: () => toast.error("Failed to update student"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => campusStudentsService.softDelete(id!),
+    onSuccess: () => {
+      toast.success("Student soft-deleted");
+      queryClient.invalidateQueries({ queryKey: ["college-portal-students"] });
+      queryClient.invalidateQueries({ queryKey: ["college-portal-students-analytics"] });
+      navigate("/app/college-portal/students");
+    },
+    onError: () => toast.error("Failed to delete student"),
   });
 
   if (isLoading) {
@@ -116,9 +127,25 @@ export default function CollegePortalStudentDetailPage() {
             </Button>
           </div>
         ) : (
-          <Button variant="outline" size="sm" type="button" onClick={startEdit}>
-            <Edit2 className="h-4 w-4" /> Edit Student
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              className="text-rose-600 hover:text-rose-700"
+              disabled={deleteMutation.isPending}
+              onClick={() => {
+                if (window.confirm("Soft-delete this student? They will be hidden from the roster.")) {
+                  deleteMutation.mutate();
+                }
+              }}
+            >
+              <Trash2 className="h-4 w-4" /> Delete
+            </Button>
+            <Button variant="outline" size="sm" type="button" onClick={startEdit}>
+              <Edit2 className="h-4 w-4" /> Edit Student
+            </Button>
+          </div>
         )}
       </div>
 

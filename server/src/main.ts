@@ -11,6 +11,7 @@ import { NestExpressApplication } from "@nestjs/platform-express";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import helmet from "helmet";
 import cors from "cors";
+import express from "express";
 import { AppModule } from "./nest/app.module.js";
 import { env } from "./config/env.js";
 import { logger } from "./config/logger.js";
@@ -62,8 +63,8 @@ async function bootstrap() {
   );
 
   // 5. Body parsing
-  app.use(require("express").json({ limit: "10mb" }));
-  app.use(require("express").urlencoded({ extended: true }));
+  app.use(express.json({ limit: "10mb" }));
+  app.use(express.urlencoded({ extended: true }));
 
   // 6. Initialize Socket.IO (attaches to the underlying HTTP server)
   const httpAdapter = app.getHttpAdapter();

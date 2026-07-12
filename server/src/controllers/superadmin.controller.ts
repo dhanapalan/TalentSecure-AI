@@ -971,7 +971,10 @@ export const deleteCollege = async (
     const { id } = req.params;
 
     const result = await pool.query(
-      "UPDATE colleges SET status = 'suspended', updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL RETURNING id",
+      `UPDATE colleges
+       SET status = 'suspended', deleted_at = NOW(), updated_at = NOW()
+       WHERE id = $1 AND deleted_at IS NULL
+       RETURNING id`,
       [id]
     );
 
@@ -981,7 +984,7 @@ export const deleteCollege = async (
 
     res.json({
       success: true,
-      message: "College deactivated successfully",
+      message: "College soft-deleted successfully",
     });
   } catch (error) {
     next(error);
@@ -1262,7 +1265,10 @@ export const deleteCategory = async (
     const { id } = req.params;
 
     const result = await pool.query(
-      "UPDATE categories SET is_active = FALSE, updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL RETURNING id",
+      `UPDATE categories
+       SET is_active = FALSE, deleted_at = NOW(), updated_at = NOW()
+       WHERE id = $1 AND deleted_at IS NULL
+       RETURNING id`,
       [id]
     );
 
@@ -1272,7 +1278,7 @@ export const deleteCategory = async (
 
     res.json({
       success: true,
-      message: "Category deactivated successfully",
+      message: "Category soft-deleted successfully",
     });
   } catch (error) {
     next(error);
@@ -1422,7 +1428,15 @@ export const listAnnouncements = async (
 
     res.json({
       success: true,
-      data: result.rows,
+      data: result.rows.map((r: any) => ({
+        id: r.id,
+        title: r.title,
+        message: r.message,
+        type: r.type,
+        active: r.active,
+        createdAt: r.created_at,
+        expiresAt: r.expires_at,
+      })),
     });
   } catch (error) {
     next(error);
@@ -1466,7 +1480,10 @@ export const deleteAnnouncement = async (
     const { id } = req.params;
 
     const result = await pool.query(
-      "UPDATE announcements SET active = FALSE WHERE id = $1 AND deleted_at IS NULL RETURNING id",
+      `UPDATE announcements
+       SET active = FALSE, deleted_at = NOW()
+       WHERE id = $1 AND deleted_at IS NULL
+       RETURNING id`,
       [id]
     );
 
@@ -1476,7 +1493,45 @@ export const deleteAnnouncement = async (
 
     res.json({
       success: true,
-      message: "Announcement deactivated",
+      message: "Announcement soft-deleted",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateAnnouncement = async (
+  req: Request,
+  res: Response<ApiResponse>,
+  next: NextFunction
+) => {
+  try {
+    const { id } = req.params;
+    const { title, message, type, active } = req.body as {
+      title?: string;
+      message?: string;
+      type?: string;
+      active?: boolean;
+    };
+
+    const result = await pool.query(
+      `UPDATE announcements
+       SET title = COALESCE($1, title),
+           message = COALESCE($2, message),
+           type = COALESCE($3, type),
+           active = COALESCE($4, active)
+       WHERE id = $5 AND deleted_at IS NULL
+       RETURNING *`,
+      [title ?? null, message ?? null, type ?? null, active ?? null, id]
+    );
+
+    if (result.rows.length === 0) {
+      throw new AppError("Announcement not found", 404);
+    }
+
+    res.json({
+      success: true,
+      data: result.rows[0],
     });
   } catch (error) {
     next(error);
@@ -1492,7 +1547,10 @@ export const activateAnnouncement = async (
     const { id } = req.params;
 
     const result = await pool.query(
-      "UPDATE announcements SET active = TRUE WHERE id = $1 AND deleted_at IS NULL RETURNING id",
+      `UPDATE announcements
+       SET active = TRUE, deleted_at = NULL
+       WHERE id = $1
+       RETURNING id`,
       [id]
     );
 
@@ -1528,7 +1586,14 @@ export const listEmailTemplates = async (
 
     res.json({
       success: true,
-      data: result.rows,
+      data: result.rows.map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        subject: r.subject,
+        body: r.body,
+        variables: r.variables || [],
+        createdAt: r.created_at,
+      })),
     });
   } catch (error) {
     next(error);
@@ -1606,7 +1671,10 @@ export const deleteEmailTemplate = async (
     const { id } = req.params;
 
     const result = await pool.query(
-      "UPDATE email_templates SET is_active = FALSE, updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL RETURNING id",
+      `UPDATE email_templates
+       SET is_active = FALSE, deleted_at = NOW(), updated_at = NOW()
+       WHERE id = $1 AND deleted_at IS NULL
+       RETURNING id`,
       [id]
     );
 
@@ -1616,7 +1684,7 @@ export const deleteEmailTemplate = async (
 
     res.json({
       success: true,
-      message: "Template deactivated",
+      message: "Template soft-deleted",
     });
   } catch (error) {
     next(error);

@@ -107,7 +107,11 @@ export async function getStudentDrives(studentId: string): Promise<DriveForStude
 
 // ── Start / Resume Session ───────────────────────────────────────────────────
 
-export async function startSession(driveId: string, studentId: string): Promise<SessionState> {
+export async function startSession(
+    driveId: string,
+    studentId: string,
+    clientType: "web" | "mobile_app" = "web",
+): Promise<SessionState> {
     // 1. Get the drive_student record
     const ds = await queryOne<any>(
         `SELECT ds.*, ad.name AS drive_name, ad.pool_id, ad.status AS drive_status,
@@ -230,10 +234,11 @@ export async function startSession(driveId: string, studentId: string): Promise<
              saved_answers = '{}',
              current_question_index = 0,
              time_remaining_seconds = $2,
-             server_deadline = $3
+             server_deadline = $3,
+             client_type = $5
          WHERE id = $4
          RETURNING *`,
-        [JSON.stringify(questionMapping), totalSeconds, serverDeadline.toISOString(), ds.id],
+        [JSON.stringify(questionMapping), totalSeconds, serverDeadline.toISOString(), ds.id, clientType],
     );
 
     // 5. Enqueue authoritative auto-submit job at deadline (idempotent)
