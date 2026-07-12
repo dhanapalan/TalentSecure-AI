@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import * as qbService from "../services/questionBank.service.js";
+import { parsePdfQuestions } from "../services/pdfQuestionImport.service.js";
 import { ApiResponse, QuestionCategory, QuestionType, DifficultyLevel } from "../types/index.js";
 
 /**
@@ -147,6 +148,39 @@ export const bulkCreate = async (
       data: rows,
       errors,
       message: `${rows.length} question(s) created${errors.length > 0 ? `, ${errors.length} failed` : ""}`,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /api/question-bank/import-pdf/parse
+ * Parse an uploaded question PDF into structured MCQ candidates.
+ * Read-only: returns parsed questions + warnings for the admin to review;
+ * the confirmed subset is then inserted through POST /bulk.
+ */
+export const parsePdfImport = async (
+  req: Request,
+  res: Response<ApiResponse>,
+  next: NextFunction,
+) => {
+  try {
+    const file = (req as Request & { file?: { buffer: Buffer; originalname: string } }).file;
+    if (!file) {
+      return res
+        .status(400)
+        .json({ success: false, error: "No PDF uploaded — attach the file as multipart field \"file\"" });
+    }
+
+    const result = await parsePdfQuestions(file.buffer);
+    res.json({
+      success: true,
+      data: {
+        filename: file.originalname,
+        ...result,
+      },
+      message: `Parsed ${result.questions.length} question(s) from ${result.meta.pages} page(s)`,
     });
   } catch (err) {
     next(err);

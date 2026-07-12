@@ -256,6 +256,31 @@ class QuestionBankService {
   }
 
   /**
+   * Parse an uploaded question PDF into MCQ candidates (no DB writes).
+   * The admin reviews/corrects the result, then imports via bulkCreateQuestions.
+   */
+  async parsePdfQuestions(file: File): Promise<{
+    filename: string;
+    questions: Array<{
+      number: number;
+      question_text: string;
+      options: string[];
+      correct_answer: string | null;
+      explanation: string | null;
+      needs_answer: boolean;
+    }>;
+    warnings: string[];
+    meta: { pages: number; characters: number };
+  }> {
+    const form = new FormData();
+    form.append("file", file);
+    // No manual Content-Type: axios must generate it from the FormData itself
+    // so the multipart boundary parameter is included.
+    const response = await api.post("/superadmin/question-bank/import-pdf/parse", form);
+    return response.data?.data;
+  }
+
+  /**
    * Count questions carrying a tag (used to detect already-imported packs)
    */
   async countByTag(tag: string): Promise<number> {

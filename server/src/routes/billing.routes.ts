@@ -24,7 +24,12 @@ router.get("/plans", async (req, res, next) => {
       ORDER BY price_per_month ASC
     `);
     res.json({ success: true, data: plans });
-  } catch (err) {
+  } catch (err: unknown) {
+    // Table may be missing until docker/init-db/32-billing-subscription-plans.sql runs
+    const code = (err as { code?: string })?.code;
+    if (code === "42P01") {
+      return res.json({ success: true, data: [] });
+    }
     next(err);
   }
 });

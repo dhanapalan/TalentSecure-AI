@@ -137,7 +137,10 @@ export const proctoringController = {
       );
       const allowed = new Set(allowedRows.map((r) => r.id));
 
-      res.json({ success: true, data: data.filter((row: { id: string }) => allowed.has(row.id)) });
+      res.json({
+        success: true,
+        data: data.filter((row) => allowed.has(String(row.id))),
+      });
     } catch (error) {
       next(error);
     }

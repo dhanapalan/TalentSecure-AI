@@ -3,6 +3,7 @@ import { BookOpen, CheckCircle2, Download } from "lucide-react";
 import toast from "react-hot-toast";
 import questionBankService from "../../../services/questionBankService";
 import { BOOK_PACKS, BookPack } from "./bookPacks";
+import PdfImportSection from "./PdfImportSection";
 
 export default function ImportBooksPage() {
   // pack slug -> number of already-imported questions (-1 = unknown/loading)
@@ -48,9 +49,12 @@ export default function ImportBooksPage() {
       <div className="mb-6">
         <h2 className="text-2xl font-semibold tracking-tight text-gray-900">Import from Books</h2>
         <p className="text-gray-500 mt-1">
-          Seed the question bank with curated packs modeled on standard campus-prep reference books.
+          Upload your own question PDFs, or seed the bank with curated packs modeled on standard
+          campus-prep reference books.
         </p>
       </div>
+
+      <PdfImportSection />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {BOOK_PACKS.map((pack) => {
@@ -99,7 +103,8 @@ export default function ImportBooksPage() {
         <a href="/app/superadmin/question-bank" className="underline font-medium">
           All Questions
         </a>
-        . For generating questions from your own PDFs or books, use the{" "}
+        ; PDF uploads are additionally tagged <code className="bg-navy-900/10 px-1 rounded">pdf-import</code>.
+        To generate brand-new questions on a topic, use the{" "}
         <a href="/app/superadmin/question-bank/ai-generator" className="underline font-medium">
           AI Question Generator
         </a>

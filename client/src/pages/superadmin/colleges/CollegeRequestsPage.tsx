@@ -23,7 +23,8 @@ export default function CollegeRequestsPage() {
     load();
   }, []);
 
-  const pendingCount = requests.filter((r) => r.status === "pending").length;
+  // Endpoint already returns only pending colleges.
+  const pendingCount = requests.length;
 
   const handleApprove = async (id: string) => {
     setActingOn(id);

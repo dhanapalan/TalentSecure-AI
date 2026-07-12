@@ -1,10 +1,22 @@
 import { Router } from "express";
+import multer from "multer";
 import { authenticate, authorize } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { z } from "zod";
 import * as qbController from "../controllers/questionBank.controller.js";
 
 const router = Router();
+
+const pdfUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const isPdf =
+      file.mimetype === "application/pdf" ||
+      file.originalname.toLowerCase().endsWith(".pdf");
+    cb(null, isPdf);
+  },
+});
 
 // ── Validation Schemas ───────────────────────────────────────────────────────
 
@@ -130,6 +142,15 @@ router.post(
   authorize("admin", "super_admin", "hr"),
   validate(bulkCreateSchema, "body"),
   qbController.bulkCreate,
+);
+// Parse an uploaded question PDF into MCQ candidates (read-only — the admin
+// reviews the result in the UI, then inserts the confirmed set via /bulk).
+router.post(
+  "/import-pdf/parse",
+  authenticate,
+  authorize("admin", "super_admin", "hr"),
+  pdfUpload.single("file"),
+  qbController.parsePdfImport,
 );
 router.put(
   "/:id",

@@ -14,7 +14,12 @@ export async function listModules(req: Request, res: Response<ApiResponse>, next
     const status = typeof req.query.status === "string" ? req.query.status : undefined;
     const data = await modulesService.listModules(status);
     res.json({ success: true, data });
-  } catch (e) {
+  } catch (e: unknown) {
+    const code = (e as { code?: string })?.code;
+    if (code === "42P01") {
+      // feature_modules not migrated yet — empty catalog beats a 500
+      return res.json({ success: true, data: [] });
+    }
     next(e);
   }
 }

@@ -1,8 +1,31 @@
 -- ============================================================================
 -- colleges compatibility columns for the superadmin college controller.
--- The base colleges table only carries name/college_code/approval_status; the
--- superadmin CRUD expects contact + status fields. Idempotent.
+-- The base colleges table only carries name/college_code; approval + contact
+-- + status fields are added here. Idempotent.
 -- ============================================================================
+
+-- Approval workflow (also in prisma/migrations/20260703_college_approval;
+-- deploy.sh only applies docker/init-db, so keep both in sync)
+ALTER TABLE colleges ADD COLUMN IF NOT EXISTS approval_status VARCHAR(50) DEFAULT 'pending';
+ALTER TABLE colleges ADD COLUMN IF NOT EXISTS approved_by UUID;
+ALTER TABLE colleges ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
+ALTER TABLE colleges ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+ALTER TABLE colleges ADD COLUMN IF NOT EXISTS rejection_at TIMESTAMPTZ;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'fk_colleges_approved_by'
+  ) THEN
+    ALTER TABLE colleges
+      ADD CONSTRAINT fk_colleges_approved_by
+      FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_colleges_approval_status ON colleges(approval_status);
+CREATE INDEX IF NOT EXISTS idx_colleges_pending ON colleges(approval_status)
+  WHERE approval_status = 'pending';
 
 ALTER TABLE colleges ADD COLUMN IF NOT EXISTS status  VARCHAR(20) DEFAULT 'pending';
 ALTER TABLE colleges ADD COLUMN IF NOT EXISTS email   VARCHAR(255);

@@ -997,15 +997,26 @@ export const getPendingCollegeRequests = async (
   next: NextFunction
 ) => {
   try {
-    const result = await pool.query(
-      `SELECT * FROM colleges
-       WHERE deleted_at IS NULL
-         AND (
-           approval_status = 'pending'
-           OR (approval_status IS NULL AND status = 'pending')
-         )
-       ORDER BY created_at DESC`
-    );
+    // Prefer approval_status (approval migration). Fall back to compat `status`
+    // when approval_status column is absent (42703).
+    let result;
+    try {
+      result = await pool.query(
+        `SELECT * FROM colleges
+         WHERE COALESCE(deleted_at, NULL) IS NULL
+           AND COALESCE(approval_status, 'pending') = 'pending'
+         ORDER BY created_at DESC`
+      );
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code;
+      if (code !== "42703") throw err;
+      result = await pool.query(
+        `SELECT * FROM colleges
+         WHERE COALESCE(deleted_at, NULL) IS NULL
+           AND COALESCE(status, 'pending') = 'pending'
+         ORDER BY created_at DESC`
+      );
+    }
 
     res.json({
       success: true,
@@ -1034,30 +1045,58 @@ export const approveCollege = async (
       throw new AppError("College not found", 404);
     }
 
-    // Core approval columns only — is_active / is_suspended / status are optional
-    // compat fields that may be missing on older DBs (undefined_column → 42703).
-    await pool.query(
-      `UPDATE colleges
-       SET approval_status = 'approved',
-           approved_by = $2,
-           approved_at = NOW(),
-           updated_at = NOW()
-       WHERE id = $1`,
-      [id, actorId]
-    );
-
-    const ignoreMissingColumn = (err: { code?: string }) => {
-      if (err?.code !== "42703") throw err;
+    // Core approval first. Optional compat columns / FK issues must not 500.
+    const ignoreSchemaDrift = (err: { code?: string }) => {
+      // 42703 undefined_column | 42P01 undefined_table | 23503 FK violation
+      if (err?.code !== "42703" && err?.code !== "42P01" && err?.code !== "23503") {
+        throw err;
+      }
     };
+
+    try {
+      await pool.query(
+        `UPDATE colleges
+         SET approval_status = 'approved',
+             approved_by = $2,
+             approved_at = NOW(),
+             updated_at = NOW()
+         WHERE id = $1`,
+        [id, actorId]
+      );
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code;
+      if (code === "23503" || code === "42703") {
+        // approved_by FK missing/invalid user, or approval cols partially missing
+        await pool.query(
+          `UPDATE colleges
+           SET approval_status = 'approved', updated_at = NOW()
+           WHERE id = $1`,
+          [id]
+        ).catch(async () => {
+          await pool.query(
+            `UPDATE colleges SET status = 'active', updated_at = NOW() WHERE id = $1`,
+            [id]
+          );
+        });
+      } else {
+        throw err;
+      }
+    }
+
     await pool
       .query(
-        `UPDATE colleges SET is_active = TRUE, is_suspended = FALSE WHERE id = $1`,
+        `UPDATE colleges
+         SET approved_at = COALESCE(approved_at, NOW()),
+             is_active = TRUE,
+             is_suspended = FALSE,
+             status = 'active'
+         WHERE id = $1`,
         [id]
       )
-      .catch(ignoreMissingColumn);
+      .catch(ignoreSchemaDrift);
     await pool
       .query(`UPDATE colleges SET status = 'active' WHERE id = $1`, [id])
-      .catch(ignoreMissingColumn);
+      .catch(ignoreSchemaDrift);
 
     await query(
       `INSERT INTO audit_logs (user_id, action, resource_type, resource_id, ip_address, changes)
@@ -1121,28 +1160,40 @@ export const rejectCollege = async (
       throw new AppError("College not found", 404);
     }
 
-    await pool.query(
-      `UPDATE colleges
-       SET approval_status = 'rejected',
-           rejection_reason = $2,
-           rejection_at = NOW(),
-           updated_at = NOW()
-       WHERE id = $1`,
-      [id, reason]
-    );
+    try {
+      await pool.query(
+        `UPDATE colleges
+         SET approval_status = 'rejected',
+             rejection_reason = $2,
+             rejection_at = NOW(),
+             updated_at = NOW()
+         WHERE id = $1`,
+        [id, reason]
+      );
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code;
+      if (code === "42703") {
+        await pool.query(
+          `UPDATE colleges SET status = 'suspended', updated_at = NOW() WHERE id = $1`,
+          [id]
+        );
+      } else {
+        throw err;
+      }
+    }
 
-    const ignoreMissingColumn = (err: { code?: string }) => {
-      if (err?.code !== "42703") throw err;
+    const ignoreSchemaDrift = (e: { code?: string }) => {
+      if (e?.code !== "42703" && e?.code !== "42P01") throw e;
     };
     await pool
       .query(
-        `UPDATE colleges SET is_active = FALSE, is_suspended = TRUE WHERE id = $1`,
+        `UPDATE colleges SET is_active = FALSE, is_suspended = TRUE, status = 'suspended' WHERE id = $1`,
         [id]
       )
-      .catch(ignoreMissingColumn);
+      .catch(ignoreSchemaDrift);
     await pool
       .query(`UPDATE colleges SET status = 'suspended' WHERE id = $1`, [id])
-      .catch(ignoreMissingColumn);
+      .catch(ignoreSchemaDrift);
 
     await query(
       `INSERT INTO audit_logs (user_id, action, resource_type, resource_id, ip_address, changes)
