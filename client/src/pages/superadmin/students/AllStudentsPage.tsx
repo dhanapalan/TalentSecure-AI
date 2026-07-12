@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
@@ -99,6 +99,7 @@ export default function AllStudentsPage() {
     cgpa: "",
     student_identifier: "",
   });
+  const editRequestId = useRef(0);
 
   const [search, setSearch] = useState("");
   const [collegeId, setCollegeId] = useState("");
@@ -296,6 +297,7 @@ export default function AllStudentsPage() {
   };
 
   const openEditStudent = async (student: StudentListItem) => {
+    const requestId = ++editRequestId.current;
     setEditOpen(true);
     setEditLoading(true);
     setEditForm({
@@ -310,6 +312,7 @@ export default function AllStudentsPage() {
     });
     try {
       const detail = await studentsService.getStudentProfile(student.id);
+      if (requestId !== editRequestId.current) return;
       const p = detail.profile;
       setEditForm({
         id: p.id,
@@ -322,10 +325,11 @@ export default function AllStudentsPage() {
         student_identifier: p.student_identifier || "",
       });
     } catch {
+      if (requestId !== editRequestId.current) return;
       toast.error("Failed to load student for editing");
       setEditOpen(false);
     } finally {
-      setEditLoading(false);
+      if (requestId === editRequestId.current) setEditLoading(false);
     }
   };
 
@@ -334,9 +338,11 @@ export default function AllStudentsPage() {
       toast.error("Name and email are required");
       return;
     }
+    const savingId = editForm.id;
+    const requestIdAtSave = editRequestId.current;
     setEditSaving(true);
     try {
-      await studentsService.updateStudent(editForm.id, {
+      await studentsService.updateStudent(savingId, {
         name: editForm.name.trim(),
         email: editForm.email.trim(),
         degree: editForm.degree || null,
@@ -346,7 +352,10 @@ export default function AllStudentsPage() {
         student_identifier: editForm.student_identifier || null,
       });
       toast.success("Student updated");
-      setEditOpen(false);
+      // Don't close if the admin already opened another student's edit panel
+      if (editRequestId.current === requestIdAtSave) {
+        setEditOpen(false);
+      }
       load();
     } catch (e: any) {
       toast.error(e.response?.data?.error || e.response?.data?.message || "Failed to update student");
@@ -520,10 +529,17 @@ export default function AllStudentsPage() {
       )}
 
       {editOpen && (
-        <div className="bg-white rounded-xl border border-gray-200/70 shadow-admin-card p-6 mb-4">
+        <div
+          className="bg-white rounded-xl border border-gray-200/70 shadow-admin-card p-6 mb-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="edit-student-title"
+        >
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">Edit Student</h3>
-            <button type="button" onClick={() => setEditOpen(false)} aria-label="Close">
+            <h3 id="edit-student-title" className="text-lg font-semibold">
+              Edit Student
+            </h3>
+            <button type="button" onClick={() => setEditOpen(false)} aria-label="Close edit student">
               <X className="w-5 h-5 text-gray-400" />
             </button>
           </div>
@@ -533,42 +549,49 @@ export default function AllStudentsPage() {
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <input
+                  aria-label="Full name"
                   placeholder="Full name *"
                   value={editForm.name}
                   onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                   className="border border-gray-200 rounded-lg px-3 py-2"
                 />
                 <input
+                  aria-label="Email"
                   placeholder="Email *"
                   value={editForm.email}
                   onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
                   className="border border-gray-200 rounded-lg px-3 py-2"
                 />
                 <input
+                  aria-label="Student or roll ID"
                   placeholder="Student / Roll ID"
                   value={editForm.student_identifier}
                   onChange={(e) => setEditForm({ ...editForm, student_identifier: e.target.value })}
                   className="border border-gray-200 rounded-lg px-3 py-2"
                 />
                 <input
+                  aria-label="Degree or department"
                   placeholder="Degree / Department"
                   value={editForm.degree}
                   onChange={(e) => setEditForm({ ...editForm, degree: e.target.value })}
                   className="border border-gray-200 rounded-lg px-3 py-2"
                 />
                 <input
+                  aria-label="Specialization"
                   placeholder="Specialization"
                   value={editForm.specialization}
                   onChange={(e) => setEditForm({ ...editForm, specialization: e.target.value })}
                   className="border border-gray-200 rounded-lg px-3 py-2"
                 />
                 <input
+                  aria-label="Passing year"
                   placeholder="Passing year"
                   value={editForm.passing_year}
                   onChange={(e) => setEditForm({ ...editForm, passing_year: e.target.value })}
                   className="border border-gray-200 rounded-lg px-3 py-2"
                 />
                 <input
+                  aria-label="CGPA"
                   placeholder="CGPA"
                   value={editForm.cgpa}
                   onChange={(e) => setEditForm({ ...editForm, cgpa: e.target.value })}
@@ -579,7 +602,7 @@ export default function AllStudentsPage() {
                 <button
                   type="button"
                   onClick={handleSaveEdit}
-                  disabled={editSaving}
+                  disabled={editSaving || editLoading}
                   className="px-4 py-2 bg-navy-900 text-white rounded-lg font-medium disabled:opacity-50"
                 >
                   {editSaving ? "Saving..." : "Save changes"}
