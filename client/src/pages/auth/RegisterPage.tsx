@@ -9,6 +9,7 @@ import toast from "react-hot-toast";
 import api from "../../lib/api";
 import { authActions } from "../../stores/authStore";
 import { getLandingPath } from "../../components/ProtectedRoute";
+import { parseApiError } from "../../services/studentAuthService";
 import {
   GraduationCap, Building2, Eye, EyeOff, Loader2,
   CheckCircle2, User, Mail, Lock, Phone, BookOpen, Calendar,
@@ -166,10 +167,12 @@ export default function RegisterPage() {
       authActions.login(result.accessToken, result.user, result.refreshToken, result.permissions ?? []);
       toast.success("Account created! Welcome 🎉");
       navigate(getLandingPath(result.user));
-    } catch (err: any) {
-      const msg = err.response?.data?.error || "Registration failed. Please try again.";
+    } catch (err: unknown) {
+      const { message, fieldErrors } = parseApiError(err);
+      const msg = (fieldErrors && Object.values(fieldErrors)[0]) || message;
       toast.error(msg);
-      if (msg.includes("email")) setErrors({ email: msg });
+      if (fieldErrors) setErrors(fieldErrors);
+      else if (msg.includes("email")) setErrors({ email: msg });
     } finally {
       setLoading(false);
     }
