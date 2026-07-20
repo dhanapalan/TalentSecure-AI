@@ -10,7 +10,6 @@ import {
   Lock,
   Mail,
   ShieldCheck,
-  Sparkles,
 } from "lucide-react";
 import studentAuthService, { parseApiError } from "../../services/studentAuthService";
 import {
@@ -142,11 +141,13 @@ export default function LoginPage() {
         </p>
       </div>
 
-      {/* Role tabs */}
+      {/* Role selector — wraps to as many rows as needed so every role stays
+          visible. The previous horizontal-scroll strip clipped the first tab
+          mid-word and hid roles behind a scrollbar. */}
       <div
         role="tablist"
         aria-label="Login role"
-        className="mb-5 flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-900"
+        className="mb-5 grid grid-cols-2 gap-1.5 sm:grid-cols-3"
       >
         {LOGIN_ROLES.map((r) => (
           <button
@@ -156,11 +157,11 @@ export default function LoginPage() {
             aria-selected={role === r.id}
             onClick={() => setRole(r.id)}
             className={cn(
-              "whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition",
+              "rounded-lg border px-2 py-2 text-xs font-semibold transition",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500",
               role === r.id
-                ? "bg-white text-primary-700 shadow-sm dark:bg-slate-800 dark:text-primary-300"
-                : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                ? "border-primary-500 bg-primary-50 text-primary-700 dark:border-primary-400 dark:bg-primary-950/50 dark:text-primary-300"
+                : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
             )}
           >
             {r.label}
@@ -170,7 +171,7 @@ export default function LoginPage() {
 
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
         <div>
-          <label htmlFor="identifier" className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+          <label htmlFor="identifier" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
             Email or Student ID
           </label>
           <div className="relative">
@@ -204,7 +205,7 @@ export default function LoginPage() {
 
         <div>
           <div className="mb-1.5 flex items-center justify-between">
-            <label htmlFor="password" className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+            <label htmlFor="password" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
               Password
             </label>
             <Link
@@ -273,32 +274,16 @@ export default function LoginPage() {
         </button>
       </form>
 
-      {/* AI insights + security */}
-      <div className="mt-5 space-y-3">
-        <div className="rounded-xl border border-primary-100 bg-primary-50/80 p-3 dark:border-primary-900 dark:bg-primary-950/40">
-          <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-primary-700 dark:text-primary-300">
-            <Sparkles className="h-3.5 w-3.5" aria-hidden />
-            Today&apos;s AI Insights
-          </p>
-          <ul className="mt-2 space-y-1 text-xs text-slate-700 dark:text-slate-300">
-            <li>Welcome back! Your Placement Readiness increased by 6%.</li>
-            <li>Complete today&apos;s assessment.</li>
-            <li>Mock Interview scheduled tomorrow.</li>
-          </ul>
-        </div>
-
-        <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 p-3 dark:border-emerald-900 dark:bg-emerald-950/30">
-          <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
-            <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
-            Enterprise Security
-          </p>
-          <p className="mt-1.5 text-[11px] leading-relaxed text-slate-600 dark:text-slate-400">
-            HTTPS · MFA · CAPTCHA after failed attempts · Device recognition · Suspicious login
-            detection · Session timeout · Password expiry · Account lockout · Login history · Geo
-            detection
-          </p>
-        </div>
-      </div>
+      {/* The "Today's AI Insights" panel was removed: it showed personalised
+          copy ("your readiness increased by 6%") to a visitor who has not
+          authenticated yet — placeholder data on a sign-in screen. That content
+          belongs on the post-login dashboard where it is actually true.
+          The security list was condensed from eleven items to a single line;
+          the full detail lives on the security page. */}
+      <p className="mt-5 flex items-center justify-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+        <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden />
+        Encrypted connection · MFA-ready · Account lockout protection
+      </p>
 
       <div className="mt-5 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-500">
         <p>
