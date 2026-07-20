@@ -18,11 +18,11 @@ import {
 } from "../../components/ProtectedRoute";
 import { cn } from "../../lib/utils";
 import {
-  LOGIN_ROLES,
   readStoredLoginRole,
   storeLoginRole,
   type LoginRoleId,
 } from "./login/loginRoles";
+import { portalRoles, resolveLoginPortal } from "./login/loginPortals";
 
 type LoginForm = {
   identifier: string;
@@ -37,10 +37,24 @@ export default function LoginPage() {
   const [params] = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  // Which portal this hostname represents (exam./campus./admin.), and the
+  // roles it offers. Resolved once — the hostname cannot change mid-session.
+  const portal = useMemo(() => resolveLoginPortal(), []);
+  const availableRoles = useMemo(() => portalRoles(portal), [portal]);
+
   const [role, setRole] = useState<LoginRoleId>(() => {
+    const allowed = portalRoles(resolveLoginPortal());
+    const isAllowed = (id: string | null) => allowed.some((r) => r.id === id);
+
     const fromQuery = params.get("role") as LoginRoleId | null;
-    if (fromQuery && LOGIN_ROLES.some((r) => r.id === fromQuery)) return fromQuery;
-    return readStoredLoginRole();
+    if (fromQuery && isAllowed(fromQuery)) return fromQuery;
+
+    // A stored role from another portal must not leak in — someone who last
+    // signed in as Super Admin on admin.* should still land on Student at exam.*
+    const stored = readStoredLoginRole();
+    if (isAllowed(stored)) return stored;
+
+    return allowed[0].id;
   });
 
   const {
@@ -65,8 +79,8 @@ export default function LoginPage() {
   }, [role]);
 
   const activeRole = useMemo(
-    () => LOGIN_ROLES.find((r) => r.id === role) ?? LOGIN_ROLES[0],
-    [role]
+    () => availableRoles.find((r) => r.id === role) ?? availableRoles[0],
+    [role, availableRoles]
   );
 
   const onSubmit = async (form: LoginForm) => {
@@ -131,25 +145,45 @@ export default function LoginPage() {
   return (
     <div className="animate-in fade-in duration-500">
       <div className="mb-5">
+        {portal.name && (
+          <p className="mb-1 text-xs font-bold uppercase tracking-wider text-primary-600 dark:text-primary-400">
+            {portal.name}
+          </p>
+        )}
         <h2 className="font-display text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
           Welcome back
         </h2>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Sign in as <span className="font-semibold text-slate-700 dark:text-slate-200">{activeRole.label}</span>
-          {" — "}
-          {activeRole.hint}
+          {availableRoles.length === 1 ? (
+            portal.tagline ?? activeRole.hint
+          ) : (
+            <>
+              Sign in as{" "}
+              <span className="font-semibold text-slate-700 dark:text-slate-200">
+                {activeRole.label}
+              </span>
+              {" — "}
+              {activeRole.hint}
+            </>
+          )}
         </p>
       </div>
 
       {/* Role selector — wraps to as many rows as needed so every role stays
           visible. The previous horizontal-scroll strip clipped the first tab
           mid-word and hid roles behind a scrollbar. */}
+      {/* Hidden entirely on single-role portals (e.g. exam.* = Student only):
+          a selector with one option is pure friction. */}
       <div
         role="tablist"
         aria-label="Login role"
-        className="mb-5 grid grid-cols-2 gap-1.5 sm:grid-cols-3"
+        className={cn(
+          "mb-5 grid gap-1.5",
+          availableRoles.length === 1 && "hidden",
+          availableRoles.length === 2 ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3"
+        )}
       >
-        {LOGIN_ROLES.map((r) => (
+        {availableRoles.map((r) => (
           <button
             key={r.id}
             type="button"
