@@ -1,13 +1,11 @@
 import { motion, useReducedMotion } from "framer-motion";
 import { Link } from "react-router-dom";
-import { ArrowRight, Building2, Briefcase, GraduationCap, Settings } from "lucide-react";
+import { ArrowRight, Building2, GraduationCap } from "lucide-react";
 import { PORTAL_CARDS } from "./constants";
 
 const ICONS = {
   student: GraduationCap,
   college: Building2,
-  recruiter: Briefcase,
-  admin: Settings,
 } as const;
 
 /**
@@ -32,12 +30,13 @@ export function PortalsSection() {
             Choose your portal
           </h2>
           <p className="mt-2 text-slate-600 dark:text-slate-300">
-            GradLogic serves students, colleges, recruiters and platform teams — each with
-            its own workspace. Pick yours to sign in.
+            Students and colleges each get their own workspace. Pick yours to sign in.
           </p>
         </div>
 
-        <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Two cards: constrained and centred so they read as a deliberate pair
+            rather than a four-column grid with two gaps in it. */}
+        <div className="mx-auto mt-10 grid max-w-3xl gap-5 sm:grid-cols-2">
           {PORTAL_CARDS.map((card, i) => {
             const Icon = ICONS[card.id];
             return (

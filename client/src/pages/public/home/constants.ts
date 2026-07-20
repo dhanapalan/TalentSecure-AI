@@ -13,9 +13,10 @@ export const HOME_NAV = [
 /**
  * Portal chooser cards on the home page.
  *
- * Faculty is folded into the College card rather than given its own: faculty
- * sign in through the same campus portal, and a fifth card would break the
- * four-column grid for a role that shares an entry point.
+ * Student and College only. Faculty is folded into the College card — faculty
+ * sign in through the same campus portal. Platform administration is
+ * deliberately absent: admins reach it directly and there is no reason to
+ * advertise the admin entry point to the public.
  */
 export const PORTAL_CARDS = [
   {
@@ -43,32 +44,6 @@ export const PORTAL_CARDS = [
     ],
     cta: "College login",
     href: "/auth/login?role=college",
-  },
-  {
-    id: "recruiter",
-    title: "Recruiter Portal",
-    summary: "Hire from campus with verified readiness data.",
-    features: [
-      "Campus hiring drives",
-      "Candidate search",
-      "Interview scheduling",
-      "Shortlisting & offers",
-    ],
-    cta: "Recruiter login",
-    href: "/auth/login?role=recruiter",
-  },
-  {
-    id: "admin",
-    title: "Platform Administration",
-    summary: "Operate GradLogic across every tenant.",
-    features: [
-      "Tenant management",
-      "College approvals",
-      "AI configuration",
-      "Global question bank",
-    ],
-    cta: "Admin login",
-    href: "/auth/login?role=super_admin",
   },
 ] as const;
 
