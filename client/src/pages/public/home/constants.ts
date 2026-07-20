@@ -10,17 +10,33 @@ export const HOME_NAV = [
   { label: "Contact", href: "/contact" },
 ] as const;
 
-export const WORKFLOW_STEPS = [
-  "Student Registers",
-  "Diagnostic Assessment",
-  "AI Learning Path",
-  "Learning",
-  "Practice",
-  "Assessments",
-  "Mock Interviews",
-  "Placement Readiness",
-  "Campus Hiring",
-  "Job Offers",
+/**
+ * Grouped into four phases rather than ten flat steps: the flat list needed a
+ * horizontal scrollbar that hid the last four steps (including the outcome the
+ * whole section is meant to sell) and gave "Learning" the same visual weight
+ * as "Job Offers".
+ */
+export const WORKFLOW_PHASES = [
+  {
+    phase: "Onboard",
+    summary: "Colleges enrol students and baseline their skills.",
+    steps: ["Student onboarded by college", "Diagnostic assessment"],
+  },
+  {
+    phase: "Learn",
+    summary: "An AI path adapts to the gaps the diagnostic found.",
+    steps: ["AI learning path", "Guided learning", "Practice sets"],
+  },
+  {
+    phase: "Prove",
+    summary: "Proctored assessments and mock interviews build a readiness score.",
+    steps: ["Assessments", "Mock interviews", "Placement readiness"],
+  },
+  {
+    phase: "Place",
+    summary: "Placement cells run drives and convert readiness into offers.",
+    steps: ["Campus hiring drives", "Job offers"],
+  },
 ] as const;
 
 export const WHY_FEATURES = [
