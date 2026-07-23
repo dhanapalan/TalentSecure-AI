@@ -18,6 +18,8 @@ import {
   Building2,
   Plus,
   Settings,
+  CheckCircle2,
+  Circle,
   type LucideIcon,
 } from "lucide-react";
 import AlertCard from "../../../components/superadmin/AlertCard";
@@ -43,6 +45,66 @@ const QUICK_ACTIONS: { label: string; href: string; icon: LucideIcon }[] = [
   { label: "Billing", href: "/app/superadmin/billing", icon: IndianRupee },
   { label: "Settings", href: "/app/superadmin/settings", icon: Settings },
 ];
+
+/**
+ * Shown only on a genuinely empty platform (zero colleges) — the all-zero KPI
+ * grid otherwise reads as "something's broken" rather than "nothing's been
+ * added yet". Step 1 is the only one we can verify is actually done (it's
+ * also the one that unblocks everything else); the rest are next steps, not
+ * tracked completion, to avoid needing extra endpoints for a first-run banner.
+ */
+const GETTING_STARTED_STEPS: { label: string; detail: string; href: string; done?: (m: PlatformMetrics | null) => boolean }[] = [
+  {
+    label: "Add your first college",
+    detail: "Everything else — students, assessments, billing — is scoped to a college.",
+    href: "/app/superadmin/colleges/new",
+    done: (m) => (m?.totalColleges ?? 0) > 0,
+  },
+  {
+    label: "Review the seeded question bank",
+    detail: "Aptitude, reasoning, and coding questions are pre-loaded and ready to assign.",
+    href: "/app/superadmin/question-bank",
+  },
+  {
+    label: "Configure AI & integration keys",
+    detail: "Optional — AI question generation and voice features need provider keys set.",
+    href: "/app/superadmin/integrations",
+  },
+];
+
+function GettingStartedCard({ metrics }: { metrics: PlatformMetrics | null }) {
+  return (
+    <section className="rounded-xl border border-primary-200 bg-primary-50/60 p-5 shadow-admin-card dark:border-primary-800 dark:bg-primary-950/20">
+      <p className="text-sm font-semibold text-gray-900 dark:text-white">Getting started</p>
+      <p className="mt-0.5 text-xs text-gray-500 dark:text-slate-400">
+        This platform has no colleges yet — here's the fastest path to a working setup.
+      </p>
+      <ol className="mt-4 space-y-3">
+        {GETTING_STARTED_STEPS.map((step, i) => {
+          const isDone = step.done?.(metrics) ?? false;
+          return (
+            <li key={step.label} className="flex items-start gap-3">
+              {isDone ? (
+                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" aria-hidden />
+              ) : (
+                <Circle className="mt-0.5 h-5 w-5 shrink-0 text-gray-300" aria-hidden />
+              )}
+              <div className="min-w-0 flex-1">
+                <Link
+                  to={step.href}
+                  className={`text-sm font-medium hover:underline ${isDone ? "text-gray-500 line-through" : "text-primary-700 dark:text-primary-300"}`}
+                >
+                  {i + 1}. {step.label}
+                </Link>
+                <p className="text-xs text-gray-500 dark:text-slate-400">{step.detail}</p>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
 
 const ALERT_LINKS: Record<string, string> = {
   "pending-colleges": "/app/superadmin/approvals",
@@ -191,6 +253,8 @@ export default function SuperAdminDashboard() {
           </Link>
         </div>
       </header>
+
+      {!loading && metrics && metrics.totalColleges === 0 && <GettingStartedCard metrics={metrics} />}
 
       {visibleAlerts.length > 0 && (
         <div className="space-y-2">
