@@ -126,8 +126,8 @@ class QuestionGenerator(RAGEngine):
 
         questions = []
         rejections = []
-        verify = config.question.verify_answers
-        attempts_allowed = max(1, config.question.verify_max_attempts) if verify else 1
+        verify = config.question_generation.verify_answers
+        attempts_allowed = max(1, config.question_generation.verify_max_attempts) if verify else 1
 
         for i in range(count):
             # Each question gets several shots: a rejected draft is retried rather
