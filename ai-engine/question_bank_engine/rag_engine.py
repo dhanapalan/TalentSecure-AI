@@ -260,16 +260,43 @@ class QuestionGenerator(RAGEngine):
         got = str(verdict.get("answer", "")).strip()
         if not got:
             return None
-        if self._norm(got) == self._norm(claimed):
+        if self._answers_agree(got, claimed, options):
             return None
 
-        # Tolerate the verifier replying "B" where option text was expected.
-        if question_type == "multiple_choice" and len(got) == 1 and got.upper().isalpha():
-            idx = ord(got.upper()) - 65
-            if 0 <= idx < len(options) and self._norm(options[idx]) == self._norm(claimed):
-                return None
-
         return "verifier answered %r but the question claims %r" % (got, claimed)
+
+    _LABEL = re.compile(r"^\s*\(?([A-Za-z])\)?\s*[.):\-]\s*")
+
+    def _answers_agree(self, got: str, claimed: str, options) -> bool:
+        """Do two answer strings refer to the same option?
+
+        Models label their choice inconsistently -- "B", "B.", "(B) 32%",
+        "32% increase" -- so compare the bare text, the text with any leading
+        option label stripped, and the option each label points at.
+        """
+        options = options or []
+
+        def variants(value: str):
+            value = str(value).strip()
+            out = {self._norm(value)}
+            stripped = self._LABEL.sub("", value)
+            out.add(self._norm(stripped))
+            # A lone label ("B") resolves through the options list.
+            label = value.strip().strip("().").strip()
+            if len(label) == 1 and label.isalpha():
+                idx = ord(label.upper()) - 65
+                if 0 <= idx < len(options):
+                    out.add(self._norm(options[idx]))
+            # A labelled answer ("B. 32%") also resolves through its label.
+            m = self._LABEL.match(value)
+            if m:
+                idx = ord(m.group(1).upper()) - 65
+                if 0 <= idx < len(options):
+                    out.add(self._norm(options[idx]))
+            out.discard("")
+            return out
+
+        return bool(variants(got) & variants(claimed))
 
     def _build_question_prompt(
         self,
