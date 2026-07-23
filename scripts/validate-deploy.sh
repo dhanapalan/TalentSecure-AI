@@ -19,7 +19,10 @@
 #         connectivity, backup freshness, git sync state.
 # =============================================================================
 
-set -uo pipefail
+# No `pipefail`: this script pipes into `grep -q`, which exits on first match and
+# SIGPIPEs the upstream command. With pipefail that reads as failure and inverts
+# every such test. No `errexit` either — a failed check must not abort the run.
+set -u
 
 # ── Config ────────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -31,8 +34,13 @@ MAX_BACKUP_AGE_DAYS=7
 QUIET=false
 LIVE=true
 
-# Volumes that must never be empty on a live deploy
-CRITICAL_VOLUMES=("pgdata" "miniodata")
+# Volumes that must hold real data on a live deploy.
+# Format: "key|marker-file" — the marker proves the volume is initialised.
+# Size is a poor signal here: an initialised MinIO volume is only ~30KB.
+CRITICAL_VOLUMES=(
+  "pgdata|PG_VERSION"
+  "miniodata|.minio.sys"
+)
 
 # ── Parse args ────────────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
@@ -147,6 +155,17 @@ vol_size_bytes() { # $1 = full volume name
 
 human() { local b="${1:-0}"; awk -v b="$b" 'BEGIN{s="B KB MB GB TB";split(s,a," ");i=1;while(b>=1024&&i<5){b/=1024;i++}printf "%.1f%s",b,a[i]}'; }
 
+# Does a marker file exist inside the volume? Definitive proof of initialisation.
+vol_has_marker() { # $1 = full volume name, $2 = marker path
+  local mp
+  mp="$(docker volume inspect "$1" --format '{{.Mountpoint}}' 2>/dev/null)"
+  if [[ -n "$mp" && -d "$mp" ]]; then
+    [[ -e "${mp}/$2" ]]
+  else
+    docker run --rm -v "$1:/v:ro" alpine test -e "/v/$2" >/dev/null 2>&1
+  fi
+}
+
 # Resolve each compose volume key to its actual docker volume name.
 # An explicit `name:` in the top-level volumes block overrides the project prefix.
 VOL_KEYS="$(docker compose config --volumes 2>/dev/null)"
@@ -168,12 +187,18 @@ for key in $VOL_KEYS; do
   fi
 
   bytes="$(vol_size_bytes "$full")"; bytes="${bytes:-0}"
-  is_critical=false
-  for c in "${CRITICAL_VOLUMES[@]}"; do [[ "$key" == "$c" ]] && is_critical=true; done
+  marker=""
+  for c in "${CRITICAL_VOLUMES[@]}"; do
+    [[ "$key" == "${c%%|*}" ]] && marker="${c##*|}"
+  done
 
-  if [[ "$is_critical" == true && "$bytes" -lt 65536 ]]; then
-    fail "$key → $full  is EMPTY ($(human "$bytes")) — likely pointed at the wrong volume"
-    info "check for an orphaned volume holding the real data (see Orphans below)"
+  if [[ -n "$marker" ]]; then
+    if vol_has_marker "$full" "$marker"; then
+      ok "$key → $full  ($(human "$bytes"), $origin, initialised)"
+    else
+      fail "$key → $full  is UNINITIALISED — no '$marker' present"
+      info "the service is pointed at a fresh volume; the real data is likely in an orphan below"
+    fi
   else
     ok "$key → $full  ($(human "$bytes"), $origin)"
   fi
@@ -363,8 +388,10 @@ if [[ "$LIVE" == true ]]; then
 
   section "Connectivity"
 
+  RUNNING_SERVICES="$(docker compose ps --status running --services 2>/dev/null | tr '\n' ' ')"
+
   # Postgres: does the target database actually exist?
-  if docker compose ps --status running 2>/dev/null | grep -q postgres; then
+  if [[ "$RUNNING_SERVICES" == *postgres* ]]; then
     PG_USER="$(get_resolved postgres POSTGRES_USER)"
     tgt_db="${url_db:-$PG_DB_ENV}"
     if docker compose exec -T postgres psql -U "${PG_USER:-postgres}" -d "$tgt_db" -c 'SELECT 1' >/dev/null 2>&1; then
@@ -380,34 +407,40 @@ if [[ "$LIVE" == true ]]; then
     fi
   fi
 
-  # Redis
-  if docker compose ps --status running 2>/dev/null | grep -q redis; then
-    if docker compose exec -T redis redis-cli ping 2>/dev/null | grep -q PONG; then
-      warn "redis answers PING with no authentication"
-    elif docker compose exec -T redis redis-cli -a "$(get_env REDIS_PASSWORD)" ping 2>/dev/null | grep -q PONG; then
-      ok "redis reachable and requires authentication"
+  # Redis — probe without credentials first; an unauthenticated PONG is the finding
+  if [[ "$RUNNING_SERVICES" == *redis* ]]; then
+    unauth="$(docker compose exec -T redis redis-cli PING 2>/dev/null | tr -d '\r\n')"
+    if [[ "$unauth" == "PONG" ]]; then
+      fail "redis accepts unauthenticated commands — anyone who reaches the port owns the data"
     else
-      fail "redis is not responding to PING"
+      authed="$(docker compose exec -T redis redis-cli -a "$(get_env REDIS_PASSWORD)" PING 2>/dev/null | tr -d '\r\n')"
+      if [[ "$authed" == *PONG* ]]; then
+        ok "redis requires authentication and accepts REDIS_PASSWORD"
+      else
+        fail "redis is not responding to PING"
+      fi
     fi
   fi
 
   # MinIO
-  if docker compose ps --status running 2>/dev/null | grep -q minio; then
+  if [[ "$RUNNING_SERVICES" == *minio* ]]; then
     if docker compose exec -T minio curl -fsS http://localhost:9000/minio/health/live >/dev/null 2>&1; then
       ok "minio health endpoint responding"
     else
       fail "minio health endpoint not responding"
     fi
-    if docker compose logs minio 2>/dev/null | tail -50 | grep -q 'Unknown xl meta version'; then
+    minio_log="$(docker compose logs --tail 50 minio 2>/dev/null)"
+    if [[ "$minio_log" == *"Unknown xl meta version"* ]]; then
       fail "minio reports 'Unknown xl meta version' — the image is OLDER than the data on disk"
       info "the running image was downgraded; pin it forward to the release that wrote the data"
     fi
   fi
 
-  # API surface
-  if docker compose logs api 2>/dev/null | tail -80 | grep -qi 'S3 unavailable'; then
+  # API surface — read the newest S3 line so a stale warning is not reported as current
+  api_s3="$(docker compose logs --tail 200 api 2>/dev/null | grep -iE 'S3 unavailable|S3 bucket' | tail -1)"
+  if [[ "$api_s3" == *"unavailable"* || "$api_s3" == *"Unavailable"* ]]; then
     fail "api logs 'S3 unavailable' — file uploads are disabled"
-  elif docker compose logs api 2>/dev/null | tail -80 | grep -q 'S3 bucket'; then
+  elif [[ -n "$api_s3" ]]; then
     ok "api reports S3 bucket ready"
   fi
 fi
@@ -419,39 +452,56 @@ if [[ ! -d "$BACKUP_ROOT" ]]; then
   fail "backup directory not found: $BACKUP_ROOT"
   info "run ./scripts/backup-volumes.sh to create the first backup"
 else
+  # Two layouts are accepted: timestamped sets (backup-volumes.sh) or loose
+  # archives written straight into the directory by hand.
   latest="$(find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort | tail -1)"
-  if [[ -z "$latest" ]]; then
-    fail "no backups found under $BACKUP_ROOT"
+  if [[ -n "$latest" ]]; then
+    set_dir="$latest"; layout="set $(basename "$latest")"
+  elif [[ -n "$(find "$BACKUP_ROOT" -maxdepth 1 -name '*.tar.gz' -o -maxdepth 1 -name '*.tgz' 2>/dev/null | head -1)" ]]; then
+    set_dir="$BACKUP_ROOT"; layout="loose archives"
+    warn "backups are loose archives, not timestamped sets — prefer ./scripts/backup-volumes.sh"
   else
-    age_days=$(( ( $(date +%s) - $(stat -c %Y "$latest" 2>/dev/null || stat -f %m "$latest") ) / 86400 ))
+    set_dir=""
+  fi
+
+  if [[ -z "$set_dir" ]]; then
+    fail "no backups found under $BACKUP_ROOT"
+    info "run ./scripts/backup-volumes.sh before any deploy that touches data"
+  else
+    newest="$(find "$set_dir" -maxdepth 1 -type f \( -name '*.tar.gz' -o -name '*.tgz' \) -printf '%T@\n' 2>/dev/null | sort -n | tail -1 | cut -d. -f1)"
+    newest="${newest:-$(stat -c %Y "$set_dir" 2>/dev/null)}"
+    age_days=$(( ( $(date +%s) - ${newest:-0} ) / 86400 ))
     if [[ "$age_days" -le "$MAX_BACKUP_AGE_DAYS" ]]; then
-      ok "latest backup is ${age_days}d old — $(basename "$latest")"
+      ok "newest backup is ${age_days}d old — ${layout}"
     else
-      fail "latest backup is ${age_days}d old (threshold ${MAX_BACKUP_AGE_DAYS}d) — $(basename "$latest")"
+      fail "newest backup is ${age_days}d old (threshold ${MAX_BACKUP_AGE_DAYS}d) — ${layout}"
     fi
 
-    for v in "${CRITICAL_VOLUMES[@]}"; do
-      f="${latest}/${v}.tar.gz"
-      if [[ -f "$f" ]]; then
+    for entry in "${CRITICAL_VOLUMES[@]}"; do
+      v="${entry%%|*}"
+      f=""
+      for cand in "${set_dir}/${v}.tar.gz" "${set_dir}/${v}.tgz"; do
+        [[ -f "$cand" ]] && f="$cand" && break
+      done
+      if [[ -n "$f" ]]; then
         sz=$(stat -c %s "$f" 2>/dev/null || stat -f %z "$f")
-        if [[ "$sz" -lt 1024 ]]; then
-          fail "backup ${v}.tar.gz is only $(human "$sz") — almost certainly empty"
+        if [[ "${sz:-0}" -lt 1024 ]]; then
+          fail "backup $(basename "$f") is only $(human "$sz") — almost certainly empty"
         else
-          ok "backup ${v}.tar.gz  ($(human "$sz"))"
+          ok "backup $(basename "$f")  ($(human "$sz"))"
         fi
       else
-        fail "no backup for critical volume '$v' in $(basename "$latest")"
+        fail "no backup for critical volume '$v' in ${layout}"
       fi
     done
 
-    if [[ -f "${latest}/manifest.txt" ]]; then
+    if [[ -f "${set_dir}/manifest.txt" ]]; then
       ok "manifest present with checksums"
     else
-      warn "no manifest.txt — integrity cannot be verified"
+      warn "no manifest.txt — archive integrity cannot be verified"
     fi
 
-    count="$(find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
-    info "$count backup set(s) retained, total $(du -sh "$BACKUP_ROOT" 2>/dev/null | cut -f1)"
+    info "total $(du -sh "$BACKUP_ROOT" 2>/dev/null | cut -f1) under $BACKUP_ROOT"
   fi
 fi
 
