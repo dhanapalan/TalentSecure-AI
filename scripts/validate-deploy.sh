@@ -36,6 +36,8 @@ LIVE=true
 # Ports that are deliberately internet-facing. Anything else on 0.0.0.0 fails.
 # Override with --public 80,443,9000 or PUBLIC_PORTS=80,443 in the environment.
 PUBLIC_PORTS="${PUBLIC_PORTS:-80,443}"
+# Extra profiles to consider (comma-separated), e.g. question-bank.
+PROFILES="${PROFILES:-question-bank}"
 
 # Volumes that must hold real data on a live deploy.
 # Format: "key|marker-file" — the marker proves the volume is initialised.
@@ -51,6 +53,8 @@ while [[ $# -gt 0 ]]; do
     -b|--backup-dir) BACKUP_ROOT="$2"; shift 2 ;;
     --max-age)       MAX_BACKUP_AGE_DAYS="$2"; shift 2 ;;
     --public)        PUBLIC_PORTS="$2"; shift 2 ;;
+    -f|--file)       COMPOSE_FILE="$2"; shift 2 ;;
+    --profiles)      PROFILES="$2"; shift 2 ;;
     -q|--quiet)      QUIET=true; shift ;;
     --no-live)       LIVE=false; shift ;;
     -h|--help)       sed -n '2,18p' "$0" | sed 's/^# \?//'; exit 0 ;;
@@ -59,6 +63,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 cd "$PROJECT_ROOT" || { echo "Cannot cd to $PROJECT_ROOT" >&2; exit 2; }
+
+# ── Compose wrapper ───────────────────────────────────────────────────────────
+# Every compose call goes through dc() so -f and --profile are applied uniformly.
+DC_ARGS=()
+[[ -n "$COMPOSE_FILE" ]] && DC_ARGS+=(-f "$COMPOSE_FILE")
+IFS=',' read -ra _profs <<< "$PROFILES"
+for _p in "${_profs[@]}"; do [[ -n "$_p" ]] && DC_ARGS+=(--profile "$_p"); done
+dc() { docker compose "${DC_ARGS[@]}" "$@"; }
 
 # ── Counters & output ─────────────────────────────────────────────────────────
 PASS=0; WARN=0; FAILED=0
@@ -105,7 +117,19 @@ fi
 # ── 1. Files ──────────────────────────────────────────────────────────────────
 section "Files"
 
-[[ -f "$COMPOSE_FILE" ]] && ok "docker-compose.yml present" || { fail "docker-compose.yml missing"; exit 2; }
+if [[ -f "$COMPOSE_FILE" ]]; then
+  ok "validating $(basename "$COMPOSE_FILE")"
+else
+  fail "compose file not found: $COMPOSE_FILE"; exit 2
+fi
+
+# deploy.sh may target a different file than the default. Validating the wrong
+# one reports confidently on a stack that is not the one running.
+deploy_file="$(grep -oE 'COMPOSE_FILE="[^"]+"' "${PROJECT_ROOT}/deploy.sh" 2>/dev/null | head -1 | cut -d'"' -f2)"
+if [[ -n "$deploy_file" && "$(basename "$COMPOSE_FILE")" != "$deploy_file" ]]; then
+  warn "deploy.sh deploys with '$deploy_file' but this run validates '$(basename "$COMPOSE_FILE")'"
+  info "re-run with:  -f $deploy_file"
+fi
 
 if [[ -f "$ENV_FILE" ]]; then
   ok ".env present"
@@ -127,7 +151,7 @@ fi
 # ── 2. Compose config resolves ────────────────────────────────────────────────
 section "Compose configuration"
 
-if ! COMPOSE_CONFIG="$(docker compose config 2>&1)"; then
+if ! COMPOSE_CONFIG="$(dc config 2>&1)"; then
   fail "docker compose config failed to parse:"
   printf '%s\n' "$COMPOSE_CONFIG" | head -5 | sed 's/^/      /'
   exit 2
@@ -172,7 +196,7 @@ vol_has_marker() { # $1 = full volume name, $2 = marker path
 
 # Resolve each compose volume key to its actual docker volume name.
 # An explicit `name:` in the top-level volumes block overrides the project prefix.
-VOL_KEYS="$(docker compose config --volumes 2>/dev/null)"
+VOL_KEYS="$(dc config --volumes 2>/dev/null)"
 for key in $VOL_KEYS; do
   explicit="$(printf '%s\n' "$COMPOSE_CONFIG" \
     | awk '/^volumes:/{f=1;next} f' \
@@ -368,11 +392,11 @@ section "Redis"
 # mounted redis.conf, or a CONFIG SET that was never written back to YAML.
 redis_running=false
 if [[ "$LIVE" == true ]]; then
-  docker compose ps --status running --services 2>/dev/null | grep -qx redis && redis_running=true
+  dc ps --status running --services 2>/dev/null | grep -qx redis && redis_running=true
 fi
 
 if [[ "$redis_running" == true ]]; then
-  unauth="$(docker compose exec -T redis redis-cli PING 2>/dev/null | tr -d '\r\n')"
+  unauth="$(dc exec -T redis redis-cli PING 2>/dev/null | tr -d '\r\n')"
   case "$unauth" in
     PONG)
       fail "redis accepts unauthenticated commands — anyone reaching the port owns the data" ;;
@@ -380,7 +404,7 @@ if [[ "$redis_running" == true ]]; then
       ok "redis enforces authentication (unauthenticated PING is refused)"
       rp="$(get_env REDIS_PASSWORD)"
       if [[ -n "$rp" ]]; then
-        authed="$(docker compose exec -T redis redis-cli -a "$rp" PING 2>/dev/null | tr -d '\r\n')"
+        authed="$(dc exec -T redis redis-cli -a "$rp" PING 2>/dev/null | tr -d '\r\n')"
         [[ "$authed" == *PONG* ]] \
           && ok "REDIS_PASSWORD from .env authenticates successfully" \
           || fail "REDIS_PASSWORD in .env does NOT authenticate — the API will fail on reconnect"
@@ -411,7 +435,7 @@ fi
 if [[ "$LIVE" == true ]]; then
   section "Running services"
 
-  running="$(docker compose ps --format '{{.Name}}\t{{.State}}\t{{.Status}}' 2>/dev/null)"
+  running="$(dc ps --format '{{.Name}}\t{{.State}}\t{{.Status}}' 2>/dev/null)"
   if [[ -z "$running" ]]; then
     warn "no containers running for project '$PROJECT'"
   else
@@ -426,14 +450,14 @@ if [[ "$LIVE" == true ]]; then
 
   section "Connectivity"
 
-  RUNNING_SERVICES="$(docker compose ps --status running --services 2>/dev/null | tr '\n' ' ')"
+  RUNNING_SERVICES="$(dc ps --status running --services 2>/dev/null | tr '\n' ' ')"
 
   # Postgres: does the target database actually exist?
   if [[ "$RUNNING_SERVICES" == *postgres* ]]; then
     PG_USER="$(get_resolved postgres POSTGRES_USER)"
     tgt_db="${url_db:-$PG_DB_ENV}"
-    if docker compose exec -T postgres psql -U "${PG_USER:-postgres}" -d "$tgt_db" -c 'SELECT 1' >/dev/null 2>&1; then
-      tables="$(docker compose exec -T postgres psql -U "$PG_USER" -d "$tgt_db" -tAc \
+    if dc exec -T postgres psql -U "${PG_USER:-postgres}" -d "$tgt_db" -c 'SELECT 1' >/dev/null 2>&1; then
+      tables="$(dc exec -T postgres psql -U "$PG_USER" -d "$tgt_db" -tAc \
         "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'" 2>/dev/null | tr -d '\r')"
       if [[ "${tables:-0}" -gt 0 ]]; then
         ok "postgres '$tgt_db' reachable — ${tables} tables in public schema"
@@ -449,12 +473,12 @@ if [[ "$LIVE" == true ]]; then
 
   # MinIO
   if [[ "$RUNNING_SERVICES" == *minio* ]]; then
-    if docker compose exec -T minio curl -fsS http://localhost:9000/minio/health/live >/dev/null 2>&1; then
+    if dc exec -T minio curl -fsS http://localhost:9000/minio/health/live >/dev/null 2>&1; then
       ok "minio health endpoint responding"
     else
       fail "minio health endpoint not responding"
     fi
-    minio_log="$(docker compose logs --tail 50 minio 2>/dev/null)"
+    minio_log="$(dc logs --tail 50 minio 2>/dev/null)"
     if [[ "$minio_log" == *"Unknown xl meta version"* ]]; then
       fail "minio reports 'Unknown xl meta version' — the image is OLDER than the data on disk"
       info "the running image was downgraded; pin it forward to the release that wrote the data"
@@ -462,11 +486,88 @@ if [[ "$LIVE" == true ]]; then
   fi
 
   # API surface — read the newest S3 line so a stale warning is not reported as current
-  api_s3="$(docker compose logs --tail 200 api 2>/dev/null | grep -iE 'S3 unavailable|S3 bucket' | tail -1)"
+  api_s3="$(dc logs --tail 200 api 2>/dev/null | grep -iE 'S3 unavailable|S3 bucket' | tail -1)"
   if [[ "$api_s3" == *"unavailable"* || "$api_s3" == *"Unavailable"* ]]; then
     fail "api logs 'S3 unavailable' — file uploads are disabled"
   elif [[ -n "$api_s3" ]]; then
     ok "api reports S3 bucket ready"
+  fi
+fi
+
+# ── 10b. Question-bank RAG engine ─────────────────────────────────────────────
+# Opt-in service behind the question-bank profile. Absent is fine; broken is not.
+section "Question-bank engine"
+
+QB_ENV="${PROJECT_ROOT}/ai-engine/question_bank_engine/.env"
+qb_running=false
+if [[ "$LIVE" == true ]]; then
+  dc ps --status running --services 2>/dev/null | grep -qx question-bank && qb_running=true
+fi
+
+if [[ ! -f "$QB_ENV" ]]; then
+  warn "no .env at ai-engine/question_bank_engine/ — engine falls back to defaults"
+else
+  ok "engine .env present"
+  qb_get() { grep -E "^[[:space:]]*$1=" "$QB_ENV" 2>/dev/null | tail -1 | cut -d= -f2-; }
+  provider="$(qb_get LLM_PROVIDER)"
+  case "${provider:-}" in
+    groq)      key="$(qb_get GROQ_API_KEY)";      model="$(qb_get GROQ_MODEL)" ;;
+    openai)    key="$(qb_get OPENAI_API_KEY)";    model="$(qb_get OPENAI_MODEL)" ;;
+    anthropic) key="$(qb_get ANTHROPIC_API_KEY)"; model="$(qb_get ANTHROPIC_MODEL)" ;;
+    ollama)    key="n/a";                          model="$(qb_get OLLAMA_MODEL)" ;;
+    *)         key=""; model="" ;;
+  esac
+
+  if [[ -z "${provider:-}" ]]; then
+    warn "LLM_PROVIDER not set in the engine .env"
+  elif [[ -z "$key" || "$key" == *your_api_key* || "$key" == *_here ]]; then
+    fail "LLM_PROVIDER=$provider but its API key is missing or a placeholder"
+  else
+    ok "LLM provider '$provider' configured with a key ($(mask "$key"))"
+  fi
+
+  # Retired hosted models fail every call while the endpoint still returns 200.
+  case "${model:-}" in
+    mixtral-8x7b-32768|llama2-70b-4096|gemma-7b-it)
+      fail "GROQ model '$model' is decommissioned — generation returns zero questions"
+      info "list current models: curl -s https://api.groq.com/openai/v1/models -H \"Authorization: Bearer \$KEY\"" ;;
+    "") warn "no model configured for provider '${provider:-unset}'" ;;
+    *)  ok "model '$model'" ;;
+  esac
+
+  [[ -z "$(qb_get QUESTION_ENGINE_API_KEY)" ]] && warn "QUESTION_ENGINE_API_KEY unset — ingest endpoints are unprotected"
+fi
+
+if [[ "$qb_running" != true ]]; then
+  info "question-bank is not running (opt-in profile) — skipping live checks"
+  info "start it with: ./deploy.sh question-bank"
+else
+  qb_port="$(printf '%s
+' "$COMPOSE_CONFIG" | grep -oE 'published: "8001"' | head -1)"
+  health="$(dc exec -T question-bank curl -fsS http://localhost:8001/health 2>/dev/null)"
+  if [[ -z "$health" ]]; then
+    fail "question-bank is running but /health did not respond"
+    info "first boot downloads the embedding model; allow ~3 minutes"
+  else
+    ok "/health responding"
+    for comp in document_loader llm; do
+      if [[ "$health" == *"\"$comp\":\"healthy\""* ]]; then
+        ok "  component $comp healthy"
+      else
+        fail "  component $comp is not healthy"
+      fi
+    done
+
+    # An empty index still reports healthy, so check chunk count explicitly.
+    chunks="$(printf '%s' "$health" | grep -oE '"total_chunks":[0-9]+' | head -1 | cut -d: -f2)"
+    docs="$(printf '%s' "$health" | grep -oE '"unique_documents":[0-9]+' | head -1 | cut -d: -f2)"
+    if [[ "${chunks:-0}" -gt 0 ]]; then
+      ok "knowledge base populated — ${docs:-?} document(s), ${chunks} chunk(s)"
+    else
+      fail "knowledge base is EMPTY — retrieval returns nothing and questions come out blank"
+      info "seed it: docker cp ai-engine/question_bank_engine/data/documents/. talentsecure-question-bank:/app/question_bank_engine/data/documents/"
+      info "then:    curl -X POST http://127.0.0.1:8001/documents/ingest-batch -H \"X-API-Key: \$KEY\""
+    fi
   fi
 fi
 
