@@ -311,6 +311,9 @@ model student_details {
   alternate_phone    String?   @db.VarChar(20)
   specialization     String?   @db.VarChar(150)
   passing_year       Int?
+  branch             String?   @db.VarChar(150)
+  academic_start_year Int?
+  academic_end_year   Int?
   cgpa               Decimal?  @db.Decimal(4, 2)
   percentage         Decimal?  @db.Decimal(5, 2)
   resume_url         String?   @db.VarChar(500)
@@ -346,6 +349,9 @@ model student_details {
   @@index([gender], map: "idx_student_details_gender")
   @@index([passing_year], map: "idx_student_details_passing_year")
   @@index([specialization], map: "idx_student_details_specialization")
+  @@index([academic_end_year], map: "idx_student_details_academic_end_year")
+  @@index([academic_start_year], map: "idx_student_details_academic_start_year")
+  @@index([branch], map: "idx_student_details_branch")
   @@index([user_id], map: "idx_student_details_user_id")
 }
 

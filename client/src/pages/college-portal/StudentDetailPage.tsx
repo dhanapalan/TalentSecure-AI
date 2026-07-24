@@ -15,7 +15,6 @@ import {
   Building2,
   GraduationCap,
   Calendar,
-  Layers,
   BookOpen,
   Briefcase,
   Gauge,
@@ -31,7 +30,7 @@ import campusStudentsService, {
   type RiskLevel,
   type StudentOverview,
 } from "../../services/campusStudentsService";
-import { formatCourseYears } from "../../lib/courseYears";
+import { formatAcademicYears } from "../../lib/courseYears";
 import { useAuthStore } from "../../stores/authStore";
 
 type DetailTab = "overview" | "academic" | "placement" | "documents";
@@ -159,7 +158,7 @@ export default function CollegePortalStudentDetailPage() {
             </div>
             <p className="mt-0.5 truncate text-sm text-gray-500">{s.email}</p>
             <p className="mt-1 text-xs text-gray-400">
-              {[s.roll_number, s.department, s.program].filter(Boolean).join(" · ") || "—"}
+              {[s.roll_number, s.branch || s.department, s.program].filter(Boolean).join(" · ") || "—"}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -240,7 +239,7 @@ function OverviewTab({ student: s }: { student: StudentOverview }) {
           <CardTitle className="text-base">At a glance</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2">
-          <Field icon={Building2} label="Department" value={s.department} />
+          <Field icon={Building2} label="Branch" value={s.branch || s.department} />
           <Field icon={GraduationCap} label="Program" value={s.program || s.degree} />
           <Field
             icon={Briefcase}
@@ -277,18 +276,17 @@ function AcademicTab({ student: s }: { student: StudentOverview }) {
         <CardTitle className="text-base">Academic Information</CardTitle>
       </CardHeader>
       <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <Field icon={Building2} label="Department" value={s.department} />
+        <Field icon={Building2} label="Branch" value={s.branch || s.department} />
         <Field icon={GraduationCap} label="Program" value={s.program || s.degree} />
         <Field
           icon={Calendar}
           label="Academic Year"
-          value={
-            s.academic_year != null || s.passing_year != null
-              ? formatCourseYears(s.program || s.degree, s.academic_year ?? s.passing_year)
-              : "—"
-          }
+          value={formatAcademicYears(
+            s.academic_start_year,
+            s.academic_end_year ?? s.academic_year ?? s.passing_year,
+            s.program || s.degree
+          )}
         />
-        <Field icon={Layers} label="Batch" value={s.batch} />
         <Field icon={BookOpen} label="Semester" value={s.semester} />
         <Field icon={Hash} label="Section" value={s.section} />
         <Field

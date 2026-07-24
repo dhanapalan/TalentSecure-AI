@@ -16,7 +16,11 @@ export interface CampusStudent {
   is_active: boolean;
   student_id: string;
   roll_number: string;
+  academic_start_year?: number | null;
+  academic_end_year?: number | null;
+  /** @deprecated alias of academic_end_year */
   passing_year: number;
+  branch?: string | null;
   department: string;
   degree: string;
   cgpa: number;
@@ -58,7 +62,10 @@ export interface StudentOverview {
   gender: string | null;
   dob: string | null;
   department: string | null;
+  branch?: string | null;
   program: string | null;
+  academic_start_year?: number | null;
+  academic_end_year?: number | null;
   academic_year: number | null;
   batch: string | null;
   semester: string | null;
@@ -148,10 +155,13 @@ export interface UpdateStudentPayload {
   dob?: string | null;
   email?: string | null;
   department?: string;
+  branch?: string | null;
   program?: string | null;
   batch?: string;
   semester?: string | null;
   section?: string | null;
+  academic_start_year?: number | null;
+  academic_end_year?: number | null;
   academic_year?: number | null;
   placement_eligible?: boolean;
   student_identifier?: string;
@@ -165,6 +175,9 @@ export interface CreateStudentPayload {
   phone_number?: string | null;
   degree?: string | null;
   specialization?: string | null;
+  branch?: string | null;
+  academic_start_year?: number | null;
+  academic_end_year?: number | null;
   passing_year?: number | null;
   cgpa?: number | null;
   roll_number?: string;
@@ -188,6 +201,9 @@ export interface BulkImportStudent {
   phone_number?: string;
   degree?: string;
   specialization?: string;
+  branch?: string;
+  academic_start_year?: number;
+  academic_end_year?: number;
   passing_year?: number;
   cgpa?: number;
 }
@@ -200,12 +216,12 @@ export interface BulkRowData {
   dob: string;
   email: string;
   phone_number: string;
-  department: string;
+  branch: string;
   program: string;
-  batch: string;
+  academic_start_year: string;
+  academic_end_year: string;
   semester: string;
   section: string;
-  academic_year: string;
   cgpa: string;
   placement_eligible: string;
   placement_status: string;

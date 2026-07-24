@@ -39,7 +39,7 @@ import campusStudentsService, {
 } from "../../services/campusStudentsService";
 import campusDepartmentsService from "../../services/campusDepartmentsService";
 import { cn } from "../../lib/utils";
-import { formatCourseYears } from "../../lib/courseYears";
+import { formatAcademicYears } from "../../lib/courseYears";
 import StudentBulkUploadModal from "../../components/college-portal/StudentBulkUploadModal";
 
 const EMPTY_CREATE = {
@@ -48,8 +48,9 @@ const EMPTY_CREATE = {
   student_identifier: "",
   phone_number: "",
   degree: "",
-  specialization: "",
-  passing_year: "",
+  branch: "",
+  academic_start_year: "",
+  academic_end_year: "",
   cgpa: "",
 };
 
@@ -242,8 +243,13 @@ export default function CollegePortalStudentsPage() {
         student_identifier: createForm.student_identifier || undefined,
         phone_number: createForm.phone_number || undefined,
         degree: createForm.degree || undefined,
-        specialization: createForm.specialization || undefined,
-        passing_year: createForm.passing_year ? Number(createForm.passing_year) : undefined,
+        branch: createForm.branch || undefined,
+        academic_start_year: createForm.academic_start_year
+          ? Number(createForm.academic_start_year)
+          : undefined,
+        academic_end_year: createForm.academic_end_year
+          ? Number(createForm.academic_end_year)
+          : undefined,
         cgpa: createForm.cgpa ? Number(createForm.cgpa) : undefined,
       }),
     onSuccess: (res: any) => {
@@ -318,9 +324,10 @@ export default function CollegePortalStudentsPage() {
                   ["email", "Email *"],
                   ["student_identifier", "Roll / ID"],
                   ["phone_number", "Phone"],
-                  ["degree", "Degree / Dept"],
-                  ["specialization", "Specialization"],
-                  ["passing_year", "Academic Year"],
+                  ["degree", "Program / Degree"],
+                  ["branch", "Branch"],
+                  ["academic_start_year", "Academic start year"],
+                  ["academic_end_year", "Academic end year"],
                   ["cgpa", "CGPA"],
                 ] as const
               ).map(([key, label]) => (
@@ -435,7 +442,7 @@ export default function CollegePortalStudentsPage() {
                     setPage(1);
                   }}
                 >
-                  <option value="">All departments</option>
+                  <option value="">All branches</option>
                   {departments.map((d) => (
                     <option key={d.id} value={d.name}>
                       {d.name}
@@ -449,10 +456,10 @@ export default function CollegePortalStudentsPage() {
                     setPage(1);
                   }}
                 >
-                  <option value="">All batches</option>
+                  <option value="">All end years</option>
                   {BATCH_YEARS.map((y) => (
                     <option key={y} value={y}>
-                      Batch {y}
+                      End {y}
                     </option>
                   ))}
                 </Select>
@@ -579,7 +586,7 @@ export default function CollegePortalStudentsPage() {
                     />
                   </TableHead>
                   <TableHead>Student</TableHead>
-                  <TableHead className="hidden md:table-cell">Department</TableHead>
+                  <TableHead className="hidden md:table-cell">Branch</TableHead>
                   <TableHead className="hidden sm:table-cell">Academic Year</TableHead>
                   <TableHead className="hidden md:table-cell">CGPA</TableHead>
                   <TableHead>Readiness</TableHead>
@@ -636,10 +643,14 @@ export default function CollegePortalStudentsPage() {
                         </div>
                       </TableCell>
                       <TableCell className="hidden md:table-cell text-gray-600">
-                        {student.department || "—"}
+                        {student.branch || student.department || "—"}
                       </TableCell>
                       <TableCell className="hidden sm:table-cell tabular-nums text-gray-600">
-                        {formatCourseYears(student.degree, student.passing_year)}
+                        {formatAcademicYears(
+                          student.academic_start_year,
+                          student.academic_end_year ?? student.passing_year,
+                          student.degree
+                        )}
                       </TableCell>
                       <TableCell className="hidden md:table-cell tabular-nums text-gray-600">
                         {student.cgpa != null ? student.cgpa.toFixed(2) : "—"}

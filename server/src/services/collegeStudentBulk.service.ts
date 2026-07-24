@@ -16,12 +16,12 @@ export const BULK_HEADERS = [
   "dob",
   "email",
   "phone_number",
-  "department",
+  "branch",
   "program",
-  "batch",
+  "academic_start_year",
+  "academic_end_year",
   "semester",
   "section",
-  "academic_year",
   "cgpa",
   "placement_eligible",
   "placement_status",
@@ -45,15 +45,22 @@ const HEADER_ALIASES: Record<string, string> = {
   phone_number: "phone_number",
   phone: "phone_number",
   mobile: "phone_number",
-  department: "department",
-  dept: "department",
+  branch: "branch",
+  department: "branch",
+  dept: "branch",
+  specialization: "branch",
   program: "program",
   degree: "program",
-  batch: "batch",
+  academic_start_year: "academic_start_year",
+  start_year: "academic_start_year",
+  course_start_year: "academic_start_year",
+  academic_end_year: "academic_end_year",
+  end_year: "academic_end_year",
+  academic_year: "academic_end_year",
+  passing_year: "academic_end_year",
+  batch: "academic_end_year",
   semester: "semester",
   section: "section",
-  academic_year: "academic_year",
-  passing_year: "academic_year",
   cgpa: "cgpa",
   placement_eligible: "placement_eligible",
   placement_status: "placement_status",
@@ -69,12 +76,12 @@ export interface BulkRowData {
   dob: string;
   email: string;
   phone_number: string;
-  department: string;
+  branch: string;
   program: string;
-  batch: string;
+  academic_start_year: string;
+  academic_end_year: string;
   semester: string;
   section: string;
-  academic_year: string;
   cgpa: string;
   placement_eligible: string;
   placement_status: string;
@@ -118,12 +125,12 @@ export function buildSampleTemplateBuffer(): Buffer {
       dob: "2004-05-10",
       email: "ada.lovelace@college.edu",
       phone_number: "9876543210",
-      department: "Computer Science",
+      branch: "Computer Science",
       program: "B.E",
-      batch: "2026",
+      academic_start_year: "2022",
+      academic_end_year: "2026",
       semester: "6",
       section: "A",
-      academic_year: "2026",
       cgpa: "8.5",
       placement_eligible: "yes",
       placement_status: "Not Shortlisted",
@@ -162,23 +169,26 @@ export function parseExcelBuffer(buffer: Buffer): Record<string, string>[] {
 }
 
 async function loadCollegeCatalog(collegeId: string) {
-  const depts = await query<{ v: string }>(
-    `SELECT DISTINCT TRIM(specialization) AS v
+  const branches = await query<{ v: string }>(
+    `SELECT DISTINCT TRIM(COALESCE(NULLIF(branch, ''), specialization)) AS v
      FROM student_details
-     WHERE college_id = $1 AND specialization IS NOT NULL AND TRIM(specialization) <> ''
+     WHERE college_id = $1
+       AND COALESCE(NULLIF(branch, ''), specialization) IS NOT NULL
+       AND TRIM(COALESCE(NULLIF(branch, ''), specialization)) <> ''
      LIMIT 200`,
     [collegeId]
   ).catch(() => []);
-  const batches = await query<{ v: string }>(
-    `SELECT DISTINCT TRIM(class_name) AS v
+  const endYears = await query<{ v: string }>(
+    `SELECT DISTINCT TRIM(COALESCE(academic_end_year, passing_year)::text) AS v
      FROM student_details
-     WHERE college_id = $1 AND class_name IS NOT NULL AND TRIM(class_name) <> ''
+     WHERE college_id = $1
+       AND COALESCE(academic_end_year, passing_year) IS NOT NULL
      LIMIT 200`,
     [collegeId]
   ).catch(() => []);
   return {
-    departments: new Set(depts.map((d) => d.v.toLowerCase())),
-    batches: new Set(batches.map((b) => b.v.toLowerCase())),
+    branches: new Set(branches.map((d) => d.v.toLowerCase())),
+    endYears: new Set(endYears.map((b) => b.v.toLowerCase())),
   };
 }
 
@@ -210,12 +220,12 @@ function toRowData(raw: Record<string, string>): BulkRowData {
     dob: raw.dob || "",
     email: (raw.email || "").toLowerCase(),
     phone_number: raw.phone_number || "",
-    department: raw.department || "",
+    branch: raw.branch || "",
     program: raw.program || "",
-    batch: raw.batch || "",
+    academic_start_year: raw.academic_start_year || "",
+    academic_end_year: raw.academic_end_year || "",
     semester: raw.semester || "",
     section: raw.section || "",
-    academic_year: raw.academic_year || "",
     cgpa: raw.cgpa || "",
     placement_eligible: raw.placement_eligible || "",
     placement_status: raw.placement_status || "Not Shortlisted",
@@ -245,26 +255,39 @@ export async function validateBulkRows(
 
     if (!data.roll_number) errors.push("Missing mandatory field: Roll Number");
     if (!data.name) errors.push("Missing mandatory field: Student Name");
-    if (!data.department) errors.push("Missing mandatory field: Department");
-    if (!data.batch) errors.push("Missing mandatory field: Batch");
+    if (!data.branch) errors.push("Missing mandatory field: Branch");
+    if (!data.academic_end_year) errors.push("Missing mandatory field: Academic end year");
     if (!data.email) errors.push("Missing mandatory field: Email");
 
     if (data.email && !isValidEmail(data.email)) errors.push("Invalid Email");
     if (data.phone_number && !isValidPhone(data.phone_number)) errors.push("Invalid Phone");
 
     if (
-      catalog.departments.size > 0 &&
-      data.department &&
-      !catalog.departments.has(data.department.toLowerCase())
+      catalog.branches.size > 0 &&
+      data.branch &&
+      !catalog.branches.has(data.branch.toLowerCase())
     ) {
-      errors.push("Invalid Department");
+      errors.push("Invalid Branch");
     }
-    if (
-      catalog.batches.size > 0 &&
-      data.batch &&
-      !catalog.batches.has(data.batch.toLowerCase())
-    ) {
-      errors.push("Invalid Batch");
+
+    if (data.academic_start_year) {
+      const start = Number(data.academic_start_year);
+      if (!Number.isInteger(start) || start < 1900 || start > 2200) {
+        errors.push("Invalid academic start year");
+      }
+    }
+    if (data.academic_end_year) {
+      const end = Number(data.academic_end_year);
+      if (!Number.isInteger(end) || end < 1900 || end > 2200) {
+        errors.push("Invalid academic end year");
+      }
+    }
+    if (data.academic_start_year && data.academic_end_year) {
+      const start = Number(data.academic_start_year);
+      const end = Number(data.academic_end_year);
+      if (Number.isFinite(start) && Number.isFinite(end) && start > end) {
+        errors.push("Academic start year must be on or before end year");
+      }
     }
 
     if (data.cgpa) {
@@ -379,7 +402,8 @@ export async function importValidatedRows(
         const tempPassword = `Campus${Math.random().toString(36).slice(2, 8)}!`;
         const hashed = await bcrypt.hash(tempPassword, 12);
         const parts = d.name.split(/\s+/);
-        const year = d.academic_year ? parseInt(d.academic_year, 10) : null;
+        const startYear = d.academic_start_year ? parseInt(d.academic_start_year, 10) : null;
+        const endYear = d.academic_end_year ? parseInt(d.academic_end_year, 10) : null;
         const cgpa = d.cgpa ? Number(d.cgpa) : null;
         const gender = d.gender || null;
         const dob = d.dob || null;
@@ -395,9 +419,9 @@ export async function importValidatedRows(
         await client.query(
           `INSERT INTO student_details
              (user_id, college_id, first_name, last_name, student_identifier, register_number,
-              phone_number, gender, dob, degree, specialization, class_name, semester, section,
-              passing_year, cgpa, eligible_for_hiring, placement_status)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::date,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
+              phone_number, gender, dob, degree, specialization, branch, class_name, semester, section,
+              academic_start_year, academic_end_year, passing_year, cgpa, eligible_for_hiring, placement_status)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::date,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
           [
             userId,
             collegeId,
@@ -409,11 +433,14 @@ export async function importValidatedRows(
             gender,
             dob,
             d.program || null,
-            d.department,
-            d.batch,
+            d.branch,
+            d.branch,
+            Number.isFinite(endYear as number) ? String(endYear) : null,
             d.semester || null,
             d.section || null,
-            Number.isFinite(year as number) ? year : null,
+            Number.isFinite(startYear as number) ? startYear : null,
+            Number.isFinite(endYear as number) ? endYear : null,
+            Number.isFinite(endYear as number) ? endYear : null,
             Number.isFinite(cgpa as number) ? cgpa : null,
             parseEligible(d.placement_eligible),
             d.placement_status || "Not Shortlisted",
