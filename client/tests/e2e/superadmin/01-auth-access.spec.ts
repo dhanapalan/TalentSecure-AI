@@ -35,8 +35,8 @@ test.describe('A. Authentication & Access Control', () => {
   test.describe('Positive', () => {
     test('A1 — valid super-admin login lands on the dashboard', async ({ page }) => {
       await page.goto('/auth/login');
-      await page.locator('input[type="email"]').fill(ADMIN.email);
-      await page.locator('input[type="password"]').fill(ADMIN.password);
+      await page.getByLabel(/email or student id/i).fill(ADMIN.email);
+      await page.getByLabel(/^password$/i).fill(ADMIN.password);
       await page.getByRole('button', { name: /sign in/i }).click();
 
       await expect(page).toHaveURL(/\/app\/superadmin\/dashboard/, { timeout: 20_000 });
@@ -86,8 +86,8 @@ test.describe('A. Authentication & Access Control', () => {
     test('A-neg1 — wrong password shows a clear error, no crash', async ({ page }) => {
       const errors = collectConsoleErrors(page);
       await page.goto('/auth/login');
-      await page.locator('input[type="email"]').fill(ADMIN.email);
-      await page.locator('input[type="password"]').fill('definitely-wrong-password');
+      await page.getByLabel(/email or student id/i).fill(ADMIN.email);
+      await page.getByLabel(/^password$/i).fill('definitely-wrong-password');
       await page.getByRole('button', { name: /sign in/i }).click();
 
       await expect(page.getByText(/invalid|incorrect|failed|wrong/i).first()).toBeVisible({ timeout: 15_000 });

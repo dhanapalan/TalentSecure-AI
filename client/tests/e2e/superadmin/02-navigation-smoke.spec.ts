@@ -21,9 +21,10 @@ test.describe('Portal navigation smoke', () => {
   test('sidebar renders the three section groups', async ({ adminPage }) => {
     await adminPage.goto('/app/superadmin/dashboard');
     const nav = adminPage.locator('aside nav');
-    await expect(nav.getByText('Overview', { exact: true })).toBeVisible();
-    await expect(nav.getByText('Manage', { exact: true })).toBeVisible();
-    await expect(nav.getByText('System', { exact: true })).toBeVisible();
+    // Current IA uses accordion hubs (Organization / Learning / Assessment / ...).
+    await expect(nav.getByText(/Organization Management|Organization/i).first()).toBeVisible();
+    await expect(nav.getByText(/Assessment Hub/i).first()).toBeVisible();
+    await expect(nav.getByText(/Administration/i).first()).toBeVisible();
   });
 
   test('sidebar link navigates (Students)', async ({ adminPage }) => {
