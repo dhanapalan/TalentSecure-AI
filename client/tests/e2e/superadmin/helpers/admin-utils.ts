@@ -22,7 +22,7 @@ const BENIGN = [
   /Failed to load resource.*(404|401|403)/i, // network status surfaced elsewhere
   /Download the React DevTools/i,
   /\[vite\]/i,
-  /Content Security Policy/i, // prod CSP blocks fonts.googleapis.com; UI still renders
+  /Content Security Policy/i, // filter residual CSP noise (extensions / preview tooling)
   /fonts\.googleapis\.com/i,
 ];
 

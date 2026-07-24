@@ -99,7 +99,7 @@ function writeReport() {
     '',
     '## Findings',
     '',
-    '1. **CSP blocks Google Fonts** - production CSP `style-src \'self\' \'unsafe-inline\'` rejects `fonts.googleapis.com`. Pages still render; console shows CSP errors. Legacy e2e suite treats these as failures.',
+    '1. **CSP Google Fonts** - previously blocked; allowlist fonts.googleapis.com / fonts.gstatic.com in `client/vercel.json` (see CSP fix PR).',
     '2. **Login input selector drift** - form uses "Email or Student ID" (`type=text`), not `input[type=email]`.',
     '3. **Sidebar IA changed** - hubs are Organization / Learning Hub / Assessment Hub / ... (not Overview / Manage / System).',
     '4. **Dashboard KPIs may show zeros** while org modules still have data (colleges/users populated).',
