@@ -4,6 +4,8 @@ Scenario ID → UI route / API → automation → status.
 
 Status values: `AUTOMATED` | `PARTIAL` | `MANUAL` | `BACKLOG`.
 
+**Admin portal catalog:** scenario IDs `AUTH-*` … `CRUD-*` are defined in [ADMIN_PORTAL_VALIDATION_SCENARIOS.md](./ADMIN_PORTAL_VALIDATION_SCENARIOS.md). Workflow IDs below (`WF-ONB-*`, `WF-PA-*`) remain the automation-facing keys.
+
 ---
 
 ## Workflows (primary)
