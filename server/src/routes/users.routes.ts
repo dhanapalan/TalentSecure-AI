@@ -114,6 +114,18 @@ router.post(
 );
 
 /**
+ * Reset a user's password to a freshly generated temporary one.
+ * POST /api/superadmin/users/:id/reset-password
+ */
+router.post(
+  "/:id/reset-password",
+  authenticate,
+  authorize("super_admin"),
+  requirePermission("users_manage"),
+  usersController.resetUserPassword
+);
+
+/**
  * Bulk user operations
  * POST /api/superadmin/users/bulk-action
  * Body: { user_ids: [id1, id2], action: "suspend|delete|activate" }

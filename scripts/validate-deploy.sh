@@ -287,6 +287,72 @@ done < <(printf '%s\n' "$COMPOSE_CONFIG" \
 
 [[ "$placeholders" -eq 0 ]] && ok "no placeholder values detected"
 
+# ── 6b. SMTP ───────────────────────────────────────────────────────────────────
+# Encodes a real incident: SMTP_USER/PASS were set to real-looking values but
+# email still didn't arrive, through three separate causes in sequence --
+# a placeholder password, a space-separated Gmail app password (Google displays
+# it grouped for readability; the actual credential has no spaces), and an
+# EMAIL_FROM domain that didn't match the authenticated account. None of these
+# throw: sendEmail() silently "simulates" when creds are unset, and a rejected
+# auth only ever surfaced in container logs, never in the API response.
+section "SMTP"
+
+SMTP_HOST_V="$(get_env SMTP_HOST)"; SMTP_PORT_V="$(get_env SMTP_PORT)"
+SMTP_USER_V="$(get_env SMTP_USER)"; SMTP_PASS_V="$(get_env SMTP_PASS)"
+EMAIL_FROM_V="$(get_env EMAIL_FROM)"
+
+if [[ -z "$SMTP_USER_V" || -z "$SMTP_PASS_V" ]]; then
+  warn "SMTP_USER/SMTP_PASS not set — email sends are simulated (logged only, nothing delivered)"
+elif [[ "$SMTP_USER_V" == *your-email* || "$SMTP_PASS_V" == *your-gmail* || "$SMTP_PASS_V" == *app-password* ]]; then
+  fail "SMTP_USER/SMTP_PASS still look like placeholders"
+else
+  ok "SMTP_USER set ($(mask "$SMTP_USER_V"))"
+
+  if [[ "$SMTP_PASS_V" == *" "* ]]; then
+    fail "SMTP_PASS contains spaces — Gmail displays app passwords grouped in 4s for readability, but the actual credential has none. Strip them."
+  else
+    ok "SMTP_PASS has no embedded spaces"
+  fi
+
+  # Gmail rejects/flags a From address on a different domain than the
+  # authenticated account unless that domain has explicitly delegated to it.
+  from_addr="$(printf '%s' "$EMAIL_FROM_V" | grep -oE '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+' | head -1)"
+  user_domain="${SMTP_USER_V##*@}"; from_domain="${from_addr##*@}"
+  if [[ -n "$from_domain" && -n "$user_domain" && "$from_domain" != "$user_domain" ]]; then
+    warn "EMAIL_FROM domain '$from_domain' differs from the authenticated SMTP_USER domain '$user_domain' — Gmail and most relays reject or spam-flag this unless the sending domain is verified/delegated"
+  elif [[ -n "$from_domain" ]]; then
+    ok "EMAIL_FROM domain matches the authenticated account"
+  fi
+fi
+
+# Live check: verify SMTP auth through the API's own nodemailer config and
+# transport, inside the container, so it tests exactly what production sends
+# with -- not a reconstruction that could pass while the real one fails.
+# (Checked independently here, not via the global RUNNING_SERVICES -- that is
+# only populated later, in the Connectivity section.)
+api_up=false
+if [[ "$LIVE" == true ]]; then
+  dc ps --status running --services 2>/dev/null | grep -qx api && api_up=true
+fi
+if [[ "$api_up" == true && -n "$SMTP_USER_V" && -n "$SMTP_PASS_V" ]]; then
+  smtp_check="$(dc exec -T api node -e "
+    const nodemailer = require('nodemailer');
+    const t = nodemailer.createTransport({
+      host: process.env.SMTP_HOST, port: Number(process.env.SMTP_PORT),
+      secure: Number(process.env.SMTP_PORT) === 465,
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+      connectionTimeout: 8000,
+    });
+    t.verify().then(() => console.log('SMTP_OK')).catch(e => console.log('SMTP_FAIL: ' + e.message));
+  " 2>/dev/null | tr -d '\r')"
+
+  case "$smtp_check" in
+    SMTP_OK)      ok "SMTP authentication verified live against $SMTP_HOST_V:$SMTP_PORT_V" ;;
+    SMTP_FAIL:*)  fail "SMTP auth failed: ${smtp_check#SMTP_FAIL: }" ;;
+    *)            warn "could not run the live SMTP check (${smtp_check:-no output}) — nodemailer may not be resolvable from the container shell" ;;
+  esac
+fi
+
 # ── 7. Credential consistency ─────────────────────────────────────────────────
 section "Credential consistency"
 
@@ -567,6 +633,30 @@ else
       fail "knowledge base is EMPTY — retrieval returns nothing and questions come out blank"
       info "seed it: docker cp ai-engine/question_bank_engine/data/documents/. talentsecure-question-bank:/app/question_bank_engine/data/documents/"
       info "then:    curl -X POST http://127.0.0.1:8001/documents/ingest-batch -H \"X-API-Key: \$KEY\""
+    fi
+  fi
+
+  # API -> engine hop. This is what the "Engine Offline" banner actually tests:
+  # the main API proxies /qb-ai/health to QUESTION_ENGINE_URL. The in-code default
+  # is host.docker.internal:8001, which does not resolve on a Linux host and cannot
+  # reach a loopback-bound engine from inside a container. Both share the compose
+  # network, so the correct value is the service name http://question-bank:8001.
+  if [[ "$RUNNING_SERVICES" == *api* ]]; then
+    qe_url="$(dc exec -T api printenv QUESTION_ENGINE_URL 2>/dev/null | tr -d '\r')"
+    if [[ -z "$qe_url" ]]; then
+      fail "api has no QUESTION_ENGINE_URL set — it falls back to host.docker.internal:8001, which fails here"
+      info "set 'QUESTION_ENGINE_URL: http://question-bank:8001' on the api service"
+    elif [[ "$qe_url" == *host.docker.internal* ]]; then
+      fail "QUESTION_ENGINE_URL=$qe_url — host.docker.internal does not resolve on this host; the UI shows 'Engine Offline'"
+      info "use the compose service name: http://question-bank:8001"
+    else
+      ok "api QUESTION_ENGINE_URL = $qe_url"
+      reach="$(dc exec -T api node -e "fetch(process.env.QUESTION_ENGINE_URL+'/health').then(r=>console.log(r.ok?'OK':'HTTP'+r.status)).catch(e=>console.log('FAIL'))" 2>/dev/null | tr -d '\r')"
+      if [[ "$reach" == OK ]]; then
+        ok "api reaches the engine over the compose network"
+      else
+        fail "api cannot reach the engine at $qe_url (${reach:-no response})"
+      fi
     fi
   fi
 fi
