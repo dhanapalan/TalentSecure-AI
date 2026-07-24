@@ -14,7 +14,7 @@
     "start:legacy": "node dist/index.js",
     "lint": "tsc --noEmit",
     "test": "tsc --noEmit",
-    "test:unit": "tsx --test src/__tests__/studentAssessmentWorkspace.rules.test.ts"
+    "test:unit": "tsx --test src/__tests__/studentAssessmentWorkspace.rules.test.ts src/__tests__/collegeMasterFields.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",
