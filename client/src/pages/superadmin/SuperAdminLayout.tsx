@@ -19,6 +19,7 @@ import {
 import { useAuthStore } from "../../stores/authStore";
 import { logout } from "../../lib/logout";
 import NotificationBell from "../../components/NotificationBell";
+import { useDocumentTitle } from "../../hooks/useDocumentTitle";
 
 interface NavLeaf {
   name: string;
@@ -233,6 +234,52 @@ function initials(name?: string) {
   return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "AU";
 }
 
+/** Resolve a human page label for the browser tab from the sidebar NAV. */
+function resolvePageLabel(pathname: string, search: string): string {
+  if (pathname === `${BASE}/colleges/new`) return "Add College";
+  if (pathname === `${BASE}/colleges/requests`) return "College Requests";
+  if (
+    pathname.startsWith(`${BASE}/colleges/`) &&
+    pathname !== `${BASE}/colleges/new` &&
+    pathname !== `${BASE}/colleges/requests`
+  ) {
+    return "College Detail";
+  }
+  if (pathname === `${BASE}/students` || pathname.startsWith(`${BASE}/students/`)) {
+    if (pathname !== `${BASE}/students`) return "Student Detail";
+  }
+  if (pathname.startsWith(`${BASE}/users/`) && pathname !== `${BASE}/users`) {
+    return "User Detail";
+  }
+
+  let bestName: string | null = null;
+  let bestLen = -1;
+
+  const consider = (name: string, href: string) => {
+    if (!pathMatches(href, pathname, search)) return;
+    if (href.length > bestLen) {
+      bestLen = href.length;
+      bestName = name;
+    }
+  };
+
+  for (const item of NAV) {
+    if (item.href) consider(item.name, item.href);
+    if (!item.children) continue;
+    for (const child of item.children) {
+      if (isGroup(child)) {
+        for (const leaf of child.children) {
+          if (!leaf.hidden) consider(leaf.name, leaf.href);
+        }
+      } else if (!child.hidden) {
+        consider(child.name, child.href);
+      }
+    }
+  }
+
+  return bestName || "Dashboard";
+}
+
 export default function SuperAdminLayout() {
   const location = useLocation();
   const user = useAuthStore((s) => s.user);
@@ -242,6 +289,9 @@ export default function SuperAdminLayout() {
   const [openHub, setOpenHub] = useState<string | null>(null);
   // Nested group inside an open hub (e.g. Knowledge Library).
   const [openNested, setOpenNested] = useState<string | null>(null);
+
+  const pageLabel = resolvePageLabel(location.pathname, location.search);
+  useDocumentTitle(`${pageLabel} · Admin Console · GradLogic`);
 
   const current = location.pathname + location.search;
 

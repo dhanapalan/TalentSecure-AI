@@ -9,6 +9,10 @@ import { assignDefaultModulesToCollege } from "../services/platformModules.servi
 import * as apiKeyStore from "../services/apiKeyStore.service.js";
 import { sendEmail } from "../services/email.service.js";
 import { writeAuditLog } from "../services/audit.service.js";
+import {
+  ensureCollegeMasterColumns,
+  parseAndValidateCollegeMaster,
+} from "../services/collegeMasterFields.service.js";
 
 // Matches the pattern already used for student temp passwords
 // (collegeStudentBulk.service.ts / college.service.ts).
@@ -867,20 +871,28 @@ export const createCollege = async (
 ) => {
   const client = await pool.connect();
   try {
-    const { name, email, phone, address, city, state, tpoName, tpoEmail, studentLimit } = req.body;
-
-    // Validation — keep in sync with Add College UI required fields
-    if (!name || !email || !phone || !address || !city || !state || !tpoName || !tpoEmail) {
-      throw new AppError("Missing required fields", 400);
+    await ensureCollegeMasterColumns();
+    let input;
+    try {
+      input = parseAndValidateCollegeMaster(req.body || {});
+    } catch (err) {
+      throw new AppError(err instanceof Error ? err.message : "Invalid college data", 400);
     }
-    if (!/^\+?\d{10,15}$/.test(String(phone).replace(/[\s\-()]/g, ""))) {
-      throw new AppError("Invalid phone number", 400);
+
+    // Check duplicate official name (case-insensitive)
+    const existingName = await queryOne(
+      `SELECT id FROM colleges
+       WHERE LOWER(TRIM(name)) = LOWER(TRIM($1)) AND deleted_at IS NULL`,
+      [input.name]
+    );
+    if (existingName) {
+      throw new AppError("A college with this official name already exists", 409);
     }
 
     // Check duplicate email
     const existing = await queryOne(
-      "SELECT id FROM colleges WHERE email = $1",
-      [email]
+      "SELECT id FROM colleges WHERE email = $1 AND deleted_at IS NULL",
+      [input.email]
     );
     if (existing) {
       throw new AppError("College with this email already exists", 409);
@@ -890,38 +902,77 @@ export const createCollege = async (
     // users.email, separate from the college's own contact email above.
     const existingTpo = await queryOne(
       "SELECT id FROM users WHERE email = $1",
-      [tpoEmail]
+      [input.tpoEmail]
     );
     if (existingTpo) {
       throw new AppError("A user with this TPO email already exists", 409);
     }
 
-    // college_code is NOT NULL + unique — derive a slug from the name and
-    // suffix it if the slug is already taken.
-    const baseCode = name
+    // college_code is NOT NULL + unique — prefer short_name, else slug from name.
+    const baseCode = (input.shortName || input.name)
       .toLowerCase()
       .trim()
       .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
-    let collegeCode = baseCode;
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40);
+    let collegeCode = baseCode || `college-${Date.now().toString(36)}`;
     const codeTaken = await queryOne(
       "SELECT id FROM colleges WHERE college_code = $1",
       [collegeCode]
     );
     if (codeTaken) {
-      collegeCode = `${baseCode}-${Date.now().toString(36)}`;
+      collegeCode = `${baseCode}-${Date.now().toString(36)}`.slice(0, 50);
     }
 
     const tempPassword = generateTemporaryPassword();
     const hashedPassword = await bcrypt.hash(tempPassword, 12);
+    const legacyAddress = [input.addressLine1, input.addressLine2].filter(Boolean).join(", ");
 
     await client.query("BEGIN");
 
     const collegeResult = await client.query(
-      `INSERT INTO colleges (college_code, name, email, phone, address, city, state, status, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', NOW())
+      `INSERT INTO colleges (
+          college_code, name, short_name, establishment_year, institution_type, ownership, categories,
+          email, admission_email, phone, alternate_phone, website,
+          address, address_line1, address_line2, city, district, state, country, pin_code,
+          latitude, longitude, principal_name, university, naac_grade, total_students,
+          status, created_at
+       ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7,
+          $8, $9, $10, $11, $12,
+          $13, $14, $15, $16, $17, $18, $19, $20,
+          $21, $22, $23, $24, $25, $26,
+          'pending', NOW()
+       )
        RETURNING *`,
-      [collegeCode, name, email, phone, address, city, state]
+      [
+        collegeCode,
+        input.name,
+        input.shortName,
+        input.establishmentYear,
+        input.institutionType,
+        input.ownership,
+        input.categories,
+        input.email,
+        input.admissionEmail,
+        input.phone,
+        input.alternatePhone,
+        input.website,
+        legacyAddress,
+        input.addressLine1,
+        input.addressLine2,
+        input.city,
+        input.district,
+        input.state,
+        input.country,
+        input.pincode,
+        input.latitude,
+        input.longitude,
+        input.principalName,
+        input.affiliatedUniversity,
+        input.naacGrade,
+        input.totalStudents,
+      ]
     );
     const college = collegeResult.rows[0];
 
@@ -933,7 +984,7 @@ export const createCollege = async (
           (role, name, email, password, college_id, is_active, is_profile_complete, must_change_password)
        VALUES
           ('college_admin', $1, $2, $3, $4, TRUE, FALSE, TRUE)`,
-      [tpoName, tpoEmail, hashedPassword, college.id]
+      [input.tpoName, input.tpoEmail, hashedPassword, college.id]
     );
 
     await client.query("COMMIT");
@@ -942,8 +993,8 @@ export const createCollege = async (
       success: true,
       data: {
         ...college,
-        tpo_name: tpoName,
-        tpo_email: tpoEmail,
+        tpo_name: input.tpoName,
+        tpo_email: input.tpoEmail,
         temporary_password: tempPassword,
       },
     });
@@ -1047,8 +1098,100 @@ export const updateCollege = async (
   next: NextFunction
 ) => {
   try {
+    await ensureCollegeMasterColumns();
     const { id } = req.params;
-    const { name, email, phone, address, city, state, status } = req.body;
+    const body = req.body || {};
+    const { status } = body;
+
+    // Full master-record update when identification fields are present;
+    // otherwise keep the legacy partial patch used by CollegeDetailPage.
+    const hasMasterPayload =
+      body.institutionType != null ||
+      body.institution_type != null ||
+      body.addressLine1 != null ||
+      body.address_line1 != null ||
+      body.establishmentYear != null ||
+      body.establishment_year != null;
+
+    if (hasMasterPayload) {
+      let input;
+      try {
+        input = parseAndValidateCollegeMaster(body, { requireTpo: false });
+      } catch (err) {
+        throw new AppError(err instanceof Error ? err.message : "Invalid college data", 400);
+      }
+      const legacyAddress = [input.addressLine1, input.addressLine2].filter(Boolean).join(", ");
+
+      const result = await pool.query(
+        `UPDATE colleges
+         SET name = $1,
+             short_name = $2,
+             establishment_year = $3,
+             institution_type = $4,
+             ownership = $5,
+             categories = $6,
+             email = $7,
+             admission_email = $8,
+             phone = $9,
+             alternate_phone = $10,
+             website = $11,
+             address = $12,
+             address_line1 = $13,
+             address_line2 = $14,
+             city = $15,
+             district = $16,
+             state = $17,
+             country = $18,
+             pin_code = $19,
+             latitude = $20,
+             longitude = $21,
+             principal_name = $22,
+             university = $23,
+             naac_grade = $24,
+             total_students = $25,
+             status = COALESCE($26, status),
+             updated_at = NOW()
+         WHERE id = $27 AND deleted_at IS NULL
+         RETURNING *`,
+        [
+          input.name,
+          input.shortName,
+          input.establishmentYear,
+          input.institutionType,
+          input.ownership,
+          input.categories,
+          input.email,
+          input.admissionEmail,
+          input.phone,
+          input.alternatePhone,
+          input.website,
+          legacyAddress,
+          input.addressLine1,
+          input.addressLine2,
+          input.city,
+          input.district,
+          input.state,
+          input.country,
+          input.pincode,
+          input.latitude,
+          input.longitude,
+          input.principalName,
+          input.affiliatedUniversity,
+          input.naacGrade,
+          input.totalStudents,
+          status || null,
+          id,
+        ]
+      );
+
+      if (result.rows.length === 0) {
+        throw new AppError("College not found", 404);
+      }
+
+      return res.json({ success: true, data: result.rows[0] });
+    }
+
+    const { name, email, phone, address, city, state } = body;
 
     const result = await pool.query(
       `UPDATE colleges

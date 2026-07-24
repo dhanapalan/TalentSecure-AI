@@ -37,36 +37,82 @@ test.describe('C. Colleges', () => {
     }
   });
 
-  test('C3 — create form renders every field', async ({ adminPage }) => {
+  test('C3 — create form renders master-record sections', async ({ adminPage }) => {
     await adminPage.goto('/app/superadmin/colleges/new');
     await expect(adminPage.getByRole('heading', { name: 'Add New College' })).toBeVisible();
-    for (const name of ['name', 'email', 'phone', 'address', 'city', 'state', 'tpoName', 'tpoEmail', 'studentLimit']) {
+    await expect(adminPage.getByRole('heading', { name: 'Core Identification' })).toBeVisible();
+    await expect(adminPage.getByRole('heading', { name: /Location & Address/i })).toBeVisible();
+    await expect(adminPage.getByRole('heading', { name: 'Contact Information' })).toBeVisible();
+    for (const name of [
+      'name',
+      'shortName',
+      'establishmentYear',
+      'institutionType',
+      'ownership',
+      'addressLine1',
+      'addressLine2',
+      'city',
+      'district',
+      'state',
+      'country',
+      'pincode',
+      'website',
+      'email',
+      'admissionEmail',
+      'phone',
+      'alternatePhone',
+      'tpoName',
+      'tpoEmail',
+    ]) {
       await expect(adminPage.locator(`[name="${name}"]`)).toBeVisible();
     }
     await expect(adminPage.getByRole('button', { name: /create college/i })).toBeVisible();
   });
 
-  test('C-edge1 — empty submit does not create / navigate away', async ({ adminPage }) => {
+  test('C-edge1 — empty submit shows per-field errors and stays on form', async ({ adminPage }) => {
     await adminPage.goto('/app/superadmin/colleges/new');
     await adminPage.getByRole('button', { name: /create college/i }).click();
-    // Native + app validation block the submit; we stay on the form.
     await expect(adminPage).toHaveURL(/\/app\/superadmin\/colleges\/new/);
     await expect(adminPage.getByText(/added successfully/i)).toHaveCount(0);
+    await expect(adminPage.getByText('Official college name is required')).toBeVisible();
+    await expect(adminPage.getByText('Establishment year is required')).toBeVisible();
+    await expect(adminPage.getByText('Institution type is required')).toBeVisible();
+    await expect(adminPage.getByText('Ownership is required')).toBeVisible();
+    await expect(adminPage.getByText('Select at least one category')).toBeVisible();
+    await expect(adminPage.getByText('Address line 1 is required')).toBeVisible();
+    await expect(adminPage.getByText('City is required')).toBeVisible();
+    await expect(adminPage.getByText('District is required')).toBeVisible();
+    await expect(adminPage.getByText('State is required')).toBeVisible();
+    await expect(adminPage.getByText('Pincode is required')).toBeVisible();
+    await expect(adminPage.getByText('Website is required')).toBeVisible();
+    await expect(adminPage.getByText('General email is required')).toBeVisible();
+    await expect(adminPage.getByText('Phone number is required')).toBeVisible();
+    await expect(adminPage.getByText('TPO name is required')).toBeVisible();
+    await expect(adminPage.getByText('TPO email is required')).toBeVisible();
   });
 
-  test('C-edge3 — malformed email is rejected by the form', async ({ adminPage }) => {
+  test('C-edge3 — malformed email and pincode are rejected by the form', async ({ adminPage }) => {
     await adminPage.goto('/app/superadmin/colleges/new');
     await adminPage.locator('[name="name"]').fill('QA Validation College');
-    await adminPage.locator('[name="email"]').fill('notanemail');
-    await adminPage.locator('[name="address"]').fill('1 Test Road');
+    await adminPage.locator('[name="establishmentYear"]').fill('1995');
+    await adminPage.locator('[name="institutionType"]').selectOption('University');
+    await adminPage.locator('[name="ownership"]').selectOption('Private');
+    await adminPage.getByRole('checkbox', { name: 'Engineering' }).check();
+    await adminPage.locator('[name="addressLine1"]').fill('1 Test Road');
     await adminPage.locator('[name="city"]').fill('Chennai');
+    await adminPage.locator('[name="district"]').fill('Chennai');
     await adminPage.locator('[name="state"]').fill('Tamil Nadu');
+    await adminPage.locator('[name="pincode"]').fill('60000'); // 5 digits — invalid
+    await adminPage.locator('[name="website"]').fill('https://qa-college.edu');
+    await adminPage.locator('[name="email"]').fill('notanemail');
+    await adminPage.locator('[name="phone"]').fill('+919876543210');
     await adminPage.locator('[name="tpoName"]').fill('QA TPO');
     await adminPage.locator('[name="tpoEmail"]').fill('tpo@college.edu');
     await adminPage.getByRole('button', { name: /create college/i }).click();
-    // Invalid college email → blocked (native type=email or app toast). No success, no redirect.
     await expect(adminPage).toHaveURL(/\/app\/superadmin\/colleges\/new/);
     await expect(adminPage.getByText(/added successfully/i)).toHaveCount(0);
+    await expect(adminPage.getByText(/valid general email/i)).toBeVisible();
+    await expect(adminPage.getByText(/exactly 6 digits/i)).toBeVisible();
   });
 
   test('C6 — college requests page loads', async ({ adminPage }) => {
@@ -82,18 +128,28 @@ test.describe('C. Colleges', () => {
       const suffix = uniqueSuffix();
       await adminPage.goto('/app/superadmin/colleges/new');
       await adminPage.locator('[name="name"]').fill(`QA College ${suffix}`);
-      await adminPage.locator('[name="email"]').fill(`qa-${suffix}@college.edu`);
-      await adminPage.locator('[name="phone"]').fill('+91 9876543210');
-      await adminPage.locator('[name="address"]').fill('1 Test Road');
+      await adminPage.locator('[name="shortName"]').fill(`QA${suffix.slice(-4)}`);
+      await adminPage.locator('[name="establishmentYear"]').fill('2001');
+      await adminPage.locator('[name="institutionType"]').selectOption('Autonomous College');
+      await adminPage.locator('[name="ownership"]').selectOption('Private');
+      await adminPage.getByRole('checkbox', { name: 'Engineering' }).check();
+      await adminPage.locator('[name="addressLine1"]').fill('1 Test Road');
       await adminPage.locator('[name="city"]').fill('Chennai');
+      await adminPage.locator('[name="district"]').fill('Chennai');
       await adminPage.locator('[name="state"]').fill('Tamil Nadu');
+      await adminPage.locator('[name="pincode"]').fill('600001');
+      await adminPage.locator('[name="website"]').fill(`https://qa-${suffix}.edu`);
+      await adminPage.locator('[name="email"]').fill(`qa-${suffix}@college.edu`);
+      await adminPage.locator('[name="phone"]').fill('+919876543210');
       await adminPage.locator('[name="tpoName"]').fill('QA TPO');
       await adminPage.locator('[name="tpoEmail"]').fill(`tpo-${suffix}@college.edu`);
-      await adminPage.locator('[name="studentLimit"]').fill('100');
       await adminPage.getByRole('button', { name: /create college/i }).click();
 
       await expect(adminPage.getByText(/added successfully/i)).toBeVisible({ timeout: 15_000 });
-      await expect(adminPage).toHaveURL(/\/app\/superadmin\/colleges(\?|$)/, { timeout: 15_000 });
+      await expect(adminPage.getByRole('heading', { name: /college created/i })).toBeVisible({
+        timeout: 10_000,
+      });
+      await expect(adminPage.getByText(/temporary password/i)).toBeVisible();
     });
 
     test('C-edge13 — XSS in name is stored escaped (no dialog fires)', async ({ adminPage }) => {
@@ -103,11 +159,18 @@ test.describe('C. Colleges', () => {
 
       await adminPage.goto('/app/superadmin/colleges/new');
       await adminPage.locator('[name="name"]').fill(`<script>alert('xss')</script>${suffix}`);
-      await adminPage.locator('[name="email"]').fill(`xss-${suffix}@college.edu`);
-      await adminPage.locator('[name="phone"]').fill('+91 9876543210');
-      await adminPage.locator('[name="address"]').fill('1 Test Road');
+      await adminPage.locator('[name="establishmentYear"]').fill('1990');
+      await adminPage.locator('[name="institutionType"]').selectOption('University');
+      await adminPage.locator('[name="ownership"]').selectOption('Government');
+      await adminPage.getByRole('checkbox', { name: 'Management' }).check();
+      await adminPage.locator('[name="addressLine1"]').fill('1 Test Road');
       await adminPage.locator('[name="city"]').fill('Chennai');
+      await adminPage.locator('[name="district"]').fill('Chennai');
       await adminPage.locator('[name="state"]').fill('Tamil Nadu');
+      await adminPage.locator('[name="pincode"]').fill('600001');
+      await adminPage.locator('[name="website"]').fill(`https://xss-${suffix}.edu`);
+      await adminPage.locator('[name="email"]').fill(`xss-${suffix}@college.edu`);
+      await adminPage.locator('[name="phone"]').fill('+919876543210');
       await adminPage.locator('[name="tpoName"]').fill('QA TPO');
       await adminPage.locator('[name="tpoEmail"]').fill(`tpo-xss-${suffix}@college.edu`);
       await adminPage.getByRole('button', { name: /create college/i }).click();

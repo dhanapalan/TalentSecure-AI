@@ -54,14 +54,30 @@ export class CollegeCreatePage extends BasePage {
 
   async fill(data: CollegePayload): Promise<void> {
     await this.type(this.field("name"), data.name);
-    await this.type(this.field("email"), data.email);
-    await this.type(this.field("phone"), data.phone);
-    await this.type(this.field("address"), data.address);
+    if (data.shortName) await this.type(this.field("shortName"), data.shortName);
+    await this.field("establishmentYear").fill(String(data.establishmentYear));
+    await this.field("institutionType").selectOption(data.institutionType);
+    await this.field("ownership").selectOption(data.ownership);
+    for (const cat of data.categories) {
+      await this.page.getByRole("checkbox", { name: cat, exact: true }).check();
+    }
+    await this.type(this.field("addressLine1"), data.addressLine1);
+    if (data.addressLine2) await this.type(this.field("addressLine2"), data.addressLine2);
     await this.type(this.field("city"), data.city);
+    await this.type(this.field("district"), data.district);
     await this.type(this.field("state"), data.state);
+    if (data.country) await this.type(this.field("country"), data.country);
+    await this.type(this.field("pincode"), data.pincode);
+    await this.type(this.field("website"), data.website);
+    await this.type(this.field("email"), data.email);
+    if (data.admissionEmail) await this.type(this.field("admissionEmail"), data.admissionEmail);
+    await this.type(this.field("phone"), data.phone);
+    if (data.alternatePhone) await this.type(this.field("alternatePhone"), data.alternatePhone);
+    if (data.affiliatedUniversity) {
+      await this.type(this.field("affiliatedUniversity"), data.affiliatedUniversity);
+    }
     await this.type(this.field("tpoName"), data.tpoName);
     await this.type(this.field("tpoEmail"), data.tpoEmail);
-    await this.field("studentLimit").fill(String(data.studentLimit));
     await this.shot("college_create_filled");
   }
 

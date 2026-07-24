@@ -6,6 +6,10 @@ Codebase-mapped application validation for TalentSecure-AI / GradLogic.
 
 Other hubs/roles are outlined as backlog. This tree is the **source of truth** for QA ownership; automation lives under [`client/tests/e2e/sprint-1a/`](../../client/tests/e2e/sprint-1a/).
 
+**Admin portal scenarios (executable catalog):** [ADMIN_PORTAL_VALIDATION_SCENARIOS.md](./ADMIN_PORTAL_VALIDATION_SCENARIOS.md) — P0–P2 scenarios for Super Admin + College Admin validation, mapped to automation and Wave 1 workflows.
+
+**Latest production read-only pass (2026-07-24):** [PROD_ADMIN_VALIDATION_RESULTS.md](./PROD_ADMIN_VALIDATION_RESULTS.md) — 48/48 PASS against `https://gradlogic.atherasys.com`.
+
 ---
 
 ## Coverage legend
@@ -99,7 +103,8 @@ Student
 
 ## How to use
 
-1. Pick a workstream folder.  
-2. Execute Wave 1 checklist rows; update status as you automate.  
-3. Keep [TRACEABILITY.md](./TRACEABILITY.md) in sync when adding specs.  
-4. Promote backlog modules to Wave 2 by expanding their folder READMEs into full checklists.
+1. For admin portal QA, start with [ADMIN_PORTAL_VALIDATION_SCENARIOS.md](./ADMIN_PORTAL_VALIDATION_SCENARIOS.md) (suggested execution order + P0 blockers).  
+2. Pick a workstream folder for deeper checklists.  
+3. Execute Wave 1 checklist rows; update status as you automate.  
+4. Keep [TRACEABILITY.md](./TRACEABILITY.md) in sync when adding specs.  
+5. Promote backlog modules to Wave 2 by expanding their folder READMEs into full checklists.

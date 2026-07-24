@@ -22,6 +22,7 @@ import {
   portalExpectedRoles,
   resolveLoginPortal,
 } from "./login/loginPortals";
+import { useDocumentTitle } from "../../hooks/useDocumentTitle";
 
 type LoginForm = {
   identifier: string;
@@ -51,8 +52,9 @@ export default function LoginPage() {
     },
   });
 
+  useDocumentTitle("Sign in · GradLogic");
+
   useEffect(() => {
-    document.title = "Sign in · GradLogic";
     setFocus("identifier");
   }, [setFocus]);
 
