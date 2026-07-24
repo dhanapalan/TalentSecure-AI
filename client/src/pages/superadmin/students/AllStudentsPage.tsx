@@ -902,23 +902,26 @@ export default function AllStudentsPage() {
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
             />
           </div>
-          <p className="text-sm text-gray-500 mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span>
-              CSV columns:{" "}
-              <code className="text-xs bg-gray-100 px-1 rounded">
-                name, email, student_id, degree, passing_year, cgpa, phone
-              </code>
-              . Header row optional. Max 500 rows.
-            </span>
+          <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-amber-950">Sample CSV template</p>
+              <p className="text-xs text-amber-900/80 mt-0.5">
+                Columns:{" "}
+                <code className="rounded bg-amber-100/80 px-1">
+                  name, email, student_id, degree, passing_year, cgpa, phone
+                </code>
+                . Header row optional · max 500 rows.
+              </p>
+            </div>
             <a
               href="/samples/student_import_sample.csv"
               download="student_import_sample.csv"
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-admin-accent hover:underline"
+              className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-1"
             >
-              <Download className="w-3.5 h-3.5" />
+              <Download className="w-4 h-4" />
               Download sample CSV
             </a>
-          </p>
+          </div>
           <textarea
             rows={8}
             value={importCsv}
