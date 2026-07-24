@@ -28,6 +28,15 @@ function esc(value: unknown): string {
 // CORE SEND + AUDIT LOG
 // =============================================================================
 
+export type SendEmailResult = {
+  /** True when the provider accepted the message for delivery. */
+  delivered: boolean;
+  /** True when SMTP credentials are unset and the message was only logged. */
+  simulated: boolean;
+  error?: string;
+  messageId?: string;
+};
+
 export async function sendEmail({
   to,
   subject,
@@ -44,7 +53,7 @@ export async function sendEmail({
   template?: string;
   recipientId?: string;
   refId?: string;
-}) {
+}): Promise<SendEmailResult> {
   if (!env.SMTP_USER || !env.SMTP_PASS) {
     logger.info("── SIMULATED EMAIL ──");
     logger.info(`To:      ${to}`);
@@ -59,11 +68,8 @@ export async function sendEmail({
         [recipientId || null, to, subject, template, refId || null]
       );
     } catch { /* table may not exist yet in older deploys */ }
-    return;
+    return { delivered: false, simulated: true };
   }
-
-  let status = "sent";
-  let errorMsg: string | null = null;
 
   try {
     const info = await transporter.sendMail({
@@ -79,22 +85,22 @@ export async function sendEmail({
       await queryOne(
         `INSERT INTO email_logs (recipient_id, to_email, subject, template, ref_id, status)
          VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING`,
-        [recipientId || null, to, subject, template, refId || null, status]
+        [recipientId || null, to, subject, template, refId || null, "sent"]
       );
     } catch { /* best-effort */ }
-    return info;
+    return { delivered: true, simulated: false, messageId: info.messageId };
   } catch (error) {
-    status = "failed";
-    errorMsg = error instanceof Error ? error.message : String(error);
+    const errorMsg = error instanceof Error ? error.message : String(error);
     logger.error(`Failed to send email [${template}] to ${to}:`, error);
     // Audit log the failure with error detail
     try {
       await queryOne(
         `INSERT INTO email_logs (recipient_id, to_email, subject, template, ref_id, status, error)
          VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING`,
-        [recipientId || null, to, subject, template, refId || null, status, errorMsg]
+        [recipientId || null, to, subject, template, refId || null, "failed", errorMsg]
       );
     } catch { /* best-effort */ }
+    return { delivered: false, simulated: false, error: errorMsg };
   }
 }
 
@@ -156,7 +162,7 @@ export async function sendPasswordResetEmail({
 export async function sendCampusAdminInvitation({
   adminName, adminEmail, campusName, temporaryPassword,
 }: { adminName: string; adminEmail: string; campusName: string; temporaryPassword: string }) {
-  const loginUrl = `${env.CLIENT_URL}/login`;
+  const loginUrl = `${env.CLIENT_URL}/auth/login`;
   const subject = `Welcome to GradLogic — ${campusName}`;
   const text = `Hi ${adminName}, you have been appointed Campus Admin for ${campusName}. Email: ${adminEmail}, Password: ${temporaryPassword}. Login: ${loginUrl}`;
   const html = emailHtml(
@@ -181,7 +187,7 @@ export async function sendCampusAdminInvitation({
 export async function sendUserInvitationEmail({
   name, email, role, temporaryPassword,
 }: { name: string; email: string; role: string; temporaryPassword: string }) {
-  const loginUrl = `${env.CLIENT_URL}/login`;
+  const loginUrl = `${env.CLIENT_URL}/auth/login`;
   const roleLabel = role.replace(/_/g, " ");
   const subject = `Welcome to GradLogic — your ${roleLabel} account`;
   const text = `Hi ${name}, an account has been created for you on GradLogic as ${roleLabel}. Email: ${email}, Temporary Password: ${temporaryPassword}. Login: ${loginUrl}. You will be asked to set a new password on first login.`;
@@ -198,6 +204,31 @@ export async function sendUserInvitationEmail({
     loginUrl, "Sign In"
   );
   return sendEmail({ to: email, subject, text, html, template: "user_invite" });
+}
+
+// =============================================================================
+// ADMIN-FORCED TEMPORARY PASSWORD (superadmin "Reset password")
+// =============================================================================
+
+export async function sendTemporaryPasswordEmail({
+  name, email, temporaryPassword,
+}: { name: string; email: string; temporaryPassword: string }) {
+  const loginUrl = `${env.CLIENT_URL}/auth/login`;
+  const subject = "Your GradLogic password was reset";
+  const text = `Hi ${name}, an administrator reset your GradLogic password. Email: ${email}, Temporary Password: ${temporaryPassword}. Sign in at ${loginUrl}. You will be asked to set a new password on first login.`;
+  const html = emailHtml(
+    "Your password was reset",
+    `<p>Hi <strong>${esc(name)}</strong>,</p>
+     <p>An administrator reset the password for your GradLogic account. Use the temporary password below to sign in.</p>
+     <div style="background:#f8fafc;padding:16px;border-radius:8px;margin:16px 0;">
+       <p style="margin:0;font-size:13px;color:#64748b;">Temporary credentials:</p>
+       <p style="margin:8px 0 0;"><strong>Email:</strong> ${esc(email)}</p>
+       <p style="margin:4px 0 0;"><strong>Temporary Password:</strong> <code style="background:#e2e8f0;padding:2px 6px;border-radius:4px;">${esc(temporaryPassword)}</code></p>
+     </div>
+     <p style="font-size:13px;color:#64748b;">You will be asked to choose a new password on first login. If you did not expect this, contact your administrator.</p>`,
+    loginUrl, "Sign In"
+  );
+  return sendEmail({ to: email, subject, text, html, template: "admin_temp_password" });
 }
 
 // =============================================================================

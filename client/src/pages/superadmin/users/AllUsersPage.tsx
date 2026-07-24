@@ -15,6 +15,7 @@ import userService, { User, UserFilters } from "../../../services/userService";
 import collegeService, { College } from "../../../services/collegeService";
 import StatusBadge from "../../../components/superadmin/StatusBadge";
 import ConfirmModal from "../../../components/superadmin/ConfirmModal";
+import { useAuthStore } from "../../../stores/authStore";
 
 const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
   college_admin: { title: "College Administrators", subtitle: "College admin accounts across the platform" },
@@ -26,6 +27,7 @@ const COLLEGE_SCOPED_ROLES = new Set(["college_admin", "college_staff", "college
 
 export default function AllUsersPage() {
   const navigate = useNavigate();
+  const currentUserId = useAuthStore((s) => s.user?.id);
   const [searchParams] = useSearchParams();
   const initialRole = searchParams.get("role") || "all";
   const [search, setSearch] = useState("");
@@ -53,6 +55,8 @@ export default function AllUsersPage() {
   const [resetTarget, setResetTarget] = useState<User | null>(null);
   const [resetLoading, setResetLoading] = useState(false);
   const [resetResult, setResetResult] = useState<{ user: User; password: string; emailSent: boolean } | null>(null);
+  const [toggleTarget, setToggleTarget] = useState<User | null>(null);
+  const [toggleLoading, setToggleLoading] = useState(false);
 
   useEffect(() => {
     collegeService
@@ -146,17 +150,19 @@ export default function AllUsersPage() {
     }
   };
 
-  const handleToggleActive = async (user: User) => {
-    const deactivate = user.status === "active" || user.status === "suspended";
-    if (
-      !confirm(
-        deactivate
-          ? "Deactivate this user? They can be reactivated later."
-          : "Activate this user?"
-      )
-    ) {
+  const handleToggleActive = (user: User) => {
+    if (user.id === currentUserId) {
+      toast.error("You cannot deactivate your own account.");
       return;
     }
+    setToggleTarget(user);
+  };
+
+  const confirmToggleActive = async () => {
+    if (!toggleTarget) return;
+    const user = toggleTarget;
+    const deactivate = user.status === "active" || user.status === "suspended";
+    setToggleLoading(true);
     try {
       if (deactivate) {
         await userService.deactivateUser(user.id);
@@ -173,6 +179,9 @@ export default function AllUsersPage() {
       }
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Action failed");
+    } finally {
+      setToggleLoading(false);
+      setToggleTarget(null);
     }
   };
 
@@ -471,22 +480,32 @@ export default function AllUsersPage() {
                         <button onClick={() => setResetTarget(user)} title="Reset password">
                           <KeyIcon className="w-4 h-4 text-gray-500 hover:text-navy-900" />
                         </button>
-                        {user.status === "suspended" ? (
-                          <button onClick={() => handleUnsuspendUser(user.id)}>
+                        {user.id === currentUserId ? (
+                          <span title="You cannot suspend your own account" className="inline-flex">
+                            <NoSymbolIcon className="w-4 h-4 text-gray-300" />
+                          </span>
+                        ) : user.status === "suspended" ? (
+                          <button onClick={() => handleUnsuspendUser(user.id)} title="Unsuspend">
                             <CheckIcon className="w-4 h-4 text-green-600" />
                           </button>
                         ) : (
-                          <button onClick={() => handleSuspendUser(user.id)}>
+                          <button onClick={() => handleSuspendUser(user.id)} title="Suspend">
                             <NoSymbolIcon className="w-4 h-4 text-yellow-600" />
                           </button>
                         )}
-                        <button onClick={() => handleToggleActive(user)} title={user.status === "inactive" ? "Activate" : "Deactivate"}>
-                          {user.status === "inactive" ? (
-                            <CheckIcon className="w-4 h-4 text-green-600" />
-                          ) : (
-                            <TrashIcon className="w-4 h-4 text-red-600" />
-                          )}
-                        </button>
+                        {user.id === currentUserId ? (
+                          <span title="You cannot deactivate your own account" className="inline-flex">
+                            <TrashIcon className="w-4 h-4 text-gray-300" />
+                          </span>
+                        ) : (
+                          <button onClick={() => handleToggleActive(user)} title={user.status === "inactive" ? "Activate" : "Deactivate"}>
+                            {user.status === "inactive" ? (
+                              <CheckIcon className="w-4 h-4 text-green-600" />
+                            ) : (
+                              <TrashIcon className="w-4 h-4 text-red-600" />
+                            )}
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -551,6 +570,35 @@ export default function AllUsersPage() {
         busy={resetLoading}
         onConfirm={handleResetPassword}
         onCancel={() => setResetTarget(null)}
+      />
+
+      <ConfirmModal
+        open={toggleTarget !== null}
+        title={
+          toggleTarget && (toggleTarget.status === "active" || toggleTarget.status === "suspended")
+            ? "Deactivate user"
+            : "Activate user"
+        }
+        message={
+          toggleTarget
+            ? toggleTarget.status === "active" || toggleTarget.status === "suspended"
+              ? `Deactivate ${toggleTarget.full_name} (${toggleTarget.email})? They will lose access immediately. This can be reversed later from the same menu.`
+              : `Activate ${toggleTarget.full_name} (${toggleTarget.email})? They will regain access immediately.`
+            : ""
+        }
+        confirmLabel={
+          toggleTarget && (toggleTarget.status === "active" || toggleTarget.status === "suspended")
+            ? "Deactivate"
+            : "Activate"
+        }
+        tone={
+          toggleTarget && (toggleTarget.status === "active" || toggleTarget.status === "suspended")
+            ? "danger"
+            : "default"
+        }
+        busy={toggleLoading}
+        onConfirm={confirmToggleActive}
+        onCancel={() => setToggleTarget(null)}
       />
 
       {resetResult && (
