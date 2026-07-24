@@ -196,17 +196,11 @@ export async function getDashboardSummary(
     total_students: string;
     active_students: string;
     eligible: string;
-    placed: string;
   }>(
     `SELECT
        COUNT(*)::text AS total_students,
        COUNT(*) FILTER (WHERE u.is_active = TRUE)::text AS active_students,
-       COUNT(*) FILTER (WHERE COALESCE(sd.eligible_for_hiring, FALSE) = TRUE)::text AS eligible,
-       COUNT(*) FILTER (
-         WHERE sd.placement_status IN ('Offered', 'Joined', 'Accepted')
-            OR COALESCE(sd.offer_released, FALSE) = TRUE
-            OR COALESCE(sd.has_joined, FALSE) = TRUE
-       )::text AS placed
+       COUNT(*) FILTER (WHERE COALESCE(sd.eligible_for_hiring, FALSE) = TRUE)::text AS eligible
      FROM users u
      LEFT JOIN student_details sd ON sd.user_id = u.id
      WHERE ${where}`,
@@ -215,8 +209,6 @@ export async function getDashboardSummary(
 
   let activeDrives = 0;
   let pendingAssessments = 0;
-  let companiesVisiting = 0;
-  let upcomingInterviews = 0;
   try {
     const drives = await queryOne<{ active: string; pending: string }>(
       `SELECT
@@ -243,38 +235,6 @@ export async function getDashboardSummary(
     /* optional */
   }
 
-  try {
-    const cos = await queryOne<{ n: string }>(
-      `SELECT COUNT(DISTINCT NULLIF(TRIM(sd.placed_company), ''))::text AS n
-       FROM student_details sd
-       JOIN users u ON u.id = sd.user_id
-       WHERE ${where}
-         AND (sd.placement_status IN ('Offered','Joined','Shortlisted','Interviewed')
-              OR sd.is_shortlisted = TRUE)`,
-      params
-    );
-    companiesVisiting = Number(cos?.n) || 0;
-  } catch {
-    companiesVisiting = 0;
-  }
-
-  try {
-    const iv = await queryOne<{ n: string }>(
-      `SELECT COUNT(*)::text AS n
-       FROM student_details sd
-       JOIN users u ON u.id = sd.user_id
-       WHERE ${where}
-         AND (
-           sd.interview_status IS NOT NULL AND TRIM(sd.interview_status) <> ''
-           AND LOWER(sd.interview_status) NOT IN ('completed','cancelled','none')
-         )`,
-      params
-    );
-    upcomingInterviews = Number(iv?.n) || 0;
-  } catch {
-    upcomingInterviews = 0;
-  }
-
   let learningCompletion = 0;
   let avgReadiness: number | null = null;
   try {
@@ -297,23 +257,17 @@ export async function getDashboardSummary(
 
   const total = Number(studentCounts?.total_students) || 0;
   const eligible = Number(studentCounts?.eligible) || 0;
-  const placed = Number(studentCounts?.placed) || 0;
 
   const kpis = {
     total_students: total,
     active_students: Number(studentCounts?.active_students) || 0,
     placement_eligible: eligible,
-    students_placed: placed,
     active_placement_drives: activeDrives,
-    companies_visiting: companiesVisiting,
-    upcoming_interviews: upcomingInterviews,
     pending_assessments: pendingAssessments,
     learning_completion_percent: learningCompletion,
     avg_placement_readiness: avgReadiness,
     // legacy fields for older clients
     active_drives: activeDrives,
-    placed_students: placed,
-    placement_conversion: total > 0 ? Math.round((placed / total) * 1000) / 10 : 0,
     avg_score: 0,
     avg_integrity: 0,
   };
@@ -360,57 +314,32 @@ export async function getDashboardCharts(
     ctx.forcedDepartment
   );
 
-  let deptPlacement: Array<{ label: string; value: number }> = [];
-  if (!isAcademicOnly(role)) {
-    deptPlacement = (
-      await query<{ label: string; total: string; placed: string }>(
-        `SELECT COALESCE(
-            NULLIF(TRIM(sd.specialization), ''),
-            NULLIF(TRIM(sd.degree), ''),
-            NULLIF(TRIM(sd.class_name), ''),
-            'General'
-          ) AS label,
-          COUNT(*)::text AS total,
-          COUNT(*) FILTER (
-            WHERE sd.placement_status IN ('Offered','Joined','Accepted')
-               OR COALESCE(sd.has_joined, FALSE)
-          )::text AS placed
-         FROM users u
-         LEFT JOIN student_details sd ON sd.user_id = u.id
-         WHERE ${where}
-         GROUP BY 1
-         HAVING COUNT(*) > 0
-         ORDER BY COUNT(*) DESC
-         LIMIT 12`,
-        params
-      ).catch(() => [])
-    ).map((r) => {
-      const t = Number(r.total) || 0;
-      const p = Number(r.placed) || 0;
-      return {
-        label: r.label,
-        value: t > 0 ? Math.round((p / t) * 1000) / 10 : 0,
-      };
-    });
-  }
-
-  let placementTrend: Array<{ label: string; value: number }> = [];
-  if (!isAcademicOnly(role)) {
-    placementTrend = (
-      await query<{ label: string; value: string }>(
-        `SELECT to_char(date_trunc('month', COALESCE(sd.updated_at, u.updated_at)), 'Mon YY') AS label,
-                COUNT(*)::text AS value
-         FROM student_details sd
-         JOIN users u ON u.id = sd.user_id
-         WHERE ${where}
-           AND (sd.placement_status IN ('Offered','Joined','Accepted') OR sd.offer_released = TRUE)
-         GROUP BY 1
-         ORDER BY MIN(COALESCE(sd.updated_at, u.updated_at))
-         LIMIT 12`,
-        params
-      ).catch(() => [])
-    ).map((r) => ({ label: r.label, value: Number(r.value) || 0 }));
-  }
+  // Department-wise average placement-readiness (not actual placements) — keeps
+  // the dashboard focused on getting students ready rather than recruitment CRM.
+  let deptReadiness: Array<{ label: string; value: number }> = [];
+  deptReadiness = (
+    await query<{ label: string; value: string }>(
+      `SELECT COALESCE(
+          NULLIF(TRIM(sd.branch), ''),
+          NULLIF(TRIM(sd.specialization), ''),
+          NULLIF(TRIM(sd.degree), ''),
+          NULLIF(TRIM(sd.class_name), ''),
+          'General'
+        ) AS label,
+        ROUND(AVG(sj.placement_readiness), 1)::text AS value
+       FROM student_journeys sj
+       JOIN users u ON u.id = sj.student_id
+       LEFT JOIN student_details sd ON sd.user_id = u.id
+       WHERE ${where}
+         AND sj.status IN ('in_progress','completed','paused')
+         AND sj.placement_readiness IS NOT NULL
+       GROUP BY 1
+       HAVING COUNT(*) > 0
+       ORDER BY AVG(sj.placement_readiness) DESC
+       LIMIT 12`,
+      params
+    ).catch(() => [])
+  ).map((r) => ({ label: r.label, value: Number(r.value) || 0 }));
 
   let readinessDistribution: Array<{ label: string; value: number }> = [];
   try {
@@ -494,52 +423,18 @@ export async function getDashboardCharts(
     }
   }
 
-  let offerStats: Array<{ label: string; value: number }> = [];
-  if (!isAcademicOnly(role)) {
-    try {
-      const o = await queryOne<{
-        shortlisted: string;
-        offered: string;
-        accepted: string;
-        joined: string;
-      }>(
-        `SELECT
-           COUNT(*) FILTER (WHERE sd.is_shortlisted OR sd.placement_status IN ('Shortlisted','Interviewed'))::text AS shortlisted,
-           COUNT(*) FILTER (WHERE sd.offer_released OR sd.placement_status IN ('Offered','Accepted','Joined'))::text AS offered,
-           COUNT(*) FILTER (WHERE sd.offer_accepted OR sd.placement_status IN ('Accepted','Joined'))::text AS accepted,
-           COUNT(*) FILTER (WHERE sd.has_joined OR sd.placement_status = 'Joined')::text AS joined
-         FROM users u
-         LEFT JOIN student_details sd ON sd.user_id = u.id
-         WHERE ${where}`,
-        params
-      );
-      offerStats = [
-        { label: "Shortlisted", value: Number(o?.shortlisted) || 0 },
-        { label: "Offered", value: Number(o?.offered) || 0 },
-        { label: "Accepted", value: Number(o?.accepted) || 0 },
-        { label: "Joined", value: Number(o?.joined) || 0 },
-      ];
-    } catch {
-      offerStats = [];
-    }
-  }
-
   return {
     role,
     visibility: {
-      department_placement: !isAcademicOnly(role),
-      placement_trend: !isAcademicOnly(role),
+      department_readiness: true,
       readiness_distribution: true,
       assessment_completion: !isPlacementOnly(role),
       learning_progress: !isPlacementOnly(role),
-      offer_stats: !isAcademicOnly(role),
     },
-    department_placement_percent: deptPlacement,
-    placement_trend: placementTrend,
+    department_readiness_avg: deptReadiness,
     readiness_distribution: readinessDistribution,
     assessment_completion: assessmentCompletion,
     learning_progress: learningProgress,
-    offer_stats: offerStats,
   };
 }
 
@@ -622,38 +517,6 @@ export async function getDashboardActivities(
     }));
   }
 
-  let latestOffers: Array<{
-    student_name: string;
-    company: string | null;
-    package: number | null;
-    status: string | null;
-  }> = [];
-  if (!isAcademicOnly(role)) {
-    latestOffers = (
-      await query<{
-        student_name: string;
-        company: string | null;
-        package: string | null;
-        status: string | null;
-      }>(
-        `SELECT u.name AS student_name, sd.placed_company AS company,
-                sd.placement_package::text AS package, sd.placement_status AS status
-         FROM student_details sd
-         JOIN users u ON u.id = sd.user_id
-         WHERE ${where}
-           AND (sd.offer_released = TRUE OR sd.placement_status IN ('Offered','Accepted','Joined'))
-         ORDER BY sd.updated_at DESC NULLS LAST
-         LIMIT 8`,
-        params
-      ).catch(() => [])
-    ).map((r) => ({
-      student_name: r.student_name,
-      company: r.company,
-      package: r.package != null ? Number(r.package) : null,
-      status: r.status,
-    }));
-  }
-
   let notifications: Array<{ id: string; title: string; created_at: string }> = [];
   try {
     notifications = await query(
@@ -673,7 +536,6 @@ export async function getDashboardActivities(
     recently_registered_students: recentStudents,
     latest_placement_drives: latestDrives,
     recent_assessment_results: recentResults,
-    latest_offers: latestOffers,
     recent_notifications: notifications,
   };
 }
@@ -725,21 +587,6 @@ export async function getPendingActions(
     pendingAssessments = Number(pa?.n) || 0;
   }
 
-  let upcomingInterviews = 0;
-  if (!isAcademicOnly(role)) {
-    const iv = await queryOne<{ n: string }>(
-      `SELECT COUNT(*)::text AS n
-       FROM users u
-       LEFT JOIN student_details sd ON sd.user_id = u.id
-       WHERE ${where}
-         AND sd.interview_status IS NOT NULL
-         AND TRIM(sd.interview_status) <> ''
-         AND LOWER(sd.interview_status) NOT IN ('completed','cancelled','none')`,
-      params
-    ).catch(() => ({ n: "0" }));
-    upcomingInterviews = Number(iv?.n) || 0;
-  }
-
   // Faculty approvals — profile incomplete students as proxy
   let facultyApprovals = 0;
   if (!isPlacementOnly(role)) {
@@ -775,13 +622,6 @@ export async function getPendingActions(
       count: pendingAssessments,
       href: "/app/college-portal/drives",
       visible: !isPlacementOnly(role),
-    },
-    {
-      id: "upcoming_interviews",
-      label: "Upcoming interviews",
-      count: upcomingInterviews,
-      href: "/app/college-portal/workflows",
-      visible: !isAcademicOnly(role),
     },
     {
       id: "faculty_approvals",

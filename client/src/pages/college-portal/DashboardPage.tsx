@@ -5,10 +5,8 @@ import {
   Users,
   Rocket,
   TrendingUp,
-  Briefcase,
   UserPlus,
   Building2,
-  CalendarClock,
   ClipboardList,
   BookOpen,
   Gauge,
@@ -125,9 +123,9 @@ export default function CollegePortalDashboard() {
       show: !isFacultyRole,
     },
     {
-      label: "Create Placement Drive",
+      label: "Create Assessment Drive",
       href: "/app/college-portal/drives",
-      icon: Briefcase,
+      icon: Rocket,
       show: !isFacultyRole,
     },
     {
@@ -156,7 +154,7 @@ export default function CollegePortalDashboard() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-gray-900">College Dashboard</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Campus KPIs, placement pipeline, assessments, and learning progress
+            Campus KPIs, assessments, learning progress, and placement readiness
           </p>
         </div>
         {!isPlacementRole && (
@@ -250,21 +248,11 @@ export default function CollegePortalDashboard() {
           <>
             <KpiLink to="/app/college-portal/students?filter=eligible">
               <StatsCard
-                title="Placement Eligible"
+                title="Placement Ready"
                 value={summary?.placement_eligible ?? "—"}
-                subtitle="Ready for hiring"
+                subtitle="Eligible for hiring"
                 icon={<CheckCircle2 className="h-4 w-4" />}
                 color="emerald"
-                loading={summaryQ.isLoading}
-              />
-            </KpiLink>
-            <KpiLink to="/app/college-portal/students?filter=placed">
-              <StatsCard
-                title="Students Placed"
-                value={summary?.students_placed ?? "—"}
-                subtitle={`${summary?.placement_conversion ?? 0}% conversion`}
-                icon={<Briefcase className="h-4 w-4" />}
-                color="indigo"
                 loading={summaryQ.isLoading}
               />
             </KpiLink>
@@ -272,29 +260,9 @@ export default function CollegePortalDashboard() {
               <StatsCard
                 title="Active Drives"
                 value={summary?.active_placement_drives ?? "—"}
-                subtitle="Placement / assessment drives"
+                subtitle="Assessment drives"
                 icon={<Rocket className="h-4 w-4" />}
                 color="violet"
-                loading={summaryQ.isLoading}
-              />
-            </KpiLink>
-            <KpiLink to="/app/college-portal/workflows">
-              <StatsCard
-                title="Companies Visiting"
-                value={summary?.companies_visiting ?? "—"}
-                subtitle="Distinct companies"
-                icon={<Building2 className="h-4 w-4" />}
-                color="cyan"
-                loading={summaryQ.isLoading}
-              />
-            </KpiLink>
-            <KpiLink to="/app/college-portal/workflows">
-              <StatsCard
-                title="Upcoming Interviews"
-                value={summary?.upcoming_interviews ?? "—"}
-                subtitle="Interview pipeline"
-                icon={<CalendarClock className="h-4 w-4" />}
-                color="amber"
                 loading={summaryQ.isLoading}
               />
             </KpiLink>
@@ -359,23 +327,13 @@ export default function CollegePortalDashboard() {
       {/* Charts */}
       {chartsQ.isError && <SectionError message="Could not load charts." />}
       <div className="grid gap-4 lg:grid-cols-2">
-        {charts?.visibility.department_placement !== false && (
+        {charts?.visibility.department_readiness !== false && (
           <ChartCard
-            title="Department-wise Placement %"
-            subtitle="Placed / total by department"
-            data={charts?.department_placement_percent ?? []}
+            title="Department-wise Avg Readiness"
+            subtitle="Average placement-readiness score by department"
+            data={charts?.department_readiness_avg ?? []}
             variant="bar"
             color="emerald"
-            loading={chartsQ.isLoading}
-          />
-        )}
-        {charts?.visibility.placement_trend !== false && (
-          <ChartCard
-            title="Placement Trend"
-            subtitle="Offers over time"
-            data={charts?.placement_trend ?? []}
-            variant="area"
-            color="indigo"
             loading={chartsQ.isLoading}
           />
         )}
@@ -406,16 +364,6 @@ export default function CollegePortalDashboard() {
             data={charts?.learning_progress ?? []}
             variant="area"
             color="cyan"
-            loading={chartsQ.isLoading}
-          />
-        )}
-        {charts?.visibility.offer_stats !== false && (
-          <ChartCard
-            title="Offer Statistics"
-            subtitle="Shortlist → join funnel"
-            data={charts?.offer_stats ?? []}
-            variant="bar"
-            color="emerald"
             loading={chartsQ.isLoading}
           />
         )}
@@ -472,23 +420,10 @@ export default function CollegePortalDashboard() {
                     }))}
                   />
                 )}
-                {(activities?.latest_offers?.length ?? 0) > 0 && (
-                  <ActivityBlock
-                    title="Latest offers"
-                    empty="No offers yet."
-                    items={(activities?.latest_offers ?? []).map((o, i) => ({
-                      key: `${o.student_name}-offer-${i}`,
-                      primary: o.student_name,
-                      secondary: [o.company, o.status].filter(Boolean).join(" · "),
-                      href: "/app/college-portal/students?filter=placed",
-                    }))}
-                  />
-                )}
                 {!activitiesQ.isLoading &&
                   !(activities?.recently_registered_students?.length) &&
                   !(activities?.latest_placement_drives?.length) &&
-                  !(activities?.recent_assessment_results?.length) &&
-                  !(activities?.latest_offers?.length) && (
+                  !(activities?.recent_assessment_results?.length) && (
                     <EmptyHint>No recent activity for this campus yet.</EmptyHint>
                   )}
               </>

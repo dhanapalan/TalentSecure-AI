@@ -81,7 +81,7 @@ export default function InsightsPage() {
             {/* Header */}
             <div>
                 <h1 className="text-3xl font-black text-slate-900 tracking-tight">Campus Insights</h1>
-                <p className="mt-1 text-slate-500 font-medium">Analytics trends, placement pipeline, and skill intelligence for your campus.</p>
+                <p className="mt-1 text-slate-500 font-medium">Assessment, learning, and placement-readiness intelligence for your campus.</p>
             </div>
 
             {/* KPI Row */}
@@ -89,7 +89,7 @@ export default function InsightsPage() {
                 {[
                     { label: "Avg Score", value: `${summary?.avg_score ?? 0}%`, icon: BarChart3, color: "blue" },
                     { label: "Avg Integrity", value: `${summary?.avg_integrity ?? 0}%`, icon: TrendingUp, color: "emerald" },
-                    { label: "Placement Rate", value: `${summary?.placement_conversion ?? 0}%`, icon: Briefcase, color: "purple" },
+                    { label: "Avg Readiness", value: summary?.avg_placement_readiness != null ? `${summary.avg_placement_readiness}` : "—", icon: Briefcase, color: "purple" },
                     { label: "Total Students", value: summary?.total_students ?? 0, icon: Users, color: "indigo" },
                 ].map((kpi) => (
                     <div key={kpi.label} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
