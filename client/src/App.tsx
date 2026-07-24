@@ -856,6 +856,7 @@ export default function App() {
                 }
               />
               <Route path="lms/:moduleKey" element={<LmsModulePage portal="college" />} />
+              <Route path="lms/courses/:courseId" element={<CourseDetailPage />} />
             </Route>
 
             {/* ── Student Portal (dedicated layout) ───────────────────── */}
