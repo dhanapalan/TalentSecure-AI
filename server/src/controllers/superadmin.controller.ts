@@ -936,13 +936,13 @@ export const createCollege = async (
           email, admission_email, phone, alternate_phone, website,
           address, address_line1, address_line2, city, district, state, country, pin_code,
           latitude, longitude, principal_name, university, naac_grade, total_students,
-          status, created_at
+          status, approval_status, created_at
        ) VALUES (
           $1, $2, $3, $4, $5, $6, $7,
           $8, $9, $10, $11, $12,
           $13, $14, $15, $16, $17, $18, $19, $20,
           $21, $22, $23, $24, $25, $26,
-          'pending', NOW()
+          'pending', 'pending', NOW()
        )
        RETURNING *`,
       [

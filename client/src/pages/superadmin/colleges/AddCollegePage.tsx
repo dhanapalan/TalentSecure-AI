@@ -487,13 +487,35 @@ export default function AddCollegePage() {
             </p>
           </div>
 
-          <div className="border-t border-gray-200 pt-6">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <p className="font-medium">Pending approval</p>
+            <p className="mt-1 text-amber-800/90">
+              This college is registered as <span className="font-medium">Pending</span>. Approve it
+              before the campus can operate on the platform.
+            </p>
+          </div>
+
+          <div className="border-t border-gray-200 pt-6 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => navigate("/app/superadmin/colleges/requests")}
+              className="px-6 py-2 bg-navy-900 text-white rounded-lg font-medium hover:bg-navy-800 transition-colors"
+            >
+              Review College Requests
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/app/superadmin/approvals")}
+              className="px-6 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              Open Approvals
+            </button>
             <button
               type="button"
               onClick={() => navigate("/app/superadmin/colleges")}
-              className="px-6 py-2 bg-navy-900 text-white rounded-lg font-medium hover:bg-navy-800 transition-colors"
+              className="px-6 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors"
             >
-              Done — Go to Colleges
+              Go to All Colleges
             </button>
           </div>
         </div>
