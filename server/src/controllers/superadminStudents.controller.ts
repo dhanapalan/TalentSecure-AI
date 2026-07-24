@@ -5,6 +5,25 @@ import { AppError } from "../middleware/errorHandler.js";
 import { ApiResponse } from "../types/index.js";
 import { sendNotification } from "../services/notification.service.js";
 
+/**
+ * Ensure the academic-span + branch columns exist before we INSERT them.
+ * Production DBs only run docker/init-db/*.sql on first volume boot, so a
+ * freshly deployed API can reference columns that were never migrated →
+ * "column ... does not exist" → 500 on bulk-import/create. This self-heals
+ * idempotently (mirrors ensureStudentFormColumns in the college services).
+ */
+let academicColumnsReady = false;
+async function ensureStudentAcademicColumns(): Promise<void> {
+  if (academicColumnsReady) return;
+  await query(`
+    ALTER TABLE student_details
+      ADD COLUMN IF NOT EXISTS branch VARCHAR(150),
+      ADD COLUMN IF NOT EXISTS academic_start_year INT,
+      ADD COLUMN IF NOT EXISTS academic_end_year INT
+  `);
+  academicColumnsReady = true;
+}
+
 /** Colleges that can receive new (or reassigned) students. */
 async function assertCollegeAcceptsStudents(collegeId: string): Promise<{ id: string; name: string }> {
   const college = await queryOne<{ id: string; name: string; status: string }>(
@@ -334,6 +353,7 @@ export const createStudent = async (
       throw new AppError("name, email, and college_id are required", 400);
     }
 
+    await ensureStudentAcademicColumns();
     await assertCollegeAcceptsStudents(college_id);
 
     const existing = await queryOne(
@@ -446,6 +466,7 @@ export const bulkImport = async (
       throw new AppError("Maximum 500 students per import", 400);
     }
 
+    await ensureStudentAcademicColumns();
     const college = await assertCollegeAcceptsStudents(college_id);
 
     // Pre-validate + prepare rows outside the DB transaction so we don't hold
@@ -663,6 +684,8 @@ export const updateStudent = async (
       [id]
     );
     if (!student) throw new AppError("Student not found", 404);
+
+    await ensureStudentAcademicColumns();
 
     if (college_id !== undefined) {
       await assertCollegeAcceptsStudents(college_id);
