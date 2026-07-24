@@ -90,7 +90,12 @@ export default function AddCollegePage() {
       // it's never retrievable again after this response.
       setCreated(result);
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to add college");
+      // API returns { success:false, error:"..." } — not `message`
+      const apiMsg =
+        error?.response?.data?.error ||
+        error?.response?.data?.message ||
+        "Failed to add college";
+      toast.error(apiMsg);
       console.error(error);
     } finally {
       setLoading(false);
