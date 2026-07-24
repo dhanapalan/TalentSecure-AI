@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
   Bell,
+  Download,
   Eye,
   Key,
   Pencil,
@@ -384,7 +385,15 @@ export default function AllStudentsPage() {
       toast.success(res?.message || `Imported ${data?.created_count ?? 0} students`);
       load();
     } catch (e: any) {
-      toast.error(e?.message || e.response?.data?.error || e.response?.data?.message || "Bulk import failed");
+      const networkish =
+        e?.code === "ERR_NETWORK" ||
+        e?.message === "Network Error" ||
+        /cors|network error|timeout/i.test(String(e?.message || ""));
+      toast.error(
+        networkish
+          ? "Import timed out or was blocked by the gateway. Try fewer rows (≤50) or retry — large files are sent in batches automatically."
+          : e?.response?.data?.error || e?.response?.data?.message || e?.message || "Bulk import failed"
+      );
     } finally {
       setImporting(false);
     }
@@ -901,13 +910,26 @@ export default function AllStudentsPage() {
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
             />
           </div>
-          <p className="text-sm text-gray-500 mb-2">
-            CSV columns:{" "}
-            <code className="text-xs bg-gray-100 px-1 rounded">
-              name, email, student_id, degree, passing_year, cgpa, phone
-            </code>
-            . Header row optional. Max 500 rows.
-          </p>
+          <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-amber-950">Sample CSV template</p>
+              <p className="text-xs text-amber-900/80 mt-0.5">
+                Columns:{" "}
+                <code className="rounded bg-amber-100/80 px-1">
+                  name, email, student_id, degree, passing_year, cgpa, phone
+                </code>
+                . Header row optional · max 500 rows.
+              </p>
+            </div>
+            <a
+              href="/samples/student_import_sample.csv"
+              download="student_import_sample.csv"
+              className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-1"
+            >
+              <Download className="w-4 h-4" />
+              Download sample CSV
+            </a>
+          </div>
           <textarea
             rows={8}
             value={importCsv}

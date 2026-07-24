@@ -182,11 +182,28 @@ export default function StudentBulkUploadModal({ open, onClose, onImported }: Pr
         <div className="flex-1 overflow-y-auto px-6 py-5">
           {step === "upload" && (
             <div className="space-y-5">
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="outline" onClick={downloadTemplate}>
-                  <Download className="h-4 w-4" />
-                  Download Sample Template
-                </Button>
+              <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 space-y-3">
+                <div>
+                  <p className="text-sm font-semibold text-amber-950">Start with a sample file</p>
+                  <p className="mt-0.5 text-xs text-amber-900/80">
+                    Download the sample, replace rows with your students, then upload. CSV uses the
+                    same columns as the Excel template — save as .xlsx before upload if needed.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <a
+                    href="/samples/college_student_import_sample.csv"
+                    download="college_student_import_sample.csv"
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-1"
+                  >
+                    <Download className="h-4 w-4" />
+                    Download Sample CSV
+                  </a>
+                  <Button type="button" variant="outline" onClick={downloadTemplate}>
+                    <Download className="h-4 w-4" />
+                    Download Excel Template
+                  </Button>
+                </div>
               </div>
 
               <div

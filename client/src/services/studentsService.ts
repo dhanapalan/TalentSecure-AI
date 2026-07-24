@@ -177,8 +177,46 @@ class StudentsService {
       cgpa?: number;
     }>;
   }) {
-    const response = await api.post("/superadmin/students/bulk-import", data);
-    return response.data;
+    // Chunk large imports so a single request can't trip the gateway timeout
+    // (which surfaces in the browser as a misleading CORS error).
+    const CHUNK_SIZE = 25;
+    const students = data.students;
+    if (students.length <= CHUNK_SIZE) {
+      const response = await api.post("/superadmin/students/bulk-import", data, {
+        timeout: 120_000,
+      });
+      return response.data;
+    }
+
+    const created: Array<{ user_id: string; email: string; temporary_password: string }> = [];
+    const skipped: Array<{ email: string; reason: string }> = [];
+    let collegeName = "";
+
+    for (let i = 0; i < students.length; i += CHUNK_SIZE) {
+      const chunk = students.slice(i, i + CHUNK_SIZE);
+      const response = await api.post(
+        "/superadmin/students/bulk-import",
+        { college_id: data.college_id, students: chunk },
+        { timeout: 120_000 }
+      );
+      const payload = response.data?.data;
+      collegeName = payload?.college_name || collegeName;
+      if (Array.isArray(payload?.created)) created.push(...payload.created);
+      if (Array.isArray(payload?.skipped)) skipped.push(...payload.skipped);
+    }
+
+    return {
+      success: true,
+      data: {
+        college_id: data.college_id,
+        college_name: collegeName,
+        created_count: created.length,
+        skipped_count: skipped.length,
+        created,
+        skipped,
+      },
+      message: `Imported ${created.length} student(s)${collegeName ? ` into ${collegeName}` : ""}`,
+    };
   }
 
   async updateStudent(id: string, data: Partial<StudentProfile> & Record<string, unknown>) {

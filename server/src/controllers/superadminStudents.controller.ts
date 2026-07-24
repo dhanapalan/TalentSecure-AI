@@ -414,37 +414,103 @@ export const bulkImport = async (
 
     const college = await assertCollegeAcceptsStudents(college_id);
 
-    const created: Array<{ user_id: string; email: string; temporary_password: string }> = [];
+    // Pre-validate + prepare rows outside the DB transaction so we don't hold
+    // locks while bcrypt runs (large imports were timing out at nginx → browser
+    // reported a misleading CORS error because the 502/504 had no ACAO header).
+    type Prepared = {
+      name: string;
+      email: string;
+      tempPassword: string;
+      hash: string;
+      student_identifier: string | null;
+      phone_number: string | null;
+      degree: string | null;
+      specialization: string | null;
+      passing_year: number | null;
+      cgpa: number | null;
+    };
+
     const skipped: Array<{ email: string; reason: string }> = [];
+    const toCreate: Array<Omit<Prepared, "tempPassword" | "hash"> & { name: string; email: string }> = [];
+    const seenEmails = new Set<string>();
+
+    for (const row of students) {
+      const name = String(row.name || "").trim();
+      const email = String(row.email || "").trim().toLowerCase();
+      if (!name || !email) {
+        skipped.push({ email: email || "(missing)", reason: "name and email required" });
+        continue;
+      }
+      if (seenEmails.has(email)) {
+        skipped.push({ email, reason: "duplicate email in this import file" });
+        continue;
+      }
+      seenEmails.add(email);
+
+      const passingRaw = row.passing_year ?? row.batch;
+      const cgpaRaw = row.cgpa;
+      toCreate.push({
+        name,
+        email,
+        student_identifier: String(
+          row.student_identifier || row.student_id || row.roll_number || ""
+        ).trim() || null,
+        phone_number: row.phone_number != null ? String(row.phone_number).trim() || null : null,
+        degree: row.degree != null || row.department != null
+          ? String(row.degree || row.department || "").trim() || null
+          : null,
+        specialization:
+          row.specialization != null ? String(row.specialization).trim() || null : null,
+        passing_year:
+          passingRaw != null && String(passingRaw).trim() !== ""
+            ? Number(passingRaw)
+            : null,
+        cgpa:
+          cgpaRaw != null && String(cgpaRaw).trim() !== "" ? Number(cgpaRaw) : null,
+      });
+    }
+
+    // Hash temp passwords in parallel (bounded). Cost 8 is enough for one-time
+    // must_change_password credentials and keeps chunks under the gateway timeout.
+    const BCRYPT_ROUNDS = 8;
+    const HASH_CONCURRENCY = 20;
+    const prepared: Prepared[] = [];
+    for (let i = 0; i < toCreate.length; i += HASH_CONCURRENCY) {
+      const slice = toCreate.slice(i, i + HASH_CONCURRENCY);
+      const hashedSlice = await Promise.all(
+        slice.map(async (row) => {
+          const tempPassword = `Campus${Math.random().toString(36).slice(2, 8)}!`;
+          const hash = await bcrypt.hash(tempPassword, BCRYPT_ROUNDS);
+          return { ...row, tempPassword, hash };
+        })
+      );
+      prepared.push(...hashedSlice);
+    }
+
+    // Single existence check instead of N round-trips inside the transaction.
+    const existingRes = await pool.query<{ email: string }>(
+      `SELECT email FROM users WHERE email = ANY($1::text[]) AND deleted_at IS NULL`,
+      [prepared.map((r) => r.email)]
+    );
+    const existingEmails = new Set(existingRes.rows.map((r) => r.email.toLowerCase()));
+
+    const created: Array<{ user_id: string; email: string; temporary_password: string }> = [];
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      for (const row of students) {
-        const name = String(row.name || "").trim();
-        const email = String(row.email || "").trim().toLowerCase();
-        if (!name || !email) {
-          skipped.push({ email: email || "(missing)", reason: "name and email required" });
+      for (const row of prepared) {
+        if (existingEmails.has(row.email)) {
+          skipped.push({ email: row.email, reason: "email already exists" });
           continue;
         }
 
-        const existing = await client.query(
-          `SELECT id FROM users WHERE email = $1 AND deleted_at IS NULL`,
-          [email]
-        );
-        if (existing.rows.length) {
-          skipped.push({ email, reason: "email already exists" });
-          continue;
-        }
-
-        const tempPassword = `Campus${Math.random().toString(36).slice(2, 8)}!`;
-        const hashed = await bcrypt.hash(tempPassword, 12);
-        const parts = name.split(/\s+/);
+        const parts = row.name.split(/\s+/);
         const userRes = await client.query(
           `INSERT INTO users
              (role, name, email, password, college_id, is_active, is_profile_complete, must_change_password, status)
            VALUES ('student', $1, $2, $3, $4, TRUE, FALSE, TRUE, 'active')
            RETURNING id`,
-          [name, email, hashed, college_id]
+          [row.name, row.email, row.hash, college_id]
         );
         const userId = userRes.rows[0].id;
         await client.query(
@@ -455,17 +521,22 @@ export const bulkImport = async (
           [
             userId,
             college_id,
-            parts[0] || name,
+            parts[0] || row.name,
             parts.slice(1).join(" ") || "",
-            row.student_identifier || row.student_id || row.roll_number || null,
-            row.phone_number || null,
-            row.degree || row.department || null,
-            row.specialization || null,
-            row.passing_year || row.batch || null,
-            row.cgpa || null,
+            row.student_identifier,
+            row.phone_number,
+            row.degree,
+            row.specialization,
+            Number.isFinite(row.passing_year as number) ? row.passing_year : null,
+            Number.isFinite(row.cgpa as number) ? row.cgpa : null,
           ]
         );
-        created.push({ user_id: userId, email, temporary_password: tempPassword });
+        existingEmails.add(row.email);
+        created.push({
+          user_id: userId,
+          email: row.email,
+          temporary_password: row.tempPassword,
+        });
       }
       await client.query("COMMIT");
     } catch (e) {
@@ -487,6 +558,17 @@ export const bulkImport = async (
       ]
     ).catch(() => undefined);
 
+    // Omit per-row temp passwords on larger batches — UI only shows counts, and
+    // shipping hundreds of secrets inflates response time for no benefit.
+    const createdPayload =
+      created.length > 25
+        ? created.map(({ user_id, email }) => ({
+            user_id,
+            email,
+            temporary_password: "",
+          }))
+        : created;
+
     res.status(201).json({
       success: true,
       data: {
@@ -494,7 +576,7 @@ export const bulkImport = async (
         college_name: college.name,
         created_count: created.length,
         skipped_count: skipped.length,
-        created,
+        created: createdPayload,
         skipped,
       },
       message: `Imported ${created.length} student(s) into ${college.name}`,
