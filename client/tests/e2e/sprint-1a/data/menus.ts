@@ -54,16 +54,14 @@ export const COLLEGE_ADMIN_MENUS: MenuItem[] = [
   { label: "Settings", path: "/app/college-portal/settings", heading: /College Profile|Settings/i },
 ];
 
-/** Flattened Super Admin leaf menus (visible nav; Enrollments excluded — hidden). */
+/** Flattened Super Admin leaf menus (visible nav; Batches/Certificates/Enrollments excluded — hidden). */
 export const SUPER_ADMIN_MENUS: MenuItem[] = [
   { label: "Dashboard", path: "/app/superadmin/dashboard", heading: /Admin Dashboard/i, hub: "Dashboard" },
 
-  // Organization
+  // Organization (Batches / Certificates / Enrollments excluded — hidden from nav)
   { label: "Colleges", path: "/app/superadmin/colleges", heading: /All Colleges/i, hub: "Organization Management" },
   { label: "Faculty", path: "/app/superadmin/users?role=instructor", heading: /Faculty|Users|All Users/i, hub: "Organization Management" },
   { label: "Students", path: "/app/superadmin/students", heading: /Students/i, hub: "Organization Management" },
-  { label: "Batches", path: "/app/superadmin/batches", heading: /Batch/i, hub: "Organization Management", soft: true },
-  { label: "Certificates", path: "/app/superadmin/certificates", heading: /Certificate/i, hub: "Organization Management", soft: true },
 
   // Learning Hub — key leaves (full KL tree)
   { label: "Knowledge Library Dashboard", path: "/app/superadmin/knowledge-library", heading: /Knowledge Library/i, hub: "Learning Hub", soft: true },
