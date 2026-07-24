@@ -1,10 +1,23 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Eye, Package, Pencil, Plus, Power, PowerOff, Search, UserPlus, Users } from "lucide-react";
+import {
+  Check,
+  ClipboardCheck,
+  Eye,
+  Package,
+  Pencil,
+  Plus,
+  Power,
+  PowerOff,
+  Search,
+  UserPlus,
+  Users,
+  X,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import StatusBadge from "../../../components/superadmin/StatusBadge";
 import ConfirmModal from "../../../components/superadmin/ConfirmModal";
-import collegeService, { College } from "../../../services/collegeService";
+import collegeService, { College, CollegeRequest } from "../../../services/collegeService";
 
 const STATUS_FILTERS = ["all", "active", "pending", "suspended"] as const;
 
@@ -13,6 +26,7 @@ export default function AllCollegesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [actionCollegeId, setActionCollegeId] = useState<string | null>(null);
+  const [pendingCount, setPendingCount] = useState(0);
   const [statusFilter, setStatusFilter] =
     useState<(typeof STATUS_FILTERS)[number]>("all");
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -27,11 +41,15 @@ export default function AllCollegesPage() {
   const loadColleges = useCallback(async () => {
     setLoading(true);
     try {
-      const { colleges: data } = await collegeService.getAllColleges(
-        statusFilter === "all" ? undefined : statusFilter,
-        search || undefined
-      );
+      const [{ colleges: data }, pending] = await Promise.all([
+        collegeService.getAllColleges(
+          statusFilter === "all" ? undefined : statusFilter,
+          search || undefined
+        ),
+        collegeService.getPendingRequests().catch(() => [] as CollegeRequest[]),
+      ]);
       setColleges(data);
+      setPendingCount(pending.length);
     } catch {
       setColleges([]);
     } finally {
@@ -82,6 +100,52 @@ export default function AllCollegesPage() {
     });
   };
 
+  const approvePending = (college: College) => {
+    setConfirmDialog({
+      title: "Approve college",
+      message: `Approve ${college.name} and activate it on the platform?`,
+      confirmLabel: "Approve",
+      tone: "default",
+      onConfirm: async () => {
+        setActionCollegeId(college.id);
+        try {
+          await collegeService.approveCollege(college.id);
+          toast.success("College approved");
+          await loadColleges();
+        } catch (e: any) {
+          toast.error(
+            e?.response?.data?.error || e?.response?.data?.message || "Failed to approve college"
+          );
+        } finally {
+          setActionCollegeId(null);
+        }
+      },
+    });
+  };
+
+  const rejectPending = (college: College) => {
+    setConfirmDialog({
+      title: "Reject college",
+      message: `Reject ${college.name}? The campus will not be activated.`,
+      confirmLabel: "Reject",
+      tone: "danger",
+      onConfirm: async () => {
+        setActionCollegeId(college.id);
+        try {
+          await collegeService.rejectCollege(college.id, "Rejected from All Colleges");
+          toast.success("College rejected");
+          await loadColleges();
+        } catch (e: any) {
+          toast.error(
+            e?.response?.data?.error || e?.response?.data?.message || "Failed to reject college"
+          );
+        } finally {
+          setActionCollegeId(null);
+        }
+      },
+    });
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
       {/* Header */}
@@ -90,14 +154,43 @@ export default function AllCollegesPage() {
           <h2 className="text-2xl font-semibold tracking-tight text-gray-900">All Colleges</h2>
           <p className="text-gray-500 mt-1">Manage all registered colleges and their settings.</p>
         </div>
-        <Link
-          to="/app/superadmin/colleges/new"
-          className="inline-flex items-center gap-2 rounded-lg bg-navy-900 px-4 py-2 text-sm font-medium text-white hover:bg-navy-800 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Add College
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            to="/app/superadmin/colleges/requests"
+            className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100 transition-colors"
+          >
+            <ClipboardCheck className="w-4 h-4" />
+            College Requests
+            {pendingCount > 0 && (
+              <span className="rounded-full bg-amber-600 px-2 py-0.5 text-xs font-semibold text-white">
+                {pendingCount}
+              </span>
+            )}
+          </Link>
+          <Link
+            to="/app/superadmin/colleges/new"
+            className="inline-flex items-center gap-2 rounded-lg bg-navy-900 px-4 py-2 text-sm font-medium text-white hover:bg-navy-800 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Add College
+          </Link>
+        </div>
       </div>
+
+      {pendingCount > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 flex flex-wrap items-center justify-between gap-3">
+          <p>
+            <span className="font-semibold">{pendingCount}</span> college
+            {pendingCount === 1 ? "" : "s"} awaiting approval.
+          </p>
+          <Link
+            to="/app/superadmin/colleges/requests"
+            className="font-medium text-amber-900 underline underline-offset-2 hover:text-amber-700"
+          >
+            Open approval screen
+          </Link>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="bg-white rounded-xl border border-gray-200/70 shadow-admin-card p-4">
@@ -207,24 +300,51 @@ export default function AllCollegesPage() {
                         >
                           <Package className="h-4 w-4" />
                         </Link>
-                        <button
-                          type="button"
-                          onClick={() => toggleCollegeStatus(college)}
-                          disabled={actionCollegeId === college.id}
-                          className={`inline-flex h-8 w-8 items-center justify-center rounded-md border disabled:opacity-50 ${
-                            college.status === "active"
-                              ? "border-red-200 text-red-700 hover:bg-red-50"
-                              : "border-green-200 text-green-700 hover:bg-green-50"
-                          }`}
-                          title={college.status === "active" ? "Suspend" : "Activate"}
-                          aria-label={college.status === "active" ? "Suspend college" : "Activate college"}
-                        >
-                          {college.status === "active" ? (
-                            <PowerOff className="h-4 w-4" />
-                          ) : (
-                            <Power className="h-4 w-4" />
-                          )}
-                        </button>
+                        {college.status === "pending" ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => approvePending(college)}
+                              disabled={actionCollegeId === college.id}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-green-200 text-green-700 hover:bg-green-50 disabled:opacity-50"
+                              title="Approve"
+                              aria-label="Approve college"
+                            >
+                              <Check className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => rejectPending(college)}
+                              disabled={actionCollegeId === college.id}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50"
+                              title="Reject"
+                              aria-label="Reject college"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => toggleCollegeStatus(college)}
+                            disabled={actionCollegeId === college.id}
+                            className={`inline-flex h-8 w-8 items-center justify-center rounded-md border disabled:opacity-50 ${
+                              college.status === "active"
+                                ? "border-red-200 text-red-700 hover:bg-red-50"
+                                : "border-green-200 text-green-700 hover:bg-green-50"
+                            }`}
+                            title={college.status === "active" ? "Suspend" : "Activate"}
+                            aria-label={
+                              college.status === "active" ? "Suspend college" : "Activate college"
+                            }
+                          >
+                            {college.status === "active" ? (
+                              <PowerOff className="h-4 w-4" />
+                            ) : (
+                              <Power className="h-4 w-4" />
+                            )}
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

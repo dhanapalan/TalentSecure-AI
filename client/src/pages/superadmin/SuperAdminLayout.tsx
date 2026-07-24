@@ -73,6 +73,9 @@ function pathMatches(href: string, pathname: string, search: string) {
   // Parent path ownership: /knowledge-library owns /knowledge-library/all, etc.
   // Dashboard leaf is exact-only so sibling hubs can compete cleanly.
   if (path === `${BASE}/knowledge-library`) return false;
+  // /colleges is a list leaf — do not own /colleges/requests or /colleges/new
+  // so sibling "College Requests" can be the active match.
+  if (path === `${BASE}/colleges`) return false;
   return pathname.startsWith(path + "/");
 }
 
@@ -106,6 +109,7 @@ const NAV: NavItem[] = [
     icon: Building2,
     children: [
       { name: "Colleges", href: `${BASE}/colleges` },
+      { name: "College Requests", href: `${BASE}/colleges/requests` },
       { name: "Faculty", href: `${BASE}/users?role=instructor` },
       { name: "Students", href: `${BASE}/students` },
       { name: "Batches", href: `${BASE}/batches` },
@@ -217,6 +221,7 @@ const NAV: NavItem[] = [
       { name: "Users", href: `${BASE}/users` },
       { name: "Roles", href: `${BASE}/roles` },
       { name: "Permissions", href: `${BASE}/roles/matrix` },
+      { name: "Approvals", href: `${BASE}/approvals` },
       { name: "Notifications", href: `${BASE}/notifications` },
       { name: "Audit Logs", href: `${BASE}/audit-trail` },
       { name: "Branding", href: `${BASE}/branding` },
