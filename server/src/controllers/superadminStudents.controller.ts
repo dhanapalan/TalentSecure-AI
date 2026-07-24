@@ -24,6 +24,37 @@ async function ensureStudentAcademicColumns(): Promise<void> {
   academicColumnsReady = true;
 }
 
+const YEAR_MIN = 1900;
+const YEAR_MAX = 2200;
+
+/**
+ * Parse an academic year value. Returns the integer year, null when blank/
+ * unparseable (treated as "not provided"), or an error string when a value was
+ * clearly provided but is out of the DB CHECK range — so the caller can skip
+ * the row instead of aborting the whole transaction with a 500.
+ */
+function parseYearValue(raw: unknown): { value: number | null; error?: string } {
+  if (raw === undefined || raw === null || String(raw).trim() === "") {
+    return { value: null };
+  }
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return { value: null };
+  if (!Number.isInteger(n) || n < YEAR_MIN || n > YEAR_MAX) {
+    return { value: null, error: `year must be between ${YEAR_MIN} and ${YEAR_MAX}` };
+  }
+  return { value: n };
+}
+
+function parseCgpaValue(raw: unknown): { value: number | null; error?: string } {
+  if (raw === undefined || raw === null || String(raw).trim() === "") {
+    return { value: null };
+  }
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return { value: null };
+  if (n < 0 || n > 10) return { value: null, error: "CGPA must be between 0 and 10" };
+  return { value: n };
+}
+
 /** Colleges that can receive new (or reassigned) students. */
 async function assertCollegeAcceptsStudents(collegeId: string): Promise<{ id: string; name: string }> {
   const college = await queryOne<{ id: string; name: string; status: string }>(
@@ -367,16 +398,24 @@ export const createStudent = async (
     const nameParts = String(name).trim().split(/\s+/);
     const firstName = nameParts[0] || name;
     const lastName = nameParts.slice(1).join(" ") || "";
-    const endYear =
-      academic_end_year != null && academic_end_year !== ""
-        ? Number(academic_end_year)
-        : passing_year != null && passing_year !== ""
-          ? Number(passing_year)
-          : null;
-    const startYear =
-      academic_start_year != null && academic_start_year !== ""
-        ? Number(academic_start_year)
-        : null;
+
+    const endParsed = parseYearValue(
+      academic_end_year != null && academic_end_year !== "" ? academic_end_year : passing_year
+    );
+    if (endParsed.error) throw new AppError(`Academic end ${endParsed.error}`, 400);
+    const startParsed = parseYearValue(academic_start_year);
+    if (startParsed.error) throw new AppError(`Academic start ${startParsed.error}`, 400);
+    const cgpaParsed = parseCgpaValue(cgpa);
+    if (cgpaParsed.error) throw new AppError(cgpaParsed.error, 400);
+    if (
+      startParsed.value != null &&
+      endParsed.value != null &&
+      startParsed.value > endParsed.value
+    ) {
+      throw new AppError("Academic start year must be on or before end year", 400);
+    }
+    const endYear = endParsed.value;
+    const startYear = startParsed.value;
     const branchValue =
       (branch != null && String(branch).trim()) ||
       (specialization != null && String(specialization).trim()) ||
@@ -410,10 +449,10 @@ export const createStudent = async (
           degree || null,
           branchValue,
           branchValue,
-          Number.isFinite(startYear as number) ? startYear : null,
-          Number.isFinite(endYear as number) ? endYear : null,
-          Number.isFinite(endYear as number) ? endYear : null,
-          cgpa || null,
+          startYear,
+          endYear,
+          endYear,
+          cgpaParsed.value,
         ]
       );
 
@@ -507,9 +546,39 @@ export const bulkImport = async (
         row.academic_end_year ?? row.end_year ?? row.passing_year ?? row.batch;
       const startRaw =
         row.academic_start_year ?? row.start_year ?? row.course_start_year;
-      const cgpaRaw = row.cgpa;
       const branchRaw =
         row.branch ?? row.specialization ?? row.department;
+
+      // Validate the numeric fields up front so one bad row can't abort the
+      // whole transaction (DB CHECK violation → 500). Invalid rows are skipped
+      // with a clear reason, mirroring the college bulk-import behaviour.
+      const endParsed = parseYearValue(endRaw);
+      const startParsed = parseYearValue(startRaw);
+      const cgpaParsed = parseCgpaValue(row.cgpa);
+      if (endParsed.error) {
+        skipped.push({ email, reason: `academic end ${endParsed.error}` });
+        continue;
+      }
+      if (startParsed.error) {
+        skipped.push({ email, reason: `academic start ${startParsed.error}` });
+        continue;
+      }
+      if (cgpaParsed.error) {
+        skipped.push({ email, reason: cgpaParsed.error });
+        continue;
+      }
+      if (
+        startParsed.value != null &&
+        endParsed.value != null &&
+        startParsed.value > endParsed.value
+      ) {
+        skipped.push({
+          email,
+          reason: "academic start year must be on or before end year",
+        });
+        continue;
+      }
+
       toCreate.push({
         name,
         email,
@@ -520,16 +589,9 @@ export const bulkImport = async (
         degree: row.degree != null ? String(row.degree).trim() || null : null,
         branch:
           branchRaw != null ? String(branchRaw).trim() || null : null,
-        academic_start_year:
-          startRaw != null && String(startRaw).trim() !== ""
-            ? Number(startRaw)
-            : null,
-        academic_end_year:
-          endRaw != null && String(endRaw).trim() !== ""
-            ? Number(endRaw)
-            : null,
-        cgpa:
-          cgpaRaw != null && String(cgpaRaw).trim() !== "" ? Number(cgpaRaw) : null,
+        academic_start_year: startParsed.value,
+        academic_end_year: endParsed.value,
+        cgpa: cgpaParsed.value,
       });
     }
 
