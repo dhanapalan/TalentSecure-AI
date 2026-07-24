@@ -7,11 +7,14 @@ import {
   TrashIcon,
   NoSymbolIcon,
   CheckIcon,
+  KeyIcon,
+  ClipboardDocumentIcon,
 } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
 import userService, { User, UserFilters } from "../../../services/userService";
 import collegeService, { College } from "../../../services/collegeService";
 import StatusBadge from "../../../components/superadmin/StatusBadge";
+import ConfirmModal from "../../../components/superadmin/ConfirmModal";
 
 const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
   college_admin: { title: "College Administrators", subtitle: "College admin accounts across the platform" },
@@ -47,6 +50,9 @@ export default function AllUsersPage() {
     college_id: "",
   });
   const [colleges, setColleges] = useState<College[]>([]);
+  const [resetTarget, setResetTarget] = useState<User | null>(null);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetResult, setResetResult] = useState<{ user: User; password: string; emailSent: boolean } | null>(null);
 
   useEffect(() => {
     collegeService
@@ -199,6 +205,21 @@ export default function AllUsersPage() {
       toast.error(error.response?.data?.message || "Failed to invite user");
     } finally {
       setInviteLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetTarget) return;
+    setResetLoading(true);
+    try {
+      const res = await userService.resetUserPassword(resetTarget.id);
+      setResetResult({ user: resetTarget, password: res.temporary_password, emailSent: res.email_sent });
+      toast.success(res.email_sent ? "Password reset — emailed to user" : "Password reset");
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to reset password");
+    } finally {
+      setResetLoading(false);
+      setResetTarget(null);
     }
   };
 
@@ -444,8 +465,11 @@ export default function AllUsersPage() {
                         {new Date(user.created_at).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 text-sm flex gap-2">
-                        <button onClick={() => navigate(`/app/superadmin/users/${user.id}`)}>
+                        <button onClick={() => navigate(`/app/superadmin/users/${user.id}`)} title="View">
                           <EyeIcon className="w-4 h-4 text-admin-accent" />
+                        </button>
+                        <button onClick={() => setResetTarget(user)} title="Reset password">
+                          <KeyIcon className="w-4 h-4 text-gray-500 hover:text-navy-900" />
                         </button>
                         {user.status === "suspended" ? (
                           <button onClick={() => handleUnsuspendUser(user.id)}>
@@ -510,6 +534,79 @@ export default function AllUsersPage() {
             >
               Next
             </button>
+          </div>
+        </div>
+      )}
+
+      <ConfirmModal
+        open={resetTarget !== null}
+        title="Reset password"
+        message={
+          resetTarget
+            ? `Reset the password for ${resetTarget.full_name} (${resetTarget.email})? A new temporary password will be generated and they'll be required to set a new one on next login.`
+            : ""
+        }
+        confirmLabel="Reset password"
+        tone="default"
+        busy={resetLoading}
+        onConfirm={handleResetPassword}
+        onCancel={() => setResetTarget(null)}
+      />
+
+      {resetResult && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="presentation"
+          onClick={() => setResetResult(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="relative w-full max-w-md rounded-xl border border-gray-200/70 bg-white p-6 shadow-admin-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-gray-900">Password reset</h3>
+            <p className="mt-2 text-sm text-gray-600">
+              {resetResult.user.full_name} ({resetResult.user.email})
+            </p>
+
+            {resetResult.emailSent ? (
+              <p className="mt-4 text-sm text-gray-600">
+                A temporary password was emailed to the user. They'll be asked to set a new one on next login.
+              </p>
+            ) : (
+              <>
+                <p className="mt-4 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  Email delivery failed. Share this temporary password with the user directly — it won't be shown again.
+                </p>
+                <div className="mt-3 flex items-center gap-2">
+                  <code className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-mono tracking-wide text-gray-900 select-all">
+                    {resetResult.password}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(resetResult.password);
+                      toast.success("Copied to clipboard");
+                    }}
+                    className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50"
+                    title="Copy password"
+                  >
+                    <ClipboardDocumentIcon className="w-4 h-4 text-gray-500" />
+                  </button>
+                </div>
+              </>
+            )}
+
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setResetResult(null)}
+                className="px-4 py-2 bg-navy-900 text-white rounded-lg text-sm font-medium hover:bg-navy-800"
+              >
+                Done
+              </button>
+            </div>
           </div>
         </div>
       )}

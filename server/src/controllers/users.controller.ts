@@ -1,12 +1,26 @@
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { query } from "../config/database.js";
 import {
   ensureUserRoleEnum,
   isValidUserRoleFilter,
 } from "../utils/ensureUserRoleEnum.js";
-import { sendUserInvitationEmail } from "../services/email.service.js";
+import { sendUserInvitationEmail, sendCampusAdminInvitation } from "../services/email.service.js";
 import { logger } from "../config/logger.js";
+
+// Unambiguous character set: no 0/O/1/l/I, no punctuation an admin might mis-key
+// when reading a temp password aloud or off a screenshot.
+const TEMP_PASSWORD_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+
+function generateTempPassword(length = 12): string {
+  const bytes = crypto.randomBytes(length);
+  let out = "";
+  for (let i = 0; i < length; i++) {
+    out += TEMP_PASSWORD_CHARS[bytes[i] % TEMP_PASSWORD_CHARS.length];
+  }
+  return out;
+}
 
 /**
  * List all users with filtering, search, and pagination
@@ -522,6 +536,98 @@ export const unsuspendUser = async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       message: "Failed to unsuspend user",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Reset a user's password to a freshly generated temporary one.
+ * Sets must_change_password so it can only be used once. Intended for a
+ * super_admin resetting access for locked-out users of any role, including
+ * college_admin — those accounts have no self-service reset entry point
+ * since the request never reaches a college inbox the way a student's does.
+ */
+export const resetUserPassword = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const userCheck = await query<{
+      id: string;
+      full_name: string;
+      email: string;
+      role: string;
+      college_name: string | null;
+    }>(
+      `SELECT u.id, u.full_name, u.email, u.role, c.name AS college_name
+       FROM users u
+       LEFT JOIN colleges c ON c.id = u.college_id
+       WHERE u.id = $1 AND u.deleted_at IS NULL`,
+      [id]
+    );
+
+    if (userCheck.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    const target = userCheck[0];
+    const tempPassword = generateTempPassword();
+    const hashedPassword = await bcrypt.hash(tempPassword, 12);
+
+    await query(
+      `UPDATE users
+       SET password = $1, must_change_password = TRUE, updated_at = NOW()
+       WHERE id = $2 AND deleted_at IS NULL`,
+      [hashedPassword, id]
+    );
+
+    await query(
+      `INSERT INTO audit_logs (user_id, action, resource_type, resource_id, changes, ip_address)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        req.user?.userId || "system",
+        "RESET_USER_PASSWORD",
+        "user",
+        id,
+        JSON.stringify({ target_email: target.email, target_role: target.role }),
+        req.ip,
+      ]
+    );
+
+    let emailSent = false;
+    try {
+      await sendCampusAdminInvitation({
+        adminName: target.full_name,
+        adminEmail: target.email,
+        campusName: target.college_name || "GradLogic",
+        temporaryPassword: tempPassword,
+      });
+      emailSent = true;
+    } catch (emailError) {
+      // Password is already reset -- don't fail the request over email delivery.
+      // The temp password is still returned below so the admin can hand it over
+      // directly (e.g. SMTP is a known placeholder in some environments).
+      logger.warn(`Password reset email failed for user ${id}: ${(emailError as Error).message}`);
+    }
+
+    res.json({
+      success: true,
+      message: emailSent
+        ? "Password reset. A temporary password was emailed to the user."
+        : "Password reset. Email delivery failed -- share the temporary password with the user directly.",
+      data: {
+        temporary_password: tempPassword,
+        email_sent: emailSent,
+      },
+    });
+  } catch (error: any) {
+    console.error("Error resetting user password:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to reset password",
       error: error.message,
     });
   }

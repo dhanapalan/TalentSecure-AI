@@ -187,6 +187,23 @@ class UserService {
   }
 
   /**
+   * Reset a user's password to a freshly generated temporary one.
+   * Returns the temp password so the admin can hand it over directly if
+   * email delivery is unavailable or fails.
+   */
+  async resetUserPassword(
+    userId: string
+  ): Promise<{ temporary_password: string; email_sent: boolean; message: string }> {
+    try {
+      const response = await api.post(`/superadmin/users/${userId}/reset-password`);
+      return { ...response.data.data, message: response.data.message };
+    } catch (error) {
+      console.error(`Failed to reset password for user ${userId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Bulk user action (suspend, delete, activate)
    */
   async bulkUserAction(
