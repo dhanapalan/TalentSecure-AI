@@ -385,7 +385,15 @@ export default function AllStudentsPage() {
       toast.success(res?.message || `Imported ${data?.created_count ?? 0} students`);
       load();
     } catch (e: any) {
-      toast.error(e?.message || e.response?.data?.error || e.response?.data?.message || "Bulk import failed");
+      const networkish =
+        e?.code === "ERR_NETWORK" ||
+        e?.message === "Network Error" ||
+        /cors|network error|timeout/i.test(String(e?.message || ""));
+      toast.error(
+        networkish
+          ? "Import timed out or was blocked by the gateway. Try fewer rows (≤50) or retry — large files are sent in batches automatically."
+          : e?.response?.data?.error || e?.response?.data?.message || e?.message || "Bulk import failed"
+      );
     } finally {
       setImporting(false);
     }
