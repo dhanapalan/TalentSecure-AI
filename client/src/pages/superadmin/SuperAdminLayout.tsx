@@ -112,9 +112,9 @@ const NAV: NavItem[] = [
       { name: "College Requests", href: `${BASE}/colleges/requests` },
       { name: "Faculty", href: `${BASE}/users?role=instructor` },
       { name: "Students", href: `${BASE}/students` },
-      { name: "Batches", href: `${BASE}/batches` },
+      { name: "Batches", href: `${BASE}/batches`, hidden: true },
       { name: "Enrollments", href: `${BASE}/enrollments`, hidden: true },
-      { name: "Certificates", href: `${BASE}/certificates` },
+      { name: "Certificates", href: `${BASE}/certificates`, hidden: true },
     ],
   },
   {
