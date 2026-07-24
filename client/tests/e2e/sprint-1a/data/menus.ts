@@ -54,7 +54,7 @@ export const COLLEGE_ADMIN_MENUS: MenuItem[] = [
   { label: "Settings", path: "/app/college-portal/settings", heading: /College Profile|Settings/i },
 ];
 
-/** Flattened Super Admin leaf menus (visible nav; Enrollments excluded — hidden). */
+/** Flattened Super Admin leaf menus (visible nav; Batches/Certificates/Enrollments excluded — hidden). */
 export const SUPER_ADMIN_MENUS: MenuItem[] = [
   { label: "Dashboard", path: "/app/superadmin/dashboard", heading: /Admin Dashboard/i, hub: "Dashboard" },
 
