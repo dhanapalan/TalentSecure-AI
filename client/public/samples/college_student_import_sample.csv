@@ -1,0 +1,6 @@
+roll_number,register_number,name,gender,dob,email,phone_number,department,program,batch,semester,section,academic_year,cgpa,placement_eligible,placement_status
+CS2026001,REG2026001,Ada Lovelace,female,2004-05-10,ada.lovelace@college.edu,9876543210,Computer Science,B.E,2026,6,A,2025-26,8.5,yes,Not Shortlisted
+CS2026002,REG2026002,Alan Turing,male,2003-11-22,alan.turing@college.edu,9876543211,Computer Science,B.E,2026,6,A,2025-26,9.1,yes,Not Shortlisted
+IT2026001,REG2026003,Grace Hopper,female,2004-01-15,grace.hopper@college.edu,9876543212,Information Technology,B.Tech,2027,4,B,2025-26,8.8,yes,Not Shortlisted
+ECE2026001,REG2026004,Katherine Johnson,female,2003-08-05,katherine.johnson@college.edu,9876543213,Electronics,B.E,2026,6,A,2025-26,9.0,yes,Not Shortlisted
+ME2026001,REG2026005,Margaret Hamilton,female,2004-03-18,margaret.hamilton@college.edu,9876543214,Mechanical,B.E,2025,8,C,2025-26,8.2,no,Not Shortlisted
