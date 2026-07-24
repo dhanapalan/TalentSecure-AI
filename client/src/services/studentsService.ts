@@ -179,7 +179,7 @@ class StudentsService {
   }) {
     // Chunk large imports so a single request can't trip the gateway timeout
     // (which surfaces in the browser as a misleading CORS error).
-    const CHUNK_SIZE = 50;
+    const CHUNK_SIZE = 25;
     const students = data.students;
     if (students.length <= CHUNK_SIZE) {
       const response = await api.post("/superadmin/students/bulk-import", data, {
