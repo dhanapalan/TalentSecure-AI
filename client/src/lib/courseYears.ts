@@ -1,4 +1,4 @@
-/** Typical program lengths used to show course years as start–end (e.g. B.E. 4 yrs → 2002 - 2006). */
+/** Typical program lengths used to infer start year when only end year is stored. */
 const DEGREE_DURATION_YEARS: Array<{ match: RegExp; years: number }> = [
   { match: /\b(b\.?\s*e\.?|b\.?\s*tech|be\b|btech)/i, years: 4 },
   { match: /\b(b\.?\s*sc|bsc|b\.?\s*com|bcom|b\.?\s*a\.?\b|\bba\b)/i, years: 3 },
@@ -22,23 +22,49 @@ export function getDegreeDurationYears(degree?: string | null): number {
 
 export function getCourseStartYear(
   degree?: string | null,
-  passingYear?: number | null
+  endYear?: number | null
 ): number | null {
-  if (passingYear == null || !Number.isFinite(Number(passingYear))) return null;
-  return Number(passingYear) - getDegreeDurationYears(degree);
+  if (endYear == null || !Number.isFinite(Number(endYear))) return null;
+  return Number(endYear) - getDegreeDurationYears(degree);
+}
+
+/**
+ * Format academic start–end years, e.g. "2002 - 2006".
+ * Uses stored start year when present; otherwise infers from degree + end year.
+ */
+export function formatAcademicYears(
+  startYear?: number | null,
+  endYear?: number | null,
+  degree?: string | null,
+  fallback = "—"
+): string {
+  const end = endYear != null && Number.isFinite(Number(endYear)) ? Number(endYear) : null;
+  const start =
+    startYear != null && Number.isFinite(Number(startYear))
+      ? Number(startYear)
+      : end != null
+        ? getCourseStartYear(degree, end)
+        : null;
+  if (start != null && end != null) return `${start} - ${end}`;
+  if (end != null) return String(end);
+  if (start != null) return String(start);
+  return fallback;
 }
 
 /**
  * Format stored passing/end year as a full course span, e.g. "2002 - 2006".
+ * Prefer formatAcademicYears when start year is available.
  */
 export function formatCourseYears(
   degree?: string | null,
   passingYear?: number | null,
-  fallback = "—"
+  fallback = "—",
+  startYear?: number | null
 ): string {
-  if (passingYear == null || !Number.isFinite(Number(passingYear))) return fallback;
-  const end = Number(passingYear);
-  const start = getCourseStartYear(degree, end);
-  if (start == null) return String(end);
-  return `${start} - ${end}`;
+  return formatAcademicYears(
+    startYear ?? null,
+    passingYear,
+    degree,
+    typeof fallback === "string" ? fallback : "—"
+  );
 }

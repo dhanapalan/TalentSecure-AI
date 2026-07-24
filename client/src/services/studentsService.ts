@@ -13,6 +13,10 @@ export interface StudentListItem {
   student_identifier: string | null;
   degree: string | null;
   department: string | null;
+  branch: string | null;
+  academic_start_year: number | null;
+  academic_end_year: number | null;
+  /** @deprecated alias of academic_end_year */
   batch: number | null;
   readiness_score: number;
 }
@@ -42,6 +46,10 @@ export interface StudentProfile {
   student_identifier: string | null;
   degree: string | null;
   specialization: string | null;
+  branch: string | null;
+  academic_start_year: number | null;
+  academic_end_year: number | null;
+  /** @deprecated alias of academic_end_year */
   passing_year: number | null;
   cgpa: number | null;
   percentage: number | null;
@@ -156,7 +164,10 @@ class StudentsService {
     student_identifier?: string;
     phone_number?: string;
     degree?: string;
+    branch?: string;
     specialization?: string;
+    academic_start_year?: number;
+    academic_end_year?: number;
     passing_year?: number;
     cgpa?: number;
   }) {
@@ -172,7 +183,10 @@ class StudentsService {
       student_identifier?: string;
       phone_number?: string;
       degree?: string;
+      branch?: string;
       specialization?: string;
+      academic_start_year?: number;
+      academic_end_year?: number;
       passing_year?: number;
       cgpa?: number;
     }>;
