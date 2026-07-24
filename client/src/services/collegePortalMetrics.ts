@@ -31,10 +31,7 @@ export interface CollegeSummary {
   total_students: number;
   active_students: number;
   placement_eligible: number;
-  students_placed: number;
   active_placement_drives: number;
-  companies_visiting: number;
-  upcoming_interviews: number;
   pending_assessments: number;
   learning_completion_percent: number;
   avg_placement_readiness: number | null;
@@ -42,8 +39,6 @@ export interface CollegeSummary {
   active_drives: number;
   avg_score: number;
   avg_integrity: number;
-  placed_students: number;
-  placement_conversion: number;
 }
 
 export interface ChartSeries {
@@ -54,19 +49,15 @@ export interface ChartSeries {
 export interface CollegeCharts {
   role?: string;
   visibility: {
-    department_placement: boolean;
-    placement_trend: boolean;
+    department_readiness: boolean;
     readiness_distribution: boolean;
     assessment_completion: boolean;
     learning_progress: boolean;
-    offer_stats: boolean;
   };
-  department_placement_percent: ChartSeries[];
-  placement_trend: ChartSeries[];
+  department_readiness_avg: ChartSeries[];
   readiness_distribution: ChartSeries[];
   assessment_completion: ChartSeries[];
   learning_progress: ChartSeries[];
-  offer_stats: ChartSeries[];
 }
 
 export interface CollegeActivities {
@@ -88,12 +79,6 @@ export interface CollegeActivities {
     drive_name: string;
     score: number | null;
     completed_at: string | null;
-  }>;
-  latest_offers: Array<{
-    student_name: string;
-    company: string | null;
-    package: number | null;
-    status: string | null;
   }>;
   recent_notifications: Array<{
     id: string;
