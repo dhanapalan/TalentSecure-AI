@@ -4,6 +4,11 @@ import toast from "react-hot-toast";
 import api from "../../../lib/api";
 import settingsService, { SystemSettings } from "../../../services/settingsService";
 
+async function sendTestEmail(email: string): Promise<string> {
+  const res = await api.post("/superadmin/test-email", { email });
+  return res.data.message as string;
+}
+
 type Tab = "system" | "backup";
 
 export default function SettingsPage() {
@@ -145,6 +150,25 @@ function SystemTab({ settings, set, save, saving }: TabProps) {
     "billing.academic_year",
   ];
 
+  const [testEmail, setTestEmail] = useState("");
+  const [testSending, setTestSending] = useState(false);
+
+  const handleSendTest = async () => {
+    if (!testEmail.trim()) {
+      toast.error("Enter an email address to send the test to");
+      return;
+    }
+    setTestSending(true);
+    try {
+      const message = await sendTestEmail(testEmail.trim());
+      toast.success(message, { duration: 6000 });
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to send test email");
+    } finally {
+      setTestSending(false);
+    }
+  };
+
   return (
     <div className="max-w-2xl space-y-6">
       <div className="bg-white rounded-xl border border-gray-200/70 shadow-admin-card p-6 space-y-4">
@@ -164,6 +188,28 @@ function SystemTab({ settings, set, save, saving }: TabProps) {
             onChange={(e) => set("platform.support_email", e.target.value)}
             className={inputClass}
           />
+        </Field>
+        <Field
+          label="Test SMTP Delivery"
+          hint="Sends a real email via the configured SMTP account, independent of any user record — use this to confirm mail is actually being delivered, not just that the server accepted the send."
+        >
+          <div className="flex gap-2">
+            <input
+              type="email"
+              placeholder="you@example.com"
+              value={testEmail}
+              onChange={(e) => setTestEmail(e.target.value)}
+              className={inputClass}
+            />
+            <button
+              type="button"
+              onClick={handleSendTest}
+              disabled={testSending}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 whitespace-nowrap"
+            >
+              {testSending ? "Sending..." : "Send Test"}
+            </button>
+          </div>
         </Field>
         <div className="divide-y divide-gray-100">
           <Toggle

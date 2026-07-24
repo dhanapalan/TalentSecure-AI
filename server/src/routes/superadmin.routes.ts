@@ -520,4 +520,20 @@ router.delete(
   superadminController.deleteEmailTemplate
 );
 
+// ────────────────────────────────────────────────────────────────────
+// SMTP DIAGNOSTICS
+// ────────────────────────────────────────────────────────────────────
+
+/**
+ * Send a one-off test email to any address, independent of user records.
+ * POST /api/superadmin/test-email  Body: { email }
+ */
+router.post(
+  "/test-email",
+  authenticate,
+  authorize("super_admin"),
+  requirePermission("notifications_manage"),
+  superadminController.sendTestEmail
+);
+
 export default router;

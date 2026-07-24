@@ -104,7 +104,8 @@ export type AdminAuditAction =
   | "CAMPAIGN_ATTEMPT_SUBMITTED"
   | "CAMPAIGN_ATTEMPT_AUTO_SUBMITTED"
   | "DEPARTMENT_CREATED"
-  | "DEPARTMENT_UPDATED";
+  | "DEPARTMENT_UPDATED"
+  | "SMTP_TEST_EMAIL_SENT";
 
 // ── Row Types ────────────────────────────────────────────────────────────────
 

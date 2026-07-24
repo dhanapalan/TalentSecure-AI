@@ -7,12 +7,67 @@ import { ApiResponse } from "../types/index.js";
 import { env } from "../config/env.js";
 import { assignDefaultModulesToCollege } from "../services/platformModules.service.js";
 import * as apiKeyStore from "../services/apiKeyStore.service.js";
+import { sendEmail } from "../services/email.service.js";
+import { writeAuditLog } from "../services/audit.service.js";
 
 // Matches the pattern already used for student temp passwords
 // (collegeStudentBulk.service.ts / college.service.ts).
 function generateTemporaryPassword(): string {
   return `Tsai!${randomBytes(6).toString("base64url")}`;
 }
+
+// ────────────────────────────────────────────────────────────────────
+// SMTP DIAGNOSTICS
+// ────────────────────────────────────────────────────────────────────
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Send a one-off test email to an admin-supplied address, independent of any
+ * user record. Password-reset/invite emails only fire for existing accounts
+ * (correctly -- they must not reveal whether an address is registered), which
+ * makes them unusable for checking "is mail delivery actually working" against
+ * an arbitrary real inbox. This is a direct, explicit probe for that.
+ */
+export const sendTestEmail = async (
+  req: Request,
+  res: Response<ApiResponse>,
+  next: NextFunction
+) => {
+  try {
+    const email = String(req.body?.email || "").trim();
+    if (!EMAIL_RE.test(email)) {
+      throw new AppError("A valid email address is required", 400);
+    }
+
+    const sentAt = new Date().toISOString();
+    await sendEmail({
+      to: email,
+      subject: "GradLogic — SMTP test email",
+      text: `This is a test email from GradLogic, sent at ${sentAt} by ${req.user?.email || "an admin"} to confirm outbound mail delivery is working. No action is needed.`,
+      html: `<p>This is a test email from <strong>GradLogic</strong>.</p>
+             <p>Sent at ${sentAt} by ${req.user?.email || "an admin"} to confirm outbound mail delivery is working.</p>
+             <p style="color:#64748b;font-size:13px;">No action is needed -- this was triggered manually from the admin console.</p>`,
+      template: "smtp_test",
+    });
+
+    await writeAuditLog({
+      actor_id: req.user?.userId || "system",
+      actor_role: req.user?.role || "unknown",
+      action: "SMTP_TEST_EMAIL_SENT",
+      target_type: "email",
+      target_id: email,
+      reason: "Manual SMTP delivery test from admin console",
+    }).catch(() => {});
+
+    res.json({
+      success: true,
+      message: `Test email sent to ${email}. If SMTP_USER/SMTP_PASS are unset it was only simulated (check server logs) -- otherwise check that inbox, including spam.`,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
 
 // ────────────────────────────────────────────────────────────────────
 // METRICS ENDPOINTS
