@@ -182,24 +182,29 @@ export default function StudentBulkUploadModal({ open, onClose, onImported }: Pr
         <div className="flex-1 overflow-y-auto px-6 py-5">
           {step === "upload" && (
             <div className="space-y-5">
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="outline" onClick={downloadTemplate}>
-                  <Download className="h-4 w-4" />
-                  Download Sample Template
-                </Button>
-                <a
-                  href="/samples/college_student_import_sample.csv"
-                  download="college_student_import_sample.csv"
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50"
-                >
-                  <Download className="h-4 w-4" />
-                  Download Sample CSV
-                </a>
+              <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 space-y-3">
+                <div>
+                  <p className="text-sm font-semibold text-amber-950">Start with a sample file</p>
+                  <p className="mt-0.5 text-xs text-amber-900/80">
+                    Download the sample, replace rows with your students, then upload. CSV uses the
+                    same columns as the Excel template — save as .xlsx before upload if needed.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <a
+                    href="/samples/college_student_import_sample.csv"
+                    download="college_student_import_sample.csv"
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-1"
+                  >
+                    <Download className="h-4 w-4" />
+                    Download Sample CSV
+                  </a>
+                  <Button type="button" variant="outline" onClick={downloadTemplate}>
+                    <Download className="h-4 w-4" />
+                    Download Excel Template
+                  </Button>
+                </div>
               </div>
-              <p className="text-xs text-gray-500">
-                Prefer CSV? Use the sample CSV (same columns as the Excel template). Convert to .xlsx
-                before upload, or open it in Excel and save as workbook.
-              </p>
 
               <div
                 className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200 bg-slate-50 px-6 py-12 text-center transition-colors hover:border-admin-accent/40"
