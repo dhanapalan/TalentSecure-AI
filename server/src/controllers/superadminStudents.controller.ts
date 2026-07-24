@@ -470,10 +470,10 @@ export const bulkImport = async (
       });
     }
 
-    // Hash temp passwords in parallel (bounded) — bcrypt cost 10 is enough for
-    // one-time must_change_password credentials and avoids gateway timeouts.
-    const BCRYPT_ROUNDS = 10;
-    const HASH_CONCURRENCY = 8;
+    // Hash temp passwords in parallel (bounded). Cost 8 is enough for one-time
+    // must_change_password credentials and keeps chunks under the gateway timeout.
+    const BCRYPT_ROUNDS = 8;
+    const HASH_CONCURRENCY = 20;
     const prepared: Prepared[] = [];
     for (let i = 0; i < toCreate.length; i += HASH_CONCURRENCY) {
       const slice = toCreate.slice(i, i + HASH_CONCURRENCY);
@@ -487,16 +487,19 @@ export const bulkImport = async (
       prepared.push(...hashedSlice);
     }
 
+    // Single existence check instead of N round-trips inside the transaction.
+    const existingRes = await pool.query<{ email: string }>(
+      `SELECT email FROM users WHERE email = ANY($1::text[]) AND deleted_at IS NULL`,
+      [prepared.map((r) => r.email)]
+    );
+    const existingEmails = new Set(existingRes.rows.map((r) => r.email.toLowerCase()));
+
     const created: Array<{ user_id: string; email: string; temporary_password: string }> = [];
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
       for (const row of prepared) {
-        const existing = await client.query(
-          `SELECT id FROM users WHERE email = $1 AND deleted_at IS NULL`,
-          [row.email]
-        );
-        if (existing.rows.length) {
+        if (existingEmails.has(row.email)) {
           skipped.push({ email: row.email, reason: "email already exists" });
           continue;
         }
@@ -528,6 +531,7 @@ export const bulkImport = async (
             Number.isFinite(row.cgpa as number) ? row.cgpa : null,
           ]
         );
+        existingEmails.add(row.email);
         created.push({
           user_id: userId,
           email: row.email,
@@ -554,6 +558,17 @@ export const bulkImport = async (
       ]
     ).catch(() => undefined);
 
+    // Omit per-row temp passwords on larger batches — UI only shows counts, and
+    // shipping hundreds of secrets inflates response time for no benefit.
+    const createdPayload =
+      created.length > 25
+        ? created.map(({ user_id, email }) => ({
+            user_id,
+            email,
+            temporary_password: "",
+          }))
+        : created;
+
     res.status(201).json({
       success: true,
       data: {
@@ -561,7 +576,7 @@ export const bulkImport = async (
         college_name: college.name,
         created_count: created.length,
         skipped_count: skipped.length,
-        created,
+        created: createdPayload,
         skipped,
       },
       message: `Imported ${created.length} student(s) into ${college.name}`,
