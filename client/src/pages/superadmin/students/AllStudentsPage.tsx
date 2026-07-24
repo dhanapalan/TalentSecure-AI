@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
   Bell,
+  Download,
   Eye,
   Key,
   Pencil,
@@ -901,12 +902,22 @@ export default function AllStudentsPage() {
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
             />
           </div>
-          <p className="text-sm text-gray-500 mb-2">
-            CSV columns:{" "}
-            <code className="text-xs bg-gray-100 px-1 rounded">
-              name, email, student_id, degree, passing_year, cgpa, phone
-            </code>
-            . Header row optional. Max 500 rows.
+          <p className="text-sm text-gray-500 mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span>
+              CSV columns:{" "}
+              <code className="text-xs bg-gray-100 px-1 rounded">
+                name, email, student_id, degree, passing_year, cgpa, phone
+              </code>
+              . Header row optional. Max 500 rows.
+            </span>
+            <a
+              href="/samples/student_import_sample.csv"
+              download="student_import_sample.csv"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-admin-accent hover:underline"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Download sample CSV
+            </a>
           </p>
           <textarea
             rows={8}
