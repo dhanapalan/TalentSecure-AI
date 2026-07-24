@@ -21,6 +21,42 @@ async function assertCollegeAcceptsStudents(collegeId: string): Promise<{ id: st
   return college;
 }
 
+/** Parse to an int within [min, max]; anything invalid/out-of-range → null. */
+function toBoundedInt(value: unknown, min: number, max: number): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  const i = Math.trunc(n);
+  return i >= min && i <= max ? i : null;
+}
+
+/** Parse to a number within [min, max]; anything invalid/out-of-range → null. */
+function toBoundedNumber(value: unknown, min: number, max: number): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  return n >= min && n <= max ? n : null;
+}
+
+/** Turn a Postgres error into a human-readable skip reason for bulk import. */
+function describeImportError(err: unknown): string {
+  const code = (err as { code?: string })?.code;
+  switch (code) {
+    case "23505": // unique_violation
+      return "student ID or email already exists in this college";
+    case "23514": // check_violation
+      return "value out of allowed range";
+    case "22001": // string_data_right_truncation
+      return "a field is too long";
+    case "23503": // foreign_key_violation
+      return "invalid college reference";
+    case "23502": // not_null_violation
+      return "a required field is missing";
+    default:
+      return err instanceof Error && err.message ? err.message : "could not import row";
+  }
+}
+
 // ────────────────────────────────────────────────────────────────────
 // GET /api/superadmin/students — global roster across all colleges
 // ────────────────────────────────────────────────────────────────────
@@ -433,6 +469,9 @@ export const bulkImport = async (
     const skipped: Array<{ email: string; reason: string }> = [];
     const toCreate: Array<Omit<Prepared, "tempPassword" | "hash"> & { name: string; email: string }> = [];
     const seenEmails = new Set<string>();
+    // Roll numbers already used earlier in THIS file — rejected before they hit
+    // the (college_id, student_identifier) unique index.
+    const seenIdentifiers = new Set<string>();
 
     for (const row of students) {
       const name = String(row.name || "").trim();
@@ -503,40 +542,66 @@ export const bulkImport = async (
           skipped.push({ email: row.email, reason: "email already exists" });
           continue;
         }
+        // Reject roll numbers duplicated within this file before they collide at the DB.
+        if (row.student_identifier) {
+          const idKey = row.student_identifier.toLowerCase();
+          if (seenIdentifiers.has(idKey)) {
+            skipped.push({
+              email: row.email,
+              reason: `duplicate student ID "${row.student_identifier}" in uploaded file`,
+            });
+            continue;
+          }
+        }
 
-        const parts = row.name.split(/\s+/);
-        const userRes = await client.query(
-          `INSERT INTO users
-             (role, name, email, password, college_id, is_active, is_profile_complete, must_change_password, status)
-           VALUES ('student', $1, $2, $3, $4, TRUE, FALSE, TRUE, 'active')
-           RETURNING id`,
-          [row.name, row.email, row.hash, college_id]
-        );
-        const userId = userRes.rows[0].id;
-        await client.query(
-          `INSERT INTO student_details
-             (user_id, college_id, first_name, last_name, student_identifier, phone_number,
-              degree, specialization, passing_year, cgpa)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-          [
-            userId,
-            college_id,
-            parts[0] || row.name,
-            parts.slice(1).join(" ") || "",
-            row.student_identifier,
-            row.phone_number,
-            row.degree,
-            row.specialization,
-            Number.isFinite(row.passing_year as number) ? row.passing_year : null,
-            Number.isFinite(row.cgpa as number) ? row.cgpa : null,
-          ]
-        );
-        existingEmails.add(row.email);
-        created.push({
-          user_id: userId,
-          email: row.email,
-          temporary_password: row.tempPassword,
-        });
+        // Coerce optional numeric fields; drop out-of-range values to NULL rather
+        // than failing the whole row on a CHECK constraint (cgpa 0–10, year 1900–2200).
+        const passingYear = toBoundedInt(row.passing_year, 1900, 2200);
+        const cgpa = toBoundedNumber(row.cgpa, 0, 10);
+
+        // Isolate each row so one bad record (duplicate student ID, over-length
+        // value, etc.) is skipped instead of aborting the entire import.
+        await client.query("SAVEPOINT bulk_row");
+        try {
+          const parts = row.name.split(/\s+/);
+          const userRes = await client.query(
+            `INSERT INTO users
+               (role, name, email, password, college_id, is_active, is_profile_complete, must_change_password, status)
+             VALUES ('student', $1, $2, $3, $4, TRUE, FALSE, TRUE, 'active')
+             RETURNING id`,
+            [row.name, row.email, row.hash, college_id]
+          );
+          const userId = userRes.rows[0].id;
+          await client.query(
+            `INSERT INTO student_details
+               (user_id, college_id, first_name, last_name, student_identifier, phone_number,
+                degree, specialization, passing_year, cgpa)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+            [
+              userId,
+              college_id,
+              parts[0] || row.name,
+              parts.slice(1).join(" ") || "",
+              row.student_identifier,
+              row.phone_number,
+              row.degree,
+              row.specialization,
+              passingYear,
+              cgpa,
+            ]
+          );
+          await client.query("RELEASE SAVEPOINT bulk_row");
+          existingEmails.add(row.email);
+          if (row.student_identifier) seenIdentifiers.add(row.student_identifier.toLowerCase());
+          created.push({
+            user_id: userId,
+            email: row.email,
+            temporary_password: row.tempPassword,
+          });
+        } catch (rowErr) {
+          await client.query("ROLLBACK TO SAVEPOINT bulk_row");
+          skipped.push({ email: row.email, reason: describeImportError(rowErr) });
+        }
       }
       await client.query("COMMIT");
     } catch (e) {
