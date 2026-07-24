@@ -30,14 +30,31 @@ export interface CollegeStudent {
 
 export interface CreateCollegeInput {
   name: string;
-  email: string;
-  phone: string;
-  address: string;
+  shortName?: string | null;
+  establishmentYear: number;
+  institutionType: string;
+  ownership: string;
+  categories: string[];
+  addressLine1: string;
+  addressLine2?: string | null;
   city: string;
+  district: string;
   state: string;
+  country?: string;
+  pincode: string;
+  website: string;
+  email: string;
+  admissionEmail?: string | null;
+  phone: string;
+  alternatePhone?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  principalName?: string | null;
+  affiliatedUniversity?: string | null;
+  naacGrade?: string | null;
+  totalStudents?: number | null;
   tpoName: string;
   tpoEmail: string;
-  studentLimit: number;
 }
 
 export interface CreateCollegeResult extends College {

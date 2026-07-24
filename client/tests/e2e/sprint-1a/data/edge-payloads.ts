@@ -18,28 +18,40 @@ export function collegeValid(overrides: Partial<CollegePayload> = {}): CollegePa
 export function collegeBlankMandatory(): CollegePayload {
   return {
     name: "",
+    establishmentYear: 0 as unknown as number,
+    institutionType: "",
+    ownership: "",
+    categories: [],
+    addressLine1: "",
+    city: "",
+    district: "",
+    state: "",
+    pincode: "",
+    website: "",
     email: "",
     phone: "",
-    address: "",
-    city: "",
-    state: "",
     tpoName: "",
     tpoEmail: "",
-    studentLimit: 100,
   };
 }
 
 export function collegeOnlySpaces(): CollegePayload {
   return {
     name: "   ",
+    establishmentYear: 2000,
+    institutionType: "University",
+    ownership: "Private",
+    categories: ["Engineering"],
+    addressLine1: "   ",
+    city: "   ",
+    district: "   ",
+    state: "   ",
+    pincode: "   ",
+    website: "   ",
     email: "   ",
     phone: "   ",
-    address: "   ",
-    city: "   ",
-    state: "   ",
     tpoName: "   ",
     tpoEmail: "   ",
-    studentLimit: 100,
   };
 }
 
