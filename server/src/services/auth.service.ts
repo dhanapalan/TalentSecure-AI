@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { queryOne } from "../config/database.js";
 import { env } from "../config/env.js";
+import { logger } from "../config/logger.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { UserRow, AuthPayload, UserRole } from "../types/index.js";
 import { logLogin, logLoginFailure } from "./audit.service.js";
@@ -529,8 +530,11 @@ export async function requestPasswordReset(
   ip?: string
 ): Promise<{ resetUrl?: string; otp?: string }> {
   const normalizedEmail = email.toLowerCase().trim();
+  // Match login: case-insensitive email lookup. Several invite/create paths
+  // historically stored mixed-case emails; exact `email = $1` after lowercasing
+  // the input silently skipped those users (API still returned success).
   const user = await queryOne<{ id: string; email: string; name: string | null; full_name: string | null }>(
-    "SELECT id, email, name, full_name FROM users WHERE email = $1 AND is_active = TRUE",
+    "SELECT id, email, name, full_name FROM users WHERE LOWER(email) = $1 AND is_active = TRUE",
     [normalizedEmail],
   );
 
@@ -564,12 +568,18 @@ export async function requestPasswordReset(
   }
 
   const resetUrl = `${env.CLIENT_URL}/auth/reset-password?token=${rawToken}`;
-  await sendPasswordResetEmail({
+  const mail = await sendPasswordResetEmail({
     name: user.full_name || user.name || "there",
     email: user.email,
     resetUrl,
     otp,
   });
+
+  if (!mail.delivered && !mail.simulated) {
+    logger.error(
+      `Password reset email failed for ${user.email}: ${mail.error || "unknown error"}`,
+    );
+  }
 
   recordAuditEvent({
     userId: user.id,
@@ -579,11 +589,14 @@ export async function requestPasswordReset(
     ipAddress: ip,
   }).catch(() => { });
 
-  // Never expose OTP / reset links in production — even if SMTP is misconfigured.
-  // Local/dev (and explicit non-production) may return them when SMTP is unset.
+  // Never expose OTP / reset links in production.
+  // In non-prod, expose them when mail was only simulated or failed to send
+  // so local testing is not blocked by SMTP issues.
   const isProd = env.NODE_ENV === "production";
-  const smtpConfigured = Boolean(env.SMTP_USER && env.SMTP_PASS);
-  if (isProd || smtpConfigured) {
+  if (isProd) {
+    return {};
+  }
+  if (mail.delivered) {
     return {};
   }
   return { resetUrl, otp };
@@ -610,7 +623,7 @@ export async function verifyPasswordResetOtp(
     password_reset_expires_at: string | null;
   }>(
     `SELECT id, password_reset_token_hash, password_reset_expires_at
-     FROM users WHERE email = $1 AND is_active = TRUE`,
+     FROM users WHERE LOWER(email) = $1 AND is_active = TRUE`,
     [normalizedEmail],
   );
 
