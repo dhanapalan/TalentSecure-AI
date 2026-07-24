@@ -35,12 +35,12 @@ export type StudentFormState = {
   dob: string;
   email: string;
   phone_number: string;
-  department: string;
+  branch: string;
   program: string;
-  batch: string;
   semester: string;
   section: string;
-  academic_year: string;
+  academic_start_year: string;
+  academic_end_year: string;
   cgpa: string;
   placement_eligible: boolean;
   placement_status: string;
@@ -54,22 +54,31 @@ const EMPTY: StudentFormState = {
   dob: "",
   email: "",
   phone_number: "",
-  department: "",
+  branch: "",
   program: "",
-  batch: "",
   semester: "",
   section: "",
-  academic_year: "",
+  academic_start_year: "",
+  academic_end_year: "",
   cgpa: "",
   placement_eligible: false,
   placement_status: "Not Shortlisted",
 };
 
+function validateYear(value: string, label: string): string | null {
+  if (!value.trim()) return null;
+  const y = Number(value);
+  if (!Number.isInteger(y) || y < 1900 || y > 2200) {
+    return `${label} must be a valid year.`;
+  }
+  return null;
+}
+
 function validate(form: StudentFormState, isCreate: boolean): string | null {
   if (!form.roll_number.trim()) return "Roll Number is required.";
   if (!form.name.trim()) return "Student Name is required.";
-  if (!form.department.trim()) return "Department is required.";
-  if (!form.batch.trim()) return "Batch is required.";
+  if (!form.branch.trim()) return "Branch is required.";
+  if (!form.academic_end_year.trim()) return "Academic end year is required.";
   if (isCreate && !form.email.trim()) return "Email is required.";
   if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
     return "Enter a valid email address.";
@@ -84,11 +93,16 @@ function validate(form: StudentFormState, isCreate: boolean): string | null {
     const n = Number(form.cgpa);
     if (Number.isNaN(n) || n < 0 || n > 10) return "CGPA must be between 0 and 10.";
   }
-  if (form.academic_year.trim()) {
-    const y = Number(form.academic_year);
-    if (!Number.isInteger(y) || y < 1900 || y > 2200) {
-      return "Academic Year must be a valid year.";
-    }
+  const startErr = validateYear(form.academic_start_year, "Academic start year");
+  if (startErr) return startErr;
+  const endErr = validateYear(form.academic_end_year, "Academic end year");
+  if (endErr) return endErr;
+  if (
+    form.academic_start_year.trim() &&
+    form.academic_end_year.trim() &&
+    Number(form.academic_start_year) > Number(form.academic_end_year)
+  ) {
+    return "Academic start year must be on or before end year.";
   }
   return null;
 }
@@ -102,12 +116,17 @@ function toPayload(form: StudentFormState) {
     dob: form.dob || null,
     email: form.email.trim() || null,
     phone_number: form.phone_number.trim() || null,
-    department: form.department.trim(),
+    branch: form.branch.trim(),
+    department: form.branch.trim(),
     program: form.program.trim() || null,
-    batch: form.batch.trim(),
     semester: form.semester.trim() || null,
     section: form.section.trim() || null,
-    academic_year: form.academic_year.trim() ? Number(form.academic_year) : null,
+    academic_start_year: form.academic_start_year.trim()
+      ? Number(form.academic_start_year)
+      : null,
+    academic_end_year: form.academic_end_year.trim()
+      ? Number(form.academic_end_year)
+      : null,
     cgpa: form.cgpa.trim() ? Number(form.cgpa) : null,
     placement_eligible: form.placement_eligible,
     placement_status: form.placement_status || "Not Shortlisted",
@@ -132,10 +151,10 @@ export default function StudentFormPage() {
     queryKey: ["campus-departments"],
     queryFn: () => campusDepartmentsService.list(),
   });
-  const departmentOptions = departments.some((d) => d.name === form.department)
+  const departmentOptions = departments.some((d) => d.name === form.branch)
     ? departments
-    : form.department
-      ? [...departments, { id: "current", name: form.department, college_id: "", is_active: true, created_at: "", updated_at: "" }]
+    : form.branch
+      ? [...departments, { id: "current", name: form.branch, college_id: "", is_active: true, created_at: "", updated_at: "" }]
       : departments;
 
   useEffect(() => {
@@ -149,17 +168,20 @@ export default function StudentFormPage() {
       dob: o.dob ? String(o.dob).slice(0, 10) : "",
       email: o.email ?? "",
       phone_number: o.phone_number ?? "",
-      department: o.department ?? "",
+      branch: o.branch ?? o.department ?? o.specialization ?? "",
       program: o.program ?? o.degree ?? "",
-      batch: o.batch ?? o.class_name ?? "",
       semester: o.semester ?? "",
       section: o.section ?? "",
-      academic_year:
-        o.academic_year != null
-          ? String(o.academic_year)
-          : o.passing_year != null
-            ? String(o.passing_year)
-            : "",
+      academic_start_year:
+        o.academic_start_year != null ? String(o.academic_start_year) : "",
+      academic_end_year:
+        o.academic_end_year != null
+          ? String(o.academic_end_year)
+          : o.academic_year != null
+            ? String(o.academic_year)
+            : o.passing_year != null
+              ? String(o.passing_year)
+              : "",
       cgpa: o.cgpa != null ? String(o.cgpa) : "",
       placement_eligible: Boolean(o.placement_eligible),
       placement_status: o.placement_status || "Not Shortlisted",
@@ -301,14 +323,14 @@ export default function StudentFormPage() {
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
           <label className="block text-xs font-medium text-gray-600">
-            Department *
+            Branch *
             <select
               className="mt-1 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm"
-              value={form.department}
-              onChange={set("department")}
+              value={form.branch}
+              onChange={set("branch")}
               required
             >
-              <option value="">Select department…</option>
+              <option value="">Select branch…</option>
               {departmentOptions.map((d) => (
                 <option key={d.id} value={d.name}>
                   {d.name}
@@ -320,21 +342,28 @@ export default function StudentFormPage() {
                 to="/app/college-portal/settings/departments"
                 className="mt-1 block text-xs text-admin-accent hover:underline"
               >
-                No departments configured — add one
+                No branches configured — add one under Departments
               </Link>
             )}
           </label>
-          <Field label="Program" value={form.program} onChange={set("program")} />
-          <Field label="Batch *" value={form.batch} onChange={set("batch")} required />
+          <Field label="Program" value={form.program} onChange={set("program")} placeholder="e.g. B.E" />
+          <Field
+            label="Academic start year"
+            type="number"
+            value={form.academic_start_year}
+            onChange={set("academic_start_year")}
+            placeholder="e.g. 2022"
+          />
+          <Field
+            label="Academic end year *"
+            type="number"
+            value={form.academic_end_year}
+            onChange={set("academic_end_year")}
+            placeholder="e.g. 2026"
+            required
+          />
           <Field label="Semester" value={form.semester} onChange={set("semester")} />
           <Field label="Section" value={form.section} onChange={set("section")} />
-          <Field
-            label="Academic Year"
-            type="number"
-            value={form.academic_year}
-            onChange={set("academic_year")}
-            placeholder="e.g. 2026"
-          />
           <Field
             label="CGPA"
             type="number"

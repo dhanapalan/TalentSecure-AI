@@ -136,12 +136,12 @@ export default function StudentBulkUploadModal({ open, onClose, onImported }: Pr
           dob: "",
           email: f.email,
           phone_number: "",
-          department: "",
+          branch: "",
           program: "",
-          batch: "",
+          academic_start_year: "",
+          academic_end_year: "",
           semester: "",
           section: "",
-          academic_year: "",
           cgpa: "",
           placement_eligible: "",
           placement_status: "Not Shortlisted",
@@ -149,7 +149,9 @@ export default function StudentBulkUploadModal({ open, onClose, onImported }: Pr
       };
     });
     // Only retry rows that still have full data from validation
-    const usable = rows.filter((r) => r.data.name && r.data.department && r.data.batch);
+    const usable = rows.filter(
+      (r) => r.data.name && r.data.branch && r.data.academic_end_year
+    );
     if (!usable.length) {
       toast.error("Re-upload a corrected Excel file to retry failed rows.");
       setStep("upload");

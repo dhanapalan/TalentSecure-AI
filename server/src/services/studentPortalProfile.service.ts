@@ -18,6 +18,12 @@ async function ensurePortalProfileSchema() {
   await query(
     `ALTER TABLE student_details ADD COLUMN IF NOT EXISTS policy_accepted_at TIMESTAMPTZ`
   ).catch(() => {});
+  await query(`
+    ALTER TABLE student_details
+      ADD COLUMN IF NOT EXISTS branch VARCHAR(150),
+      ADD COLUMN IF NOT EXISTS academic_start_year INT,
+      ADD COLUMN IF NOT EXISTS academic_end_year INT
+  `).catch(() => {});
   schemaReady = true;
 }
 
@@ -27,8 +33,8 @@ const COMPLETION_FIELDS = [
   "dob",
   "phone_number",
   "degree",
-  "specialization",
-  "passing_year",
+  "branch",
+  "academic_end_year",
   "academic_score",
   "student_identifier",
   "skills",
@@ -128,8 +134,8 @@ export async function getProfileCompletion(userId: string) {
     dob: string | null;
     phone_number: string | null;
     degree: string | null;
-    specialization: string | null;
-    passing_year: number | null;
+    branch: string | null;
+    academic_end_year: number | null;
     cgpa: number | null;
     percentage: number | null;
     student_identifier: string | null;
@@ -143,7 +149,10 @@ export async function getProfileCompletion(userId: string) {
         COALESCE(NULLIF(sd.first_name, ''), NULLIF(SPLIT_PART(COALESCE(u.name, ''), ' ', 1), '')) AS first_name,
         COALESCE(NULLIF(sd.last_name, ''), NULLIF(TRIM(REGEXP_REPLACE(COALESCE(u.name, ''), '^\\S+\\s*', '')), '')) AS last_name,
         sd.dob::text, COALESCE(NULLIF(sd.phone_number, ''), u.phone_number) AS phone_number,
-        sd.degree, sd.specialization, sd.passing_year, sd.cgpa, sd.percentage,
+        sd.degree,
+        COALESCE(NULLIF(sd.branch, ''), sd.specialization) AS branch,
+        COALESCE(sd.academic_end_year, sd.passing_year) AS academic_end_year,
+        sd.cgpa, sd.percentage,
         sd.student_identifier, sd.skills, sd.career_goals, sd.resume_url,
         sd.policy_accepted_at::text, u.is_profile_complete
      FROM users u
@@ -159,8 +168,8 @@ export async function getProfileCompletion(userId: string) {
     dob: Boolean(row.dob),
     phone_number: Boolean(row.phone_number),
     degree: Boolean(row.degree),
-    specialization: Boolean(row.specialization),
-    passing_year: row.passing_year != null,
+    branch: Boolean(row.branch),
+    academic_end_year: row.academic_end_year != null,
     academic_score: row.cgpa != null || row.percentage != null,
     student_identifier: Boolean(row.student_identifier),
     skills: Array.isArray(row.skills)

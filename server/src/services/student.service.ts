@@ -62,7 +62,11 @@ export interface UpdateStudentInput {
   alternate_email?: string;
   alternate_phone?: string;
   specialization?: string;
+  branch?: string;
+  academic_start_year?: number;
+  academic_end_year?: number;
   passing_year?: number;
+  graduation_year?: number;
   cgpa?: number;
   percentage?: number;
   roll_number?: string;
@@ -613,7 +617,9 @@ export async function updateStudent(studentId: string, input: UpdateStudentInput
     const alternateEmail = normalizeOptionalString(input.alternate_email)?.toLowerCase() ?? null;
     const alternatePhone = normalizeOptionalString(input.alternate_phone);
     const degree = normalizeOptionalString(input.degree);
-    const specialization = normalizeOptionalString(input.specialization ?? input.major);
+    const specialization = normalizeOptionalString(
+      input.branch ?? input.specialization ?? input.major
+    );
     const className = normalizeOptionalString(input.class_name ?? input.class);
     const section = normalizeOptionalString(input.section);
     const rollNumber = normalizeOptionalString(input.roll_number ?? input.student_identifier);
@@ -621,7 +627,10 @@ export async function updateStudent(studentId: string, input: UpdateStudentInput
     const linkedinUrl = normalizeOptionalString(input.linkedin_url);
     const githubUrl = normalizeOptionalString(input.github_url);
     const skills = normalizeSkillsInput(input.skills);
-    const passingYear = input.passing_year ?? input.graduation_year ?? null;
+    const passingYear =
+      input.academic_end_year ?? input.passing_year ?? input.graduation_year ?? null;
+    const academicStartYear = input.academic_start_year ?? null;
+    const academicEndYear = passingYear;
     const cgpa = typeof input.cgpa === "number" ? input.cgpa : null;
     const percentage = typeof input.percentage === "number" ? input.percentage : null;
     const dob = input.dob ?? null;
@@ -763,8 +772,8 @@ export async function updateStudent(studentId: string, input: UpdateStudentInput
         `INSERT INTO student_details
             (user_id, college_id, first_name, middle_name, last_name,
              student_identifier, phone_number, alternate_email, alternate_phone,
-             dob, gender, degree, specialization, class_name, section,
-             passing_year, cgpa, percentage, resume_url, skills,
+             dob, gender, degree, specialization, branch, class_name, section,
+             academic_start_year, academic_end_year, passing_year, cgpa, percentage, resume_url, skills,
              linkedin_url, github_url, face_photo_url, updated_at,
              eligible_for_hiring, placement_status, placed_company, placement_package,
              is_blacklisted, is_suspended, interview_status, is_shortlisted, offer_released,
@@ -773,10 +782,10 @@ export async function updateStudent(studentId: string, input: UpdateStudentInput
          VALUES
             ($1, $2, $3, $4, $5,
              $6, $7, $8, $9,
-             $10, $11, $12, $13, $14, $15,
-             $16, $17, $18, $19, $20,
-             $21, $22, $23, NOW(),
-             $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38)
+             $10, $11, $12, $13, $14, $15, $16,
+             $17, $18, $19, $20, $21, $22, $23,
+             $24, $25, $26, NOW(),
+             $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41)
          ON CONFLICT (user_id) DO UPDATE
            SET college_id = COALESCE(EXCLUDED.college_id, student_details.college_id),
                first_name = COALESCE(EXCLUDED.first_name, student_details.first_name),
@@ -790,8 +799,11 @@ export async function updateStudent(studentId: string, input: UpdateStudentInput
                gender = COALESCE(EXCLUDED.gender, student_details.gender),
                degree = COALESCE(EXCLUDED.degree, student_details.degree),
                specialization = COALESCE(EXCLUDED.specialization, student_details.specialization),
+               branch = COALESCE(EXCLUDED.branch, student_details.branch),
                class_name = COALESCE(EXCLUDED.class_name, student_details.class_name),
                section = COALESCE(EXCLUDED.section, student_details.section),
+               academic_start_year = COALESCE(EXCLUDED.academic_start_year, student_details.academic_start_year),
+               academic_end_year = COALESCE(EXCLUDED.academic_end_year, student_details.academic_end_year),
                passing_year = COALESCE(EXCLUDED.passing_year, student_details.passing_year),
                cgpa = COALESCE(EXCLUDED.cgpa, student_details.cgpa),
                percentage = COALESCE(EXCLUDED.percentage, student_details.percentage),
@@ -830,8 +842,11 @@ export async function updateStudent(studentId: string, input: UpdateStudentInput
           gender,
           degree,
           specialization,
+          specialization,
           className,
           section,
+          academicStartYear,
+          academicEndYear,
           passingYear,
           cgpa,
           percentage,

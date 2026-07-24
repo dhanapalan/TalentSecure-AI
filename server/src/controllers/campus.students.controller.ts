@@ -72,8 +72,8 @@ export async function listStudents(req: Request, res: Response, next: NextFuncti
         const offset = (page - 1) * limit;
 
         const search = getParamAsString(req.query.search);
-        const year = getParamAsString(req.query.year); // passing_year
-        const department = getParamAsString(req.query.department); // specialization
+        const year = getParamAsString(req.query.year); // academic_end_year
+        const department = getParamAsString(req.query.department); // branch
         const placementStatus = getParamAsString(req.query.placementStatus);
         const riskLevel = getParamAsString(req.query.riskLevel);
         const status = getParamAsString(req.query.status); // active, suspended
@@ -89,8 +89,11 @@ export async function listStudents(req: Request, res: Response, next: NextFuncti
                 u.is_active,
                 sd.id as student_id,
                 sd.student_identifier as roll_number,
-                sd.passing_year,
-                sd.specialization as department,
+                sd.academic_start_year,
+                COALESCE(sd.academic_end_year, sd.passing_year) as academic_end_year,
+                COALESCE(sd.academic_end_year, sd.passing_year) as passing_year,
+                COALESCE(NULLIF(sd.branch, ''), sd.specialization) as branch,
+                COALESCE(NULLIF(sd.branch, ''), sd.specialization) as department,
                 sd.degree,
                 sd.cgpa::float,
                 sd.face_photo_url as avatar,
@@ -115,7 +118,7 @@ export async function listStudents(req: Request, res: Response, next: NextFuncti
         // ignore any client-supplied department filter and force it, same
         // pattern as college-scoped roles being locked to their college_id.
         if (callerDepartment) {
-            sql += ` AND sd.specialization = $${paramIdx}`;
+            sql += ` AND COALESCE(NULLIF(sd.branch, ''), sd.specialization) = $${paramIdx}`;
             params.push(callerDepartment);
             paramIdx++;
         }
@@ -127,13 +130,13 @@ export async function listStudents(req: Request, res: Response, next: NextFuncti
         }
 
         if (year) {
-            sql += ` AND sd.passing_year = $${paramIdx}`;
+            sql += ` AND COALESCE(sd.academic_end_year, sd.passing_year) = $${paramIdx}`;
             params.push(parseInt(year, 10));
             paramIdx++;
         }
 
         if (department) {
-            sql += ` AND sd.specialization ILIKE $${paramIdx}`;
+            sql += ` AND COALESCE(NULLIF(sd.branch, ''), sd.specialization) ILIKE $${paramIdx}`;
             params.push(`%${department}%`);
             paramIdx++;
         }
@@ -260,16 +263,19 @@ export async function getStudentProfile(req: Request, res: Response, next: NextF
                 COALESCE(sd.phone_number, u.phone_number) AS phone_number,
                 sd.gender,
                 COALESCE(sd.dob, u.dob)::text AS dob,
-                COALESCE(NULLIF(TRIM(sd.specialization), ''), NULLIF(TRIM(sd.degree), ''), NULLIF(TRIM(sd.class_name), '')) AS department,
+                COALESCE(NULLIF(TRIM(sd.branch), ''), NULLIF(TRIM(sd.specialization), ''), NULLIF(TRIM(sd.degree), ''), NULLIF(TRIM(sd.class_name), '')) AS department,
+                COALESCE(NULLIF(TRIM(sd.branch), ''), NULLIF(TRIM(sd.specialization), '')) AS branch,
                 sd.degree AS program,
-                sd.passing_year AS academic_year,
-                COALESCE(NULLIF(TRIM(sd.class_name), ''), sd.passing_year::text) AS batch,
+                sd.academic_start_year,
+                COALESCE(sd.academic_end_year, sd.passing_year) AS academic_end_year,
+                COALESCE(sd.academic_end_year, sd.passing_year) AS academic_year,
+                COALESCE(NULLIF(TRIM(sd.class_name), ''), COALESCE(sd.academic_end_year, sd.passing_year)::text) AS batch,
                 NULLIF(TRIM(sd.semester), '') AS semester,
                 NULLIF(TRIM(sd.section), '') AS section,
                 sd.cgpa::float AS cgpa,
                 sd.degree,
-                sd.specialization,
-                sd.passing_year,
+                COALESCE(NULLIF(TRIM(sd.branch), ''), sd.specialization) AS specialization,
+                COALESCE(sd.academic_end_year, sd.passing_year) AS passing_year,
                 sd.class_name,
                 COALESCE(sd.eligible_for_hiring, FALSE) AS placement_eligible,
                 sd.eligibility_reason,
@@ -361,9 +367,15 @@ export async function updateStudent(req: Request, res: Response, next: NextFunct
 
         // Map legacy field names from older clients
         if (body.student_identifier && !body.roll_number) body.roll_number = body.student_identifier;
+        if (body.branch && !body.department) body.department = body.branch;
+        if (body.specialization && !body.branch) body.branch = body.specialization;
         if (body.specialization && !body.department) body.department = body.specialization;
         if (body.degree && !body.program) body.program = body.degree;
         if (body.class_name && !body.batch) body.batch = body.class_name;
+        if (body.academic_end_year == null) {
+            if (body.academic_year != null) body.academic_end_year = body.academic_year;
+            else if (body.passing_year != null) body.academic_end_year = body.passing_year;
+        }
         if (body.passing_year != null && body.academic_year == null) {
             body.academic_year = body.passing_year;
         }
@@ -404,8 +416,24 @@ export async function updateStudent(req: Request, res: Response, next: NextFunct
                 if (body.risk_level !== undefined) setField("risk_category", body.risk_level);
                 if (body.phone_number !== undefined) setField("phone_number", body.phone_number);
                 if (body.degree !== undefined) setField("degree", body.degree);
-                if (body.specialization !== undefined) setField("specialization", body.specialization);
-                if (body.passing_year !== undefined) setField("passing_year", body.passing_year);
+                if (body.branch !== undefined || body.specialization !== undefined || body.department !== undefined) {
+                    const branchVal = body.branch ?? body.specialization ?? body.department;
+                    setField("branch", branchVal);
+                    setField("specialization", branchVal);
+                }
+                if (
+                    body.academic_end_year !== undefined ||
+                    body.academic_year !== undefined ||
+                    body.passing_year !== undefined
+                ) {
+                    const endVal =
+                        body.academic_end_year ?? body.academic_year ?? body.passing_year;
+                    setField("academic_end_year", endVal);
+                    setField("passing_year", endVal);
+                }
+                if (body.academic_start_year !== undefined) {
+                    setField("academic_start_year", body.academic_start_year);
+                }
                 if (body.cgpa !== undefined) setField("cgpa", body.cgpa);
                 if (fields.length) {
                     params.push(studentId);
@@ -500,12 +528,14 @@ export async function bulkImport(req: Request, res: Response, next: NextFunction
                 dob: String(s.dob || ""),
                 email: String(s.email || ""),
                 phone_number: String(s.phone_number || ""),
-                department: String(s.department || s.specialization || ""),
+                branch: String(s.branch || s.department || s.specialization || ""),
                 program: String(s.program || s.degree || ""),
-                batch: String(s.batch || s.class_name || s.passing_year || ""),
+                academic_start_year: String(s.academic_start_year || s.start_year || ""),
+                academic_end_year: String(
+                    s.academic_end_year || s.end_year || s.academic_year || s.passing_year || s.batch || ""
+                ),
                 semester: String(s.semester || ""),
                 section: String(s.section || ""),
-                academic_year: String(s.academic_year || s.passing_year || ""),
                 cgpa: String(s.cgpa ?? ""),
                 placement_eligible: String(s.placement_eligible ?? ""),
                 placement_status: String(s.placement_status || "Not Shortlisted"),
@@ -628,13 +658,19 @@ export async function createStudent(req: Request, res: Response, next: NextFunct
         const body = { ...req.body };
         // Legacy modal field mapping
         if (body.student_identifier && !body.roll_number) body.roll_number = body.student_identifier;
+        if (body.branch && !body.department) body.department = body.branch;
+        if (body.specialization && !body.branch) body.branch = body.specialization;
         if (body.specialization && !body.department) body.department = body.specialization;
         if (body.degree && !body.program) body.program = body.degree;
+        if (body.academic_end_year == null) {
+            if (body.academic_year != null) body.academic_end_year = body.academic_year;
+            else if (body.passing_year != null) body.academic_end_year = body.passing_year;
+        }
         if (body.passing_year != null && body.academic_year == null) {
             body.academic_year = body.passing_year;
         }
-        if (!body.batch && (body.class_name || body.academic_year || body.passing_year)) {
-            body.batch = body.class_name || String(body.academic_year || body.passing_year);
+        if (!body.batch && (body.class_name || body.academic_end_year || body.academic_year || body.passing_year)) {
+            body.batch = body.class_name || String(body.academic_end_year || body.academic_year || body.passing_year);
         }
 
         const user = await studentForm.createCampusStudent(collegeId, body, {

@@ -88,8 +88,17 @@ const onboardingSchema = z.object({
   ),
   alternate_phone: z.preprocess(emptyToUndefined, z.string().trim().max(20).optional()),
   degree: z.string().min(2, "Degree is required"),
-  specialization: z.string().trim().min(2, "Branch/Specialization is required").max(150),
-  passing_year: z.coerce.number().int().min(2000).max(2100),
+  specialization: z.string().trim().min(2, "Branch is required").max(150).optional(),
+  branch: z.string().trim().min(2, "Branch is required").max(150).optional(),
+  academic_start_year: z.preprocess(
+    emptyToUndefined,
+    z.coerce.number().int().min(1900).max(2200).optional()
+  ),
+  academic_end_year: z.preprocess(
+    emptyToUndefined,
+    z.coerce.number().int().min(1900).max(2200).optional()
+  ),
+  passing_year: z.coerce.number().int().min(1900).max(2200).optional(),
   cgpa: z.preprocess(emptyToUndefined, z.coerce.number().min(0).max(10).optional()),
   percentage: z.preprocess(emptyToUndefined, z.coerce.number().min(0).max(100).optional()),
   roll_number: z.string().trim().min(2, "Roll number / Student ID is required").max(100),
@@ -98,6 +107,31 @@ const onboardingSchema = z.object({
   skills: z.preprocess(emptyToUndefined, z.string().trim().max(2000).optional()),
   linkedin_url: z.preprocess(emptyToUndefined, z.string().url("Invalid LinkedIn URL").optional()),
   github_url: z.preprocess(emptyToUndefined, z.string().url("Invalid GitHub URL").optional()),
+}).superRefine((data, ctx) => {
+  const branch = data.branch || data.specialization;
+  if (!branch) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["branch"],
+      message: "Branch is required",
+    });
+  }
+  const end = data.academic_end_year ?? data.passing_year;
+  if (end == null) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["academic_end_year"],
+      message: "Academic end year is required",
+    });
+  }
+  const start = data.academic_start_year;
+  if (typeof start === "number" && typeof end === "number" && start > end) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["academic_start_year"],
+      message: "Academic start year must be on or before end year",
+    });
+  }
 }).refine((data) => data.cgpa !== undefined || data.percentage !== undefined, {
   message: "Either CGPA/GPA or Percentage is required",
   path: ["cgpa"],

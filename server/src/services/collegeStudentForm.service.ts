@@ -22,12 +22,20 @@ export interface StudentFormInput {
   dob?: string | null;
   email?: string | null;
   phone_number?: string | null;
+  /** Preferred: branch. `department` kept as alias. */
+  branch?: string | null;
   department?: string | null;
   program?: string | null;
+  /** Optional class/section label (legacy batch text). */
   batch?: string | null;
   semester?: string | null;
   section?: string | null;
+  academic_start_year?: number | string | null;
+  academic_end_year?: number | string | null;
+  /** @deprecated alias of academic_end_year */
   academic_year?: number | string | null;
+  /** @deprecated alias of academic_end_year */
+  passing_year?: number | string | null;
   cgpa?: number | string | null;
   placement_eligible?: boolean | null;
   placement_status?: string | null;
@@ -54,8 +62,20 @@ export async function ensureStudentFormColumns(): Promise<void> {
   await query(`
     ALTER TABLE student_details
       ADD COLUMN IF NOT EXISTS register_number VARCHAR(100),
-      ADD COLUMN IF NOT EXISTS semester VARCHAR(50)
+      ADD COLUMN IF NOT EXISTS semester VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS branch VARCHAR(150),
+      ADD COLUMN IF NOT EXISTS academic_start_year INT,
+      ADD COLUMN IF NOT EXISTS academic_end_year INT
   `);
+}
+
+function parseYear(raw: unknown, label: string): number | null {
+  if (raw === undefined || raw === null || raw === "") return null;
+  const year = Number(raw);
+  if (!Number.isInteger(year) || year < 1900 || year > 2200) {
+    throw new AppError(`${label} must be a valid year.`, 400);
+  }
+  return year;
 }
 
 export function validateStudentForm(
@@ -69,19 +89,21 @@ export function validateStudentForm(
   dob: string | null;
   email: string | null;
   phone_number: string | null;
-  department: string;
+  branch: string;
   program: string | null;
-  batch: string;
+  batch: string | null;
   semester: string | null;
   section: string | null;
-  academic_year: number | null;
+  academic_start_year: number | null;
+  academic_end_year: number | null;
   cgpa: number | null;
   placement_eligible: boolean | null;
   placement_status: string | null;
 } {
   const roll_number = emptyToNull(body.roll_number);
   const name = emptyToNull(body.name);
-  const department = emptyToNull(body.department);
+  const branch =
+    emptyToNull(body.branch) || emptyToNull(body.department);
   const batch = emptyToNull(body.batch);
   const email = emptyToNull(body.email)?.toLowerCase() ?? null;
   const phone_number = emptyToNull(body.phone_number);
@@ -94,8 +116,7 @@ export function validateStudentForm(
 
   if (!roll_number) throw new AppError("Roll Number is required.", 400);
   if (!name) throw new AppError("Student Name is required.", 400);
-  if (!department) throw new AppError("Department is required.", 400);
-  if (!batch) throw new AppError("Batch is required.", 400);
+  if (!branch) throw new AppError("Branch is required.", 400);
   if (mode === "create" && !email) throw new AppError("Email is required.", 400);
 
   if (!isValidEmail(email)) throw new AppError("Enter a valid email address.", 400);
@@ -114,12 +135,30 @@ export function validateStudentForm(
     throw new AppError("Enter a valid Date of Birth.", 400);
   }
 
-  let academic_year: number | null = null;
-  if (body.academic_year !== undefined && body.academic_year !== null && body.academic_year !== "") {
-    academic_year = Number(body.academic_year);
-    if (!Number.isInteger(academic_year) || academic_year < 1900 || academic_year > 2200) {
-      throw new AppError("Academic Year must be a valid year.", 400);
-    }
+  const academic_start_year = parseYear(body.academic_start_year, "Academic start year");
+  const academic_end_year = parseYear(
+    body.academic_end_year !== undefined && body.academic_end_year !== null && body.academic_end_year !== ""
+      ? body.academic_end_year
+      : body.academic_year !== undefined && body.academic_year !== null && body.academic_year !== ""
+        ? body.academic_year
+        : body.passing_year !== undefined && body.passing_year !== null && body.passing_year !== ""
+          ? body.passing_year
+          : // Legacy: batch was often the graduating year
+            batch && /^\d{4}$/.test(batch)
+              ? batch
+              : null,
+    "Academic end year"
+  );
+
+  if (!academic_end_year) {
+    throw new AppError("Academic end year is required.", 400);
+  }
+  if (
+    academic_start_year != null &&
+    academic_end_year != null &&
+    academic_start_year > academic_end_year
+  ) {
+    throw new AppError("Academic start year must be on or before end year.", 400);
   }
 
   let cgpa: number | null = null;
@@ -154,12 +193,13 @@ export function validateStudentForm(
     dob,
     email,
     phone_number,
-    department,
+    branch,
     program,
-    batch,
+    batch: batch && !/^\d{4}$/.test(batch) ? batch : academic_end_year != null ? String(academic_end_year) : batch,
     semester,
     section,
-    academic_year,
+    academic_start_year,
+    academic_end_year,
     cgpa,
     placement_eligible,
     placement_status,
@@ -231,9 +271,9 @@ export async function createCampusStudent(
     await client.query(
       `INSERT INTO student_details
          (user_id, college_id, first_name, last_name, student_identifier, register_number,
-          phone_number, gender, dob, degree, specialization, class_name, semester, section,
-          passing_year, cgpa, eligible_for_hiring, placement_status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::date,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
+          phone_number, gender, dob, degree, specialization, branch, class_name, semester, section,
+          academic_start_year, academic_end_year, passing_year, cgpa, eligible_for_hiring, placement_status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::date,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
       [
         user.id,
         collegeId,
@@ -245,11 +285,14 @@ export async function createCampusStudent(
         data.gender,
         data.dob,
         data.program,
-        data.department,
+        data.branch,
+        data.branch,
         data.batch,
         data.semester,
         data.section,
-        data.academic_year,
+        data.academic_start_year,
+        data.academic_end_year,
+        data.academic_end_year,
         data.cgpa,
         data.placement_eligible ?? false,
         data.placement_status || "Not Shortlisted",
@@ -329,17 +372,20 @@ export async function updateCampusStudent(
          dob = $5::date,
          degree = $6,
          specialization = $7,
-         class_name = $8,
-         semester = $9,
-         section = $10,
-         passing_year = $11,
-         cgpa = $12,
-         eligible_for_hiring = COALESCE($13, eligible_for_hiring),
-         placement_status = COALESCE($14, placement_status),
-         first_name = $15,
-         last_name = $16,
+         branch = $8,
+         class_name = $9,
+         semester = $10,
+         section = $11,
+         academic_start_year = $12,
+         academic_end_year = $13,
+         passing_year = $14,
+         cgpa = $15,
+         eligible_for_hiring = COALESCE($16, eligible_for_hiring),
+         placement_status = COALESCE($17, placement_status),
+         first_name = $18,
+         last_name = $19,
          updated_at = NOW()
-       WHERE user_id = $17`,
+       WHERE user_id = $20`,
       [
         data.roll_number,
         data.register_number,
@@ -347,11 +393,14 @@ export async function updateCampusStudent(
         data.gender,
         data.dob,
         data.program,
-        data.department,
+        data.branch,
+        data.branch,
         data.batch,
         data.semester,
         data.section,
-        data.academic_year,
+        data.academic_start_year,
+        data.academic_end_year,
+        data.academic_end_year,
         data.cgpa,
         data.placement_eligible,
         data.placement_status,

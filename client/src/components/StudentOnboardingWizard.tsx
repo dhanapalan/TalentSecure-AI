@@ -207,7 +207,12 @@ export default function StudentOnboardingWizard() {
         payload.append("alternate_phone", values.alternate_phone.trim());
       payload.append("degree", values.degree);
       payload.append("specialization", values.specialization);
+      payload.append("branch", values.specialization);
+      if (values.course_start_year?.trim()) {
+        payload.append("academic_start_year", values.course_start_year.trim());
+      }
       payload.append("passing_year", values.passing_year);
+      payload.append("academic_end_year", values.passing_year);
       if (values.cgpa?.trim()) payload.append("cgpa", values.cgpa.trim());
       if (values.percentage?.trim()) payload.append("percentage", values.percentage.trim());
       payload.append("roll_number", values.roll_number);
@@ -400,20 +405,21 @@ export default function StudentOnboardingWizard() {
                   {...register("degree", { required: "Degree is required" })}
                 />
               </Field>
-              <Field label="Specialization / Branch" error={errors.specialization?.message}>
+              <Field label="Branch" error={errors.specialization?.message}>
                 <input
                   className={inputCls}
-                  {...register("specialization", { required: "Specialization is required" })}
+                  placeholder="e.g. Computer Science"
+                  {...register("specialization", { required: "Branch is required" })}
                 />
               </Field>
-              <Field label="Course start year">
+              <Field label="Academic start year">
                 <input type="number" className={inputCls} {...register("course_start_year")} />
               </Field>
-              <Field label="Passing year" error={errors.passing_year?.message}>
+              <Field label="Academic end year" error={errors.passing_year?.message}>
                 <input
                   type="number"
                   className={inputCls}
-                  {...register("passing_year", { required: "Passing year is required" })}
+                  {...register("passing_year", { required: "Academic end year is required" })}
                 />
               </Field>
               <Field label="CGPA / GPA">
