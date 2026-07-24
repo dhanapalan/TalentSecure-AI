@@ -187,7 +187,19 @@ export default function StudentBulkUploadModal({ open, onClose, onImported }: Pr
                   <Download className="h-4 w-4" />
                   Download Sample Template
                 </Button>
+                <a
+                  href="/samples/college_student_import_sample.csv"
+                  download="college_student_import_sample.csv"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50"
+                >
+                  <Download className="h-4 w-4" />
+                  Download Sample CSV
+                </a>
               </div>
+              <p className="text-xs text-gray-500">
+                Prefer CSV? Use the sample CSV (same columns as the Excel template). Convert to .xlsx
+                before upload, or open it in Excel and save as workbook.
+              </p>
 
               <div
                 className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200 bg-slate-50 px-6 py-12 text-center transition-colors hover:border-admin-accent/40"
