@@ -8,6 +8,8 @@ Other hubs/roles are outlined as backlog. This tree is the **source of truth** f
 
 **Admin portal scenarios (executable catalog):** [ADMIN_PORTAL_VALIDATION_SCENARIOS.md](./ADMIN_PORTAL_VALIDATION_SCENARIOS.md) — P0–P2 scenarios for Super Admin + College Admin validation, mapped to automation and Wave 1 workflows.
 
+**Latest production read-only pass (2026-07-24):** [PROD_ADMIN_VALIDATION_RESULTS.md](./PROD_ADMIN_VALIDATION_RESULTS.md) — 48/48 PASS against `https://gradlogic.atherasys.com`.
+
 ---
 
 ## Coverage legend

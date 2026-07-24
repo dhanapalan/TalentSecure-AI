@@ -46,27 +46,35 @@ test.describe('C. Colleges', () => {
     await expect(adminPage.getByRole('button', { name: /create college/i })).toBeVisible();
   });
 
-  test('C-edge1 — empty submit does not create / navigate away', async ({ adminPage }) => {
+  test('C-edge1 — empty submit shows per-field errors and stays on form', async ({ adminPage }) => {
     await adminPage.goto('/app/superadmin/colleges/new');
     await adminPage.getByRole('button', { name: /create college/i }).click();
-    // Native + app validation block the submit; we stay on the form.
     await expect(adminPage).toHaveURL(/\/app\/superadmin\/colleges\/new/);
     await expect(adminPage.getByText(/added successfully/i)).toHaveCount(0);
+    await expect(adminPage.getByText('College name is required')).toBeVisible();
+    await expect(adminPage.getByText('College email is required')).toBeVisible();
+    await expect(adminPage.getByText('Phone number is required')).toBeVisible();
+    await expect(adminPage.getByText('Address is required')).toBeVisible();
+    await expect(adminPage.getByText('City is required')).toBeVisible();
+    await expect(adminPage.getByText('State is required')).toBeVisible();
+    await expect(adminPage.getByText('TPO name is required')).toBeVisible();
+    await expect(adminPage.getByText('TPO email is required')).toBeVisible();
   });
 
   test('C-edge3 — malformed email is rejected by the form', async ({ adminPage }) => {
     await adminPage.goto('/app/superadmin/colleges/new');
     await adminPage.locator('[name="name"]').fill('QA Validation College');
     await adminPage.locator('[name="email"]').fill('notanemail');
+    await adminPage.locator('[name="phone"]').fill('+91 9876543210');
     await adminPage.locator('[name="address"]').fill('1 Test Road');
     await adminPage.locator('[name="city"]').fill('Chennai');
     await adminPage.locator('[name="state"]').fill('Tamil Nadu');
     await adminPage.locator('[name="tpoName"]').fill('QA TPO');
     await adminPage.locator('[name="tpoEmail"]').fill('tpo@college.edu');
     await adminPage.getByRole('button', { name: /create college/i }).click();
-    // Invalid college email → blocked (native type=email or app toast). No success, no redirect.
     await expect(adminPage).toHaveURL(/\/app\/superadmin\/colleges\/new/);
     await expect(adminPage.getByText(/added successfully/i)).toHaveCount(0);
+    await expect(adminPage.getByText(/valid college email/i)).toBeVisible();
   });
 
   test('C6 — college requests page loads', async ({ adminPage }) => {
@@ -93,7 +101,11 @@ test.describe('C. Colleges', () => {
       await adminPage.getByRole('button', { name: /create college/i }).click();
 
       await expect(adminPage.getByText(/added successfully/i)).toBeVisible({ timeout: 15_000 });
-      await expect(adminPage).toHaveURL(/\/app\/superadmin\/colleges(\?|$)/, { timeout: 15_000 });
+      // Success screen stays on /new with one-time TPO credentials
+      await expect(adminPage.getByRole('heading', { name: /college created/i })).toBeVisible({
+        timeout: 10_000,
+      });
+      await expect(adminPage.getByText(/temporary password/i)).toBeVisible();
     });
 
     test('C-edge13 — XSS in name is stored escaped (no dialog fires)', async ({ adminPage }) => {

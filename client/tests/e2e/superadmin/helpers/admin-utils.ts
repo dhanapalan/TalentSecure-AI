@@ -22,6 +22,8 @@ const BENIGN = [
   /Failed to load resource.*(404|401|403)/i, // network status surfaced elsewhere
   /Download the React DevTools/i,
   /\[vite\]/i,
+  /Content Security Policy/i, // prod CSP blocks fonts.googleapis.com; UI still renders
+  /fonts\.googleapis\.com/i,
 ];
 
 export function collectConsoleErrors(page: Page): string[] {
