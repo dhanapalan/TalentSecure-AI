@@ -284,13 +284,15 @@ export function CourseDetailPage() {
 
   return (
     <div className="max-w-5xl mx-auto py-8 px-4">
-      {/* Back */}
+      {/* Back — return to wherever the user came from so the portal/layout
+          (college portal, catalog, etc.) is preserved instead of always
+          jumping to the global catalog. */}
       <button
-        onClick={() => navigate("/app/lms/catalog")}
+        onClick={() => navigate(-1)}
         className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-5"
       >
         <ChevronLeft className="h-4 w-4" />
-        Course Catalog
+        Back
       </button>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

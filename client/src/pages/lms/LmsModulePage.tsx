@@ -53,6 +53,14 @@ function CourseCard({ course, portal }: { course: ModuleCourse; portal: "college
 
   const cta = portal === "student" ? (completed ? "Review" : enrolled ? "Continue" : "Start course") : "View course";
 
+  // Keep navigation inside the current portal so the sidebar/layout doesn't
+  // change. The college portal has its own course-detail route; the student
+  // flow keeps using the shared LMS course viewer.
+  const courseHref =
+    portal === "college"
+      ? `/app/college-portal/lms/courses/${course.id}`
+      : `/app/lms/courses/${course.id}`;
+
   return (
     <Card className="flex flex-col">
       <CardHeader className="pb-3">
@@ -102,7 +110,7 @@ function CourseCard({ course, portal }: { course: ModuleCourse; portal: "college
         )}
 
         <button
-          onClick={() => navigate(`/app/lms/courses/${course.id}`)}
+          onClick={() => navigate(courseHref)}
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-admin-accent px-3 py-2 text-sm font-medium text-white transition hover:opacity-90"
         >
           <PlayCircle className="h-4 w-4" />
