@@ -89,6 +89,7 @@ export default function AllStudentsPage() {
     skipped_count: number;
     skipped: Array<{ email: string; reason: string }>;
   } | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
   const [actionStudentId, setActionStudentId] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
@@ -366,6 +367,7 @@ export default function AllStudentsPage() {
     }
     setImporting(true);
     setImportResult(null);
+    setImportError(null);
     try {
       const parsed = parseStudentCsv(importCsv);
       if (!parsed.length) {
@@ -389,11 +391,15 @@ export default function AllStudentsPage() {
         e?.code === "ERR_NETWORK" ||
         e?.message === "Network Error" ||
         /cors|network error|timeout/i.test(String(e?.message || ""));
-      toast.error(
-        networkish
-          ? "Import timed out or was blocked by the gateway. Try fewer rows (≤50) or retry — large files are sent in batches automatically."
-          : e?.response?.data?.error || e?.response?.data?.message || e?.message || "Bulk import failed"
-      );
+      // Prefer the server's message over axios's generic "Request failed with status code 500".
+      const message = networkish
+        ? "Import timed out or was blocked by the gateway. Try fewer rows (≤50) or retry — large files are sent in batches automatically."
+        : e?.response?.data?.error ||
+          e?.response?.data?.message ||
+          (e instanceof Error ? e.message : "") ||
+          "Bulk import failed";
+      setImportError(message);
+      toast.error(message);
     } finally {
       setImporting(false);
     }
@@ -573,6 +579,7 @@ export default function AllStudentsPage() {
               setImportOpen(true);
               setCreateOpen(false);
               setImportResult(null);
+              setImportError(null);
               if (collegeId && activeColleges.some((c) => c.id === collegeId)) {
                 setImportCollegeId(collegeId);
               }
@@ -939,19 +946,35 @@ export default function AllStudentsPage() {
             }
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono"
           />
+          {importError && (
+            <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <p className="font-medium">Import failed</p>
+              <p className="mt-0.5 text-xs">{importError}</p>
+            </div>
+          )}
           {importResult && (
             <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm">
               <p className="font-medium text-gray-900">
                 Created {importResult.created_count} · Skipped {importResult.skipped_count}
               </p>
               {importResult.skipped.length > 0 && (
-                <ul className="mt-2 max-h-28 overflow-auto text-xs text-gray-600 space-y-1">
-                  {importResult.skipped.slice(0, 20).map((s) => (
-                    <li key={`${s.email}-${s.reason}`}>
-                      {s.email}: {s.reason}
-                    </li>
-                  ))}
-                </ul>
+                <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-2">
+                  <p className="text-xs font-medium text-amber-800">
+                    {importResult.skipped_count} row(s) were not imported:
+                  </p>
+                  <ul className="mt-1 max-h-32 overflow-auto text-xs text-amber-700 space-y-1">
+                    {importResult.skipped.slice(0, 50).map((s, i) => (
+                      <li key={`${s.email}-${i}`}>
+                        <span className="font-medium">{s.email}</span>: {s.reason}
+                      </li>
+                    ))}
+                    {importResult.skipped.length > 50 && (
+                      <li className="italic">
+                        …and {importResult.skipped.length - 50} more
+                      </li>
+                    )}
+                  </ul>
+                </div>
               )}
             </div>
           )}
@@ -970,6 +993,7 @@ export default function AllStudentsPage() {
               onClick={() => {
                 setImportOpen(false);
                 setImportResult(null);
+                setImportError(null);
               }}
               className="px-4 py-2 border border-gray-300 rounded-lg"
             >

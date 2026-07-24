@@ -8,6 +8,28 @@ import { AppError } from "../middleware/errorHandler.js";
 import { writeAuditLog } from "./audit.service.js";
 import { ensureStudentFormColumns } from "./collegeStudentForm.service.js";
 
+/** Turn a Postgres error into a human-readable per-row failure reason. */
+function describeBulkRowError(err: unknown): string {
+  const code = (err as { code?: string })?.code;
+  switch (code) {
+    case "23505": // unique_violation
+      return "Roll number or email already exists";
+    case "23514": // check_violation
+      return "A value is out of the allowed range (e.g. CGPA or year)";
+    case "22001": // string_data_right_truncation
+      return "A field is too long";
+    case "22007": // invalid_datetime_format
+    case "22008": // datetime_field_overflow
+      return "Invalid date format";
+    case "23503": // foreign_key_violation
+      return "Invalid college reference";
+    case "23502": // not_null_violation
+      return "A required field is missing";
+    default:
+      return err instanceof Error && err.message ? err.message : "Import failed";
+  }
+}
+
 export const BULK_HEADERS = [
   "roll_number",
   "register_number",
@@ -346,12 +368,18 @@ export async function importValidatedRows(
     await client.query("BEGIN");
     for (const row of toImport) {
       const d = row.data;
+      // Isolate each row in its own savepoint. Without this, a single row's DB
+      // error poisons the whole transaction ("current transaction is aborted"),
+      // failing every later row and making the final COMMIT silently roll back —
+      // discarding even the rows that imported cleanly.
+      await client.query("SAVEPOINT campus_row");
       try {
         const existing = await client.query(
           `SELECT id FROM users WHERE email = $1 AND deleted_at IS NULL`,
           [d.email]
         );
         if (existing.rows.length) {
+          await client.query("RELEASE SAVEPOINT campus_row");
           failed.push({
             row_number: row.row_number,
             email: d.email,
@@ -367,6 +395,7 @@ export async function importValidatedRows(
           [collegeId, d.roll_number]
         );
         if (rollClash.rows.length) {
+          await client.query("RELEASE SAVEPOINT campus_row");
           failed.push({
             row_number: row.row_number,
             email: d.email,
@@ -419,13 +448,16 @@ export async function importValidatedRows(
             d.placement_status || "Not Shortlisted",
           ]
         );
+        await client.query("RELEASE SAVEPOINT campus_row");
         successful.push({ row_number: row.row_number, user_id: userId, email: d.email });
       } catch (e: any) {
+        // Undo just this row so the transaction stays usable for the rest.
+        await client.query("ROLLBACK TO SAVEPOINT campus_row");
         failed.push({
           row_number: row.row_number,
           email: d.email,
           roll_number: d.roll_number,
-          errors: [e?.message || "Import failed"],
+          errors: [describeBulkRowError(e)],
         });
       }
     }
