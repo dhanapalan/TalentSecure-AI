@@ -629,42 +629,62 @@ export const bulkImport = async (
           continue;
         }
 
-        const parts = row.name.split(/\s+/);
-        const userRes = await client.query(
-          `INSERT INTO users
-             (role, name, email, password, college_id, is_active, is_profile_complete, must_change_password, status)
-           VALUES ('student', $1, $2, $3, $4, TRUE, FALSE, TRUE, 'active')
-           RETURNING id`,
-          [row.name, row.email, row.hash, college_id]
-        );
-        const userId = userRes.rows[0].id;
-        await client.query(
-          `INSERT INTO student_details
-             (user_id, college_id, first_name, last_name, student_identifier, phone_number,
-              degree, specialization, branch, academic_start_year, academic_end_year, passing_year, cgpa)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-          [
-            userId,
-            college_id,
-            parts[0] || row.name,
-            parts.slice(1).join(" ") || "",
-            row.student_identifier,
-            row.phone_number,
-            row.degree,
-            row.branch,
-            row.branch,
-            Number.isFinite(row.academic_start_year as number) ? row.academic_start_year : null,
-            Number.isFinite(row.academic_end_year as number) ? row.academic_end_year : null,
-            Number.isFinite(row.academic_end_year as number) ? row.academic_end_year : null,
-            Number.isFinite(row.cgpa as number) ? row.cgpa : null,
-          ]
-        );
-        existingEmails.add(row.email);
-        created.push({
-          user_id: userId,
-          email: row.email,
-          temporary_password: row.tempPassword,
-        });
+        // Per-row SAVEPOINT: any single-row failure (e.g. a value too long for
+        // its column, or an unforeseen constraint) rolls back just that row and
+        // is reported as skipped, instead of aborting the whole transaction and
+        // returning a 500 that loses every row in the chunk.
+        await client.query("SAVEPOINT sp_row");
+        try {
+          const parts = row.name.split(/\s+/);
+          const userRes = await client.query(
+            `INSERT INTO users
+               (role, name, email, password, college_id, is_active, is_profile_complete, must_change_password, status)
+             VALUES ('student', $1, $2, $3, $4, TRUE, FALSE, TRUE, 'active')
+             RETURNING id`,
+            [row.name, row.email, row.hash, college_id]
+          );
+          const userId = userRes.rows[0].id;
+          await client.query(
+            `INSERT INTO student_details
+               (user_id, college_id, first_name, last_name, student_identifier, phone_number,
+                degree, specialization, branch, academic_start_year, academic_end_year, passing_year, cgpa)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+            [
+              userId,
+              college_id,
+              parts[0] || row.name,
+              parts.slice(1).join(" ") || "",
+              row.student_identifier,
+              row.phone_number,
+              row.degree,
+              row.branch,
+              row.branch,
+              Number.isFinite(row.academic_start_year as number) ? row.academic_start_year : null,
+              Number.isFinite(row.academic_end_year as number) ? row.academic_end_year : null,
+              Number.isFinite(row.academic_end_year as number) ? row.academic_end_year : null,
+              Number.isFinite(row.cgpa as number) ? row.cgpa : null,
+            ]
+          );
+          await client.query("RELEASE SAVEPOINT sp_row");
+          existingEmails.add(row.email);
+          created.push({
+            user_id: userId,
+            email: row.email,
+            temporary_password: row.tempPassword,
+          });
+        } catch (rowErr) {
+          await client.query("ROLLBACK TO SAVEPOINT sp_row");
+          const pg = rowErr as { code?: string; message?: string };
+          const reason =
+            pg.code === "22001"
+              ? "a field value is too long"
+              : pg.code === "23505"
+                ? "email already exists"
+                : pg.code === "23514"
+                  ? "a field value is out of range"
+                  : "could not import this row";
+          skipped.push({ email: row.email, reason });
+        }
       }
       await client.query("COMMIT");
     } catch (e) {
