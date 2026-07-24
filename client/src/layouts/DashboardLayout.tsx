@@ -30,6 +30,8 @@ import {
   Squares2X2Icon,
 } from "@heroicons/react/24/outline";
 
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
+
 // ── Sidebar navigation: grouped sections with role access control ────────────
 
 interface NavItem {
@@ -187,6 +189,7 @@ const ROLE_LABELS: Record<string, string> = {
 export default function DashboardLayout() {
   const user = useAuthStore((s) => s.user);
   const effectiveRole = resolveRole(user?.role ?? "student");
+  useDocumentTitle("Dashboard · GradLogic");
 
   // Refresh user profile on mount to pick up college_name and any server-side changes
   useEffect(() => {

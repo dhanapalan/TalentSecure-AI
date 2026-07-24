@@ -29,6 +29,7 @@ import { cn } from "../lib/utils";
 import { usePortalFeatures } from "../hooks/usePortalFeatures";
 import { moduleIcon } from "../constants/lmsModules";
 import type { PlatformFeatureKey } from "../constants/platformFeatures";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
 const BASE = "/app/college-portal";
 
@@ -69,6 +70,7 @@ export default function CollegeLayout() {
   const token = useAuthStore((s) => s.token);
   const [mobileOpen, setMobileOpen] = useState(false);
   const { hasFeature, modules: lmsModules } = usePortalFeatures("college");
+  useDocumentTitle("College Portal · GradLogic");
 
   const visibleNav = NAV_ITEMS.filter(
     (item) => hasFeature(item.featureKey) && (!item.roles || item.roles.includes(user?.role ?? ""))

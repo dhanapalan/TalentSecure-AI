@@ -34,6 +34,7 @@ import { cn } from "../lib/utils";
 import { usePortalFeatures } from "../hooks/usePortalFeatures";
 import { STUDENT_NAV_FEATURE_MAP, type PlatformFeatureKey } from "../constants/platformFeatures";
 import { useStudentMobilePrefs } from "../hooks/useStudentMobilePrefs";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
 const BASE = "/app/student-portal";
 const COLLAPSE_KEY = "student-portal-sidebar-collapsed";
@@ -161,6 +162,7 @@ export default function StudentPortalLayout() {
   const [collapsed, setCollapsed] = useState(loadCollapsed);
   const { hasFeature } = usePortalFeatures("student");
   const { prefs, isDark, isOnline, fontScale } = useStudentMobilePrefs();
+  useDocumentTitle("Student Portal · GradLogic");
 
   const allNavGroups = NAV_GROUPS.map((group) => ({
     ...group,
