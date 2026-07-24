@@ -21,6 +21,42 @@ async function assertCollegeAcceptsStudents(collegeId: string): Promise<{ id: st
   return college;
 }
 
+/** Parse to an int within [min, max]; anything invalid/out-of-range → null. */
+function toBoundedInt(value: unknown, min: number, max: number): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  const i = Math.trunc(n);
+  return i >= min && i <= max ? i : null;
+}
+
+/** Parse to a number within [min, max]; anything invalid/out-of-range → null. */
+function toBoundedNumber(value: unknown, min: number, max: number): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  return n >= min && n <= max ? n : null;
+}
+
+/** Turn a Postgres error into a human-readable skip reason for bulk import. */
+function describeImportError(err: unknown): string {
+  const code = (err as { code?: string })?.code;
+  switch (code) {
+    case "23505": // unique_violation
+      return "student ID or email already exists in this college";
+    case "23514": // check_violation
+      return "value out of allowed range";
+    case "22001": // string_data_right_truncation
+      return "a field is too long";
+    case "23503": // foreign_key_violation
+      return "invalid college reference";
+    case "23502": // not_null_violation
+      return "a required field is missing";
+    default:
+      return err instanceof Error && err.message ? err.message : "could not import row";
+  }
+}
+
 // ────────────────────────────────────────────────────────────────────
 // GET /api/superadmin/students — global roster across all colleges
 // ────────────────────────────────────────────────────────────────────
@@ -416,6 +452,10 @@ export const bulkImport = async (
 
     const created: Array<{ user_id: string; email: string; temporary_password: string }> = [];
     const skipped: Array<{ email: string; reason: string }> = [];
+    // Track identifiers/emails seen earlier in THIS batch so duplicate rows in
+    // the uploaded file are reported cleanly instead of colliding at the DB.
+    const seenEmails = new Set<string>();
+    const seenIdentifiers = new Set<string>();
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -425,6 +465,21 @@ export const bulkImport = async (
         if (!name || !email) {
           skipped.push({ email: email || "(missing)", reason: "name and email required" });
           continue;
+        }
+        if (seenEmails.has(email)) {
+          skipped.push({ email, reason: "duplicate email in uploaded file" });
+          continue;
+        }
+
+        const rawIdentifier =
+          row.student_identifier || row.student_id || row.roll_number || null;
+        const identifier = rawIdentifier ? String(rawIdentifier).trim() || null : null;
+        if (identifier) {
+          const idKey = identifier.toLowerCase();
+          if (seenIdentifiers.has(idKey)) {
+            skipped.push({ email, reason: `duplicate student ID "${identifier}" in uploaded file` });
+            continue;
+          }
         }
 
         const existing = await client.query(
@@ -436,36 +491,52 @@ export const bulkImport = async (
           continue;
         }
 
-        const tempPassword = `Campus${Math.random().toString(36).slice(2, 8)}!`;
-        const hashed = await bcrypt.hash(tempPassword, 12);
-        const parts = name.split(/\s+/);
-        const userRes = await client.query(
-          `INSERT INTO users
-             (role, name, email, password, college_id, is_active, is_profile_complete, must_change_password, status)
-           VALUES ('student', $1, $2, $3, $4, TRUE, FALSE, TRUE, 'active')
-           RETURNING id`,
-          [name, email, hashed, college_id]
-        );
-        const userId = userRes.rows[0].id;
-        await client.query(
-          `INSERT INTO student_details
-             (user_id, college_id, first_name, last_name, student_identifier, phone_number,
-              degree, specialization, passing_year, cgpa)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-          [
-            userId,
-            college_id,
-            parts[0] || name,
-            parts.slice(1).join(" ") || "",
-            row.student_identifier || row.student_id || row.roll_number || null,
-            row.phone_number || null,
-            row.degree || row.department || null,
-            row.specialization || null,
-            row.passing_year || row.batch || null,
-            row.cgpa || null,
-          ]
-        );
-        created.push({ user_id: userId, email, temporary_password: tempPassword });
+        // Coerce optional numeric fields; drop out-of-range values to NULL rather
+        // than failing the whole row on a CHECK constraint (cgpa 0–10, year 1900–2200).
+        const passingYear = toBoundedInt(row.passing_year ?? row.batch, 1900, 2200);
+        const cgpa = toBoundedNumber(row.cgpa, 0, 10);
+
+        // Isolate each row so one bad record (duplicate student ID, over-length
+        // value, etc.) is skipped instead of aborting the entire import.
+        await client.query("SAVEPOINT bulk_row");
+        try {
+          const tempPassword = `Campus${Math.random().toString(36).slice(2, 8)}!`;
+          const hashed = await bcrypt.hash(tempPassword, 12);
+          const parts = name.split(/\s+/);
+          const userRes = await client.query(
+            `INSERT INTO users
+               (role, name, email, password, college_id, is_active, is_profile_complete, must_change_password, status)
+             VALUES ('student', $1, $2, $3, $4, TRUE, FALSE, TRUE, 'active')
+             RETURNING id`,
+            [name, email, hashed, college_id]
+          );
+          const userId = userRes.rows[0].id;
+          await client.query(
+            `INSERT INTO student_details
+               (user_id, college_id, first_name, last_name, student_identifier, phone_number,
+                degree, specialization, passing_year, cgpa)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+            [
+              userId,
+              college_id,
+              parts[0] || name,
+              parts.slice(1).join(" ") || "",
+              identifier,
+              row.phone_number || null,
+              row.degree || row.department || null,
+              row.specialization || null,
+              passingYear,
+              cgpa,
+            ]
+          );
+          await client.query("RELEASE SAVEPOINT bulk_row");
+          created.push({ user_id: userId, email, temporary_password: tempPassword });
+          seenEmails.add(email);
+          if (identifier) seenIdentifiers.add(identifier.toLowerCase());
+        } catch (rowErr) {
+          await client.query("ROLLBACK TO SAVEPOINT bulk_row");
+          skipped.push({ email, reason: describeImportError(rowErr) });
+        }
       }
       await client.query("COMMIT");
     } catch (e) {
