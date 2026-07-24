@@ -6,7 +6,7 @@ import {
   ensureUserRoleEnum,
   isValidUserRoleFilter,
 } from "../utils/ensureUserRoleEnum.js";
-import { sendUserInvitationEmail, sendCampusAdminInvitation } from "../services/email.service.js";
+import { sendUserInvitationEmail, sendTemporaryPasswordEmail } from "../services/email.service.js";
 import { logger } from "../config/logger.js";
 
 // Unambiguous character set: no 0/O/1/l/I, no punctuation an admin might mis-key
@@ -284,6 +284,13 @@ export const deleteUser = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
+    if (req.user?.userId === id) {
+      return res.status(400).json({
+        success: false,
+        message: "You cannot deactivate your own account.",
+      });
+    }
+
     const userCheck = await query(
       "SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL",
       [id]
@@ -372,7 +379,8 @@ export const activateUser = async (req: Request, res: Response) => {
 export const createUser = async (req: Request, res: Response) => {
   try {
     await ensureUserRoleEnum();
-    const { full_name, email, password, role, phone, college_id } = req.body;
+    const { full_name, password, role, phone, college_id } = req.body;
+    const email = String(req.body.email || "").toLowerCase().trim();
 
     if (!full_name || !email || !password || !role) {
       return res.status(400).json({
@@ -438,6 +446,13 @@ export const suspendUser = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { reason = "" } = req.body;
+
+    if (req.user?.userId === id) {
+      return res.status(400).json({
+        success: false,
+        message: "You cannot suspend your own account.",
+      });
+    }
 
     // Check if user exists
     const userCheck = await query(
@@ -599,13 +614,17 @@ export const resetUserPassword = async (req: Request, res: Response) => {
 
     let emailSent = false;
     try {
-      await sendCampusAdminInvitation({
-        adminName: target.full_name,
-        adminEmail: target.email,
-        campusName: target.college_name || "GradLogic",
+      const mail = await sendTemporaryPasswordEmail({
+        name: target.full_name || target.email,
+        email: target.email,
         temporaryPassword: tempPassword,
       });
-      emailSent = true;
+      emailSent = mail.delivered;
+      if (!mail.delivered && !mail.simulated) {
+        logger.warn(
+          `Password reset email failed for user ${id}: ${mail.error || "unknown error"}`,
+        );
+      }
     } catch (emailError) {
       // Password is already reset -- don't fail the request over email delivery.
       // The temp password is still returned below so the admin can hand it over
@@ -651,6 +670,13 @@ export const bulkUserAction = async (req: Request, res: Response) => {
       return res.status(400).json({
         success: false,
         message: "Valid action (suspend, deactivate, activate) is required",
+      });
+    }
+
+    if (action !== "activate" && req.user?.userId && user_ids.includes(req.user.userId)) {
+      return res.status(400).json({
+        success: false,
+        message: `You cannot ${action} your own account. Remove yourself from the selection and try again.`,
       });
     }
 

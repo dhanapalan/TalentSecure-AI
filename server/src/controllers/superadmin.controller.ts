@@ -41,7 +41,7 @@ export const sendTestEmail = async (
     }
 
     const sentAt = new Date().toISOString();
-    await sendEmail({
+    const mail = await sendEmail({
       to: email,
       subject: "GradLogic — SMTP test email",
       text: `This is a test email from GradLogic, sent at ${sentAt} by ${req.user?.email || "an admin"} to confirm outbound mail delivery is working. No action is needed.`,
@@ -51,18 +51,29 @@ export const sendTestEmail = async (
       template: "smtp_test",
     });
 
+    if (!mail.delivered && !mail.simulated) {
+      throw new AppError(
+        `SMTP delivery failed: ${mail.error || "unknown error"}. Check SMTP_HOST/PORT/USER/PASS and server logs.`,
+        502,
+      );
+    }
+
     await writeAuditLog({
       actor_id: req.user?.userId || "system",
       actor_role: req.user?.role || "unknown",
       action: "SMTP_TEST_EMAIL_SENT",
       target_type: "email",
       target_id: email,
-      reason: "Manual SMTP delivery test from admin console",
+      reason: mail.simulated
+        ? "Manual SMTP delivery test (simulated — SMTP credentials unset)"
+        : "Manual SMTP delivery test from admin console",
     }).catch(() => {});
 
     res.json({
       success: true,
-      message: `Test email sent to ${email}. If SMTP_USER/SMTP_PASS are unset it was only simulated (check server logs) -- otherwise check that inbox, including spam.`,
+      message: mail.simulated
+        ? `SMTP credentials are unset — email to ${email} was only simulated (check server logs).`
+        : `Test email sent to ${email}. Check that inbox, including spam.`,
     });
   } catch (err) {
     next(err);
