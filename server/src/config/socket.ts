@@ -1,9 +1,29 @@
 import { Server as HTTPServer } from "http";
 import { Server, Socket } from "socket.io";
+import jwt from "jsonwebtoken";
 import { allowedCorsOrigins, isAllowedCorsOrigin } from "./corsOrigins.js";
+import { env } from "./env.js";
 import { logger } from "./logger.js";
+import { AuthPayload } from "../types/index.js";
 
 let io: Server;
+
+/** Best-effort userId extraction from the socket handshake auth token. */
+function userIdFromHandshake(socket: Socket): string | null {
+  const token =
+    (socket.handshake.auth?.token as string | undefined) ||
+    (typeof socket.handshake.headers.authorization === "string"
+      ? socket.handshake.headers.authorization.replace(/^Bearer\s+/i, "")
+      : undefined);
+  if (!token) return null;
+  try {
+    const payload = jwt.verify(token, env.JWT_SECRET) as AuthPayload & { purpose?: string };
+    if (payload.purpose) return null; // not an access token
+    return payload.userId ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export const initSocketIO = (server: HTTPServer): Server => {
   io = new Server(server, {
@@ -19,6 +39,29 @@ export const initSocketIO = (server: HTTPServer): Server => {
     },
     pingInterval: 10000,
     pingTimeout: 5000,
+  });
+
+  // ── Root namespace: notifications / general per-user channels ───────────────
+  // notification.service.ts emits to io.to(`user:${userId}`), so clients must be
+  // joined to that room. Auto-join from the authenticated token and also honour
+  // the client's explicit "join-user" event (validated against the token).
+  io.on("connection", (socket: Socket) => {
+    const authedUserId = userIdFromHandshake(socket);
+    if (authedUserId) {
+      socket.join(`user:${authedUserId}`);
+      logger.debug(`Socket ${socket.id} joined user:${authedUserId}`);
+    }
+
+    socket.on("join-user", (userId: string) => {
+      // Only allow joining your own channel when the token identifies you;
+      // fall back to the requested id when no token was provided (dev/testing).
+      const target = authedUserId || (typeof userId === "string" ? userId : null);
+      if (target) socket.join(`user:${target}`);
+    });
+
+    socket.on("disconnect", () => {
+      // rooms are cleaned up automatically by socket.io on disconnect
+    });
   });
 
   // Proctoring namespace
@@ -55,7 +98,7 @@ export const initSocketIO = (server: HTTPServer): Server => {
     });
   });
 
-  logger.info("✓ Socket.IO proctoring namespace initialized");
+  logger.info("✓ Socket.IO initialized (notifications + proctoring namespaces)");
   return io;
 };
 
