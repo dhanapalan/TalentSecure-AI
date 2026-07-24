@@ -5,7 +5,7 @@ import toast from "react-hot-toast";
 import StatusBadge from "../../../components/superadmin/StatusBadge";
 import ConfirmModal from "../../../components/superadmin/ConfirmModal";
 import studentsService, { StudentDetail } from "../../../services/studentsService";
-import { formatCourseYears } from "../../../lib/courseYears";
+import { formatAcademicYears } from "../../../lib/courseYears";
 
 export default function StudentDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -22,8 +22,9 @@ export default function StudentDetailPage() {
     name: "",
     email: "",
     degree: "",
-    specialization: "",
-    passing_year: "",
+    branch: "",
+    academic_start_year: "",
+    academic_end_year: "",
     cgpa: "",
     student_identifier: "",
   });
@@ -39,8 +40,15 @@ export default function StudentDetailPage() {
           name: d.profile.name || "",
           email: d.profile.email || "",
           degree: d.profile.degree || "",
-          specialization: d.profile.specialization || "",
-          passing_year: d.profile.passing_year != null ? String(d.profile.passing_year) : "",
+          branch: d.profile.branch || d.profile.specialization || "",
+          academic_start_year:
+            d.profile.academic_start_year != null ? String(d.profile.academic_start_year) : "",
+          academic_end_year:
+            d.profile.academic_end_year != null
+              ? String(d.profile.academic_end_year)
+              : d.profile.passing_year != null
+                ? String(d.profile.passing_year)
+                : "",
           cgpa: d.profile.cgpa != null ? String(d.profile.cgpa) : "",
           student_identifier: d.profile.student_identifier || "",
         });
@@ -54,6 +62,19 @@ export default function StudentDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  const validateYear = (value: string, label: string): string => {
+    if (!value.trim()) return "";
+    const year = Number(value);
+    const maxYear = new Date().getFullYear() + 20;
+    if (!Number.isInteger(year) || Number.isNaN(year)) {
+      return `${label} must be a whole number`;
+    }
+    if (year < 1900 || year > maxYear) {
+      return `Enter a valid ${label.toLowerCase()} (1900–${maxYear})`;
+    }
+    return "";
+  };
+
   const handleSave = async () => {
     if (!id) return;
     const errors: Record<string, string> = {};
@@ -62,14 +83,18 @@ export default function StudentDetailPage() {
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
       errors.email = "Enter a valid email";
     }
-    if (form.passing_year.trim()) {
-      const year = Number(form.passing_year);
-      const maxYear = new Date().getFullYear() + 20;
-      if (!Number.isInteger(year) || Number.isNaN(year)) {
-        errors.passing_year = "Passing year must be a whole number";
-      } else if (year < 1900 || year > maxYear) {
-        errors.passing_year = `Enter a valid passing year (1900–${maxYear})`;
-      }
+    const startErr = validateYear(form.academic_start_year, "Academic start year");
+    if (startErr) errors.academic_start_year = startErr;
+    const endErr = validateYear(form.academic_end_year, "Academic end year");
+    if (endErr) errors.academic_end_year = endErr;
+    if (
+      form.academic_start_year.trim() &&
+      form.academic_end_year.trim() &&
+      !startErr &&
+      !endErr &&
+      Number(form.academic_start_year) > Number(form.academic_end_year)
+    ) {
+      errors.academic_start_year = "Academic start year must be on or before end year";
     }
     if (form.cgpa.trim()) {
       const gpa = Number(form.cgpa);
@@ -88,8 +113,9 @@ export default function StudentDetailPage() {
         name: form.name,
         email: form.email,
         degree: form.degree || null,
-        specialization: form.specialization || null,
-        passing_year: form.passing_year ? Number(form.passing_year) : null,
+        branch: form.branch || null,
+        academic_start_year: form.academic_start_year ? Number(form.academic_start_year) : null,
+        academic_end_year: form.academic_end_year ? Number(form.academic_end_year) : null,
         cgpa: form.cgpa ? Number(form.cgpa) : null,
         student_identifier: form.student_identifier || null,
       });
@@ -194,8 +220,9 @@ export default function StudentDetailPage() {
                 ["email", "Email"],
                 ["student_identifier", "Student ID"],
                 ["degree", "Degree"],
-                ["specialization", "Specialization"],
-                ["passing_year", "Academic Year"],
+                ["branch", "Branch"],
+                ["academic_start_year", "Academic start year"],
+                ["academic_end_year", "Academic end year"],
                 ["cgpa", "CGPA"],
               ] as const
             ).map(([key, label]) => (
@@ -264,18 +291,28 @@ export default function StudentDetailPage() {
             <p className="text-sm font-medium text-gray-900">{profile.degree || "—"}</p>
           </div>
           <div>
-            <p className="text-xs text-gray-500">Specialization</p>
-            <p className="text-sm font-medium text-gray-900">{profile.specialization || "—"}</p>
+            <p className="text-xs text-gray-500">Branch</p>
+            <p className="text-sm font-medium text-gray-900">
+              {profile.branch || profile.specialization || "—"}
+            </p>
           </div>
           <div>
             <p className="text-xs text-gray-500">Academic Year</p>
             <p className="text-sm font-medium text-gray-900">
-              {formatCourseYears(profile.degree, profile.passing_year)}
+              {formatAcademicYears(
+                profile.academic_start_year,
+                profile.academic_end_year ?? profile.passing_year,
+                profile.degree
+              )}
             </p>
           </div>
           <div>
             <p className="text-xs text-gray-500">Percentage</p>
             <p className="text-sm font-medium text-gray-900">{profile.percentage ?? "—"}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">Status</p>
+            <p className="text-sm font-medium text-gray-900">{profile.status}</p>
           </div>
         </div>
       </div>
@@ -284,13 +321,13 @@ export default function StudentDetailPage() {
         <div className="bg-white rounded-xl border border-gray-200/70 shadow-admin-card p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Exam Results</h3>
           {examResults.length === 0 ? (
-            <p className="text-sm text-gray-500">No exam results</p>
+            <p className="text-sm text-gray-500">No exam results yet</p>
           ) : (
             <ul className="space-y-2">
               {examResults.map((e) => (
-                <li key={e.id} className="flex justify-between text-sm">
-                  <span>{e.title}</span>
-                  <span className="font-medium">{e.final_score}%</span>
+                <li key={e.id} className="flex justify-between text-sm border-b border-gray-100 pb-2">
+                  <span className="text-gray-800">{e.title}</span>
+                  <span className="font-medium text-gray-900">{e.final_score}%</span>
                 </li>
               ))}
             </ul>
@@ -299,13 +336,13 @@ export default function StudentDetailPage() {
         <div className="bg-white rounded-xl border border-gray-200/70 shadow-admin-card p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Module Progress</h3>
           {moduleProgress.length === 0 ? (
-            <p className="text-sm text-gray-500">No module progress</p>
+            <p className="text-sm text-gray-500">No module progress yet</p>
           ) : (
             <ul className="space-y-2">
               {moduleProgress.map((m) => (
-                <li key={m.id} className="flex justify-between text-sm">
-                  <span>{m.module_title}</span>
-                  <span className="font-medium">{m.status}</span>
+                <li key={m.id} className="flex justify-between text-sm border-b border-gray-100 pb-2">
+                  <span className="text-gray-800">{m.module_title}</span>
+                  <span className="text-gray-600">{m.status}</span>
                 </li>
               ))}
             </ul>
@@ -315,15 +352,13 @@ export default function StudentDetailPage() {
 
       <ConfirmModal
         open={deleteOpen}
-        title="Delete student"
-        message={`Soft-delete ${detail.profile.name}? They will be deactivated and hidden from active lists.`}
+        title="Delete student?"
+        message="This soft-deletes the student account. They will no longer appear in active lists."
         confirmLabel="Delete"
         tone="danger"
         busy={deleting}
+        onCancel={() => setDeleteOpen(false)}
         onConfirm={handleSoftDelete}
-        onCancel={() => {
-          if (!deleting) setDeleteOpen(false);
-        }}
       />
     </div>
   );

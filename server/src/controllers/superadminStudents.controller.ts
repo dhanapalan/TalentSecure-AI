@@ -57,11 +57,15 @@ export const listStudents = async (
     }
     if (batch) {
       params.push(parseInt(batch as string, 10));
-      where.push(`sd.passing_year = $${params.length}`);
+      where.push(
+        `COALESCE(sd.academic_end_year, sd.passing_year) = $${params.length}`
+      );
     }
     if (department) {
       params.push(`%${department}%`);
-      where.push(`sd.specialization ILIKE $${params.length}`);
+      where.push(
+        `(COALESCE(NULLIF(sd.branch, ''), sd.specialization) ILIKE $${params.length})`
+      );
     }
     if (status && status !== "all") {
       params.push(status);
@@ -98,7 +102,12 @@ export const listStudents = async (
       `SELECT
         u.id, u.name, u.email, u.status, u.is_active, u.created_at, u.last_login,
         c.id as college_id, c.name as college_name,
-        sd.student_identifier, sd.degree, sd.specialization as department, sd.passing_year as batch,
+        sd.student_identifier, sd.degree,
+        COALESCE(NULLIF(sd.branch, ''), sd.specialization) as department,
+        COALESCE(NULLIF(sd.branch, ''), sd.specialization) as branch,
+        sd.academic_start_year,
+        COALESCE(sd.academic_end_year, sd.passing_year) as academic_end_year,
+        COALESCE(sd.academic_end_year, sd.passing_year) as batch,
         COALESCE(ROUND(AVG(ms.final_score)::numeric, 1), 0) as readiness_score
        ${fromClause}
        ORDER BY u.created_at DESC
@@ -135,8 +144,13 @@ export const getStudentProfile = async (
       `SELECT
         u.id, u.name, u.email, u.status, u.is_active, u.created_at, u.last_login,
         c.id as college_id, c.name as college_name,
-        sd.id as student_detail_id, sd.student_identifier, sd.degree, sd.specialization,
-        sd.passing_year, sd.cgpa, sd.percentage, sd.linkedin_url, sd.github_url, sd.resume_url
+        sd.id as student_detail_id, sd.student_identifier, sd.degree,
+        COALESCE(NULLIF(sd.branch, ''), sd.specialization) as specialization,
+        COALESCE(NULLIF(sd.branch, ''), sd.specialization) as branch,
+        sd.academic_start_year,
+        COALESCE(sd.academic_end_year, sd.passing_year) as academic_end_year,
+        COALESCE(sd.academic_end_year, sd.passing_year) as passing_year,
+        sd.cgpa, sd.percentage, sd.linkedin_url, sd.github_url, sd.resume_url
        FROM users u
        LEFT JOIN student_details sd ON sd.user_id = u.id
        LEFT JOIN colleges c ON c.id = u.college_id
@@ -309,6 +323,9 @@ export const createStudent = async (
       phone_number,
       degree,
       specialization,
+      branch,
+      academic_start_year,
+      academic_end_year,
       passing_year,
       cgpa,
     } = req.body;
@@ -330,6 +347,20 @@ export const createStudent = async (
     const nameParts = String(name).trim().split(/\s+/);
     const firstName = nameParts[0] || name;
     const lastName = nameParts.slice(1).join(" ") || "";
+    const endYear =
+      academic_end_year != null && academic_end_year !== ""
+        ? Number(academic_end_year)
+        : passing_year != null && passing_year !== ""
+          ? Number(passing_year)
+          : null;
+    const startYear =
+      academic_start_year != null && academic_start_year !== ""
+        ? Number(academic_start_year)
+        : null;
+    const branchValue =
+      (branch != null && String(branch).trim()) ||
+      (specialization != null && String(specialization).trim()) ||
+      null;
 
     const client = await pool.connect();
     try {
@@ -347,8 +378,8 @@ export const createStudent = async (
       await client.query(
         `INSERT INTO student_details
            (user_id, college_id, first_name, last_name, student_identifier, phone_number,
-            degree, specialization, passing_year, cgpa)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+            degree, specialization, branch, academic_start_year, academic_end_year, passing_year, cgpa)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
         [
           user.id,
           college_id,
@@ -357,8 +388,11 @@ export const createStudent = async (
           student_identifier || null,
           phone_number || null,
           degree || null,
-          specialization || null,
-          passing_year || null,
+          branchValue,
+          branchValue,
+          Number.isFinite(startYear as number) ? startYear : null,
+          Number.isFinite(endYear as number) ? endYear : null,
+          Number.isFinite(endYear as number) ? endYear : null,
           cgpa || null,
         ]
       );
@@ -425,8 +459,9 @@ export const bulkImport = async (
       student_identifier: string | null;
       phone_number: string | null;
       degree: string | null;
-      specialization: string | null;
-      passing_year: number | null;
+      branch: string | null;
+      academic_start_year: number | null;
+      academic_end_year: number | null;
       cgpa: number | null;
     };
 
@@ -447,8 +482,13 @@ export const bulkImport = async (
       }
       seenEmails.add(email);
 
-      const passingRaw = row.passing_year ?? row.batch;
+      const endRaw =
+        row.academic_end_year ?? row.end_year ?? row.passing_year ?? row.batch;
+      const startRaw =
+        row.academic_start_year ?? row.start_year ?? row.course_start_year;
       const cgpaRaw = row.cgpa;
+      const branchRaw =
+        row.branch ?? row.specialization ?? row.department;
       toCreate.push({
         name,
         email,
@@ -456,14 +496,16 @@ export const bulkImport = async (
           row.student_identifier || row.student_id || row.roll_number || ""
         ).trim() || null,
         phone_number: row.phone_number != null ? String(row.phone_number).trim() || null : null,
-        degree: row.degree != null || row.department != null
-          ? String(row.degree || row.department || "").trim() || null
-          : null,
-        specialization:
-          row.specialization != null ? String(row.specialization).trim() || null : null,
-        passing_year:
-          passingRaw != null && String(passingRaw).trim() !== ""
-            ? Number(passingRaw)
+        degree: row.degree != null ? String(row.degree).trim() || null : null,
+        branch:
+          branchRaw != null ? String(branchRaw).trim() || null : null,
+        academic_start_year:
+          startRaw != null && String(startRaw).trim() !== ""
+            ? Number(startRaw)
+            : null,
+        academic_end_year:
+          endRaw != null && String(endRaw).trim() !== ""
+            ? Number(endRaw)
             : null,
         cgpa:
           cgpaRaw != null && String(cgpaRaw).trim() !== "" ? Number(cgpaRaw) : null,
@@ -516,8 +558,8 @@ export const bulkImport = async (
         await client.query(
           `INSERT INTO student_details
              (user_id, college_id, first_name, last_name, student_identifier, phone_number,
-              degree, specialization, passing_year, cgpa)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+              degree, specialization, branch, academic_start_year, academic_end_year, passing_year, cgpa)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
           [
             userId,
             college_id,
@@ -526,8 +568,11 @@ export const bulkImport = async (
             row.student_identifier,
             row.phone_number,
             row.degree,
-            row.specialization,
-            Number.isFinite(row.passing_year as number) ? row.passing_year : null,
+            row.branch,
+            row.branch,
+            Number.isFinite(row.academic_start_year as number) ? row.academic_start_year : null,
+            Number.isFinite(row.academic_end_year as number) ? row.academic_end_year : null,
+            Number.isFinite(row.academic_end_year as number) ? row.academic_end_year : null,
             Number.isFinite(row.cgpa as number) ? row.cgpa : null,
           ]
         );
@@ -606,6 +651,9 @@ export const updateStudent = async (
       phone_number,
       degree,
       specialization,
+      branch,
+      academic_start_year,
+      academic_end_year,
       passing_year,
       cgpa,
     } = req.body;
@@ -619,6 +667,19 @@ export const updateStudent = async (
     if (college_id !== undefined) {
       await assertCollegeAcceptsStudents(college_id);
     }
+
+    const endYear =
+      academic_end_year !== undefined
+        ? academic_end_year
+        : passing_year !== undefined
+          ? passing_year
+          : undefined;
+    const branchValue =
+      branch !== undefined
+        ? branch
+        : specialization !== undefined
+          ? specialization
+          : undefined;
 
     const client = await pool.connect();
     try {
@@ -655,8 +716,15 @@ export const updateStudent = async (
       if (student_identifier !== undefined) setDetail("student_identifier", student_identifier);
       if (phone_number !== undefined) setDetail("phone_number", phone_number);
       if (degree !== undefined) setDetail("degree", degree);
-      if (specialization !== undefined) setDetail("specialization", specialization);
-      if (passing_year !== undefined) setDetail("passing_year", passing_year);
+      if (branchValue !== undefined) {
+        setDetail("branch", branchValue);
+        setDetail("specialization", branchValue);
+      }
+      if (academic_start_year !== undefined) setDetail("academic_start_year", academic_start_year);
+      if (endYear !== undefined) {
+        setDetail("academic_end_year", endYear);
+        setDetail("passing_year", endYear);
+      }
       if (cgpa !== undefined) setDetail("cgpa", cgpa);
       if (college_id !== undefined) setDetail("college_id", college_id);
       if (detailFields.length > 0) {
@@ -673,10 +741,17 @@ export const updateStudent = async (
       await client.query("ROLLBACK");
       const pg = e as { code?: string; constraint?: string; detail?: string };
       if (pg.code === "23514") {
-        // CHECK constraint (passing_year / cgpa) — should be rare after Zod
         const fieldErrors: Record<string, string> = {};
-        if (pg.constraint?.includes("passing_year")) {
-          fieldErrors.passing_year = "Enter a valid passing year";
+        if (pg.constraint?.includes("academic_start")) {
+          fieldErrors.academic_start_year = "Enter a valid academic start year";
+        } else if (
+          pg.constraint?.includes("academic_end") ||
+          pg.constraint?.includes("passing_year")
+        ) {
+          fieldErrors.academic_end_year = "Enter a valid academic end year";
+        } else if (pg.constraint?.includes("academic_span")) {
+          fieldErrors.academic_start_year =
+            "Academic start year must be on or before end year";
         } else if (pg.constraint?.includes("cgpa")) {
           fieldErrors.cgpa = "CGPA must be between 0 and 10";
         }
@@ -694,12 +769,12 @@ export const updateStudent = async (
       client.release();
     }
   } catch (error) {
-    // Attach fieldErrors when AppError was built from CHECK — wrap via response
     if (error instanceof AppError && error.statusCode === 400) {
       const msg = error.message;
       const fieldErrors: Record<string, string> = {};
-      if (msg.toLowerCase().includes("passing year")) fieldErrors.passing_year = msg;
-      if (msg.toLowerCase().includes("cgpa")) fieldErrors.cgpa = msg;
+      if (/academic start/i.test(msg)) fieldErrors.academic_start_year = msg;
+      if (/academic end|passing year/i.test(msg)) fieldErrors.academic_end_year = msg;
+      if (/cgpa/i.test(msg)) fieldErrors.cgpa = msg;
       if (Object.keys(fieldErrors).length) {
         return res.status(400).json({
           success: false,

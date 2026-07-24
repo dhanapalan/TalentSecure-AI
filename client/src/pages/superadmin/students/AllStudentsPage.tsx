@@ -18,7 +18,7 @@ import StatusBadge from "../../../components/superadmin/StatusBadge";
 import ConfirmModal from "../../../components/superadmin/ConfirmModal";
 import studentsService, { StudentListItem } from "../../../services/studentsService";
 import collegeService, { College } from "../../../services/collegeService";
-import { formatCourseYears, getDegreeDurationYears } from "../../../lib/courseYears";
+import { formatAcademicYears, getDegreeDurationYears } from "../../../lib/courseYears";
 
 function readinessLabel(score: number): { label: string; status: string } {
   if (score >= 70) return { label: `${score}%`, status: "active" };
@@ -33,23 +33,63 @@ function parseStudentCsv(text: string) {
     .filter(Boolean);
   if (!lines.length) return [];
 
-  const header = lines[0].toLowerCase();
+  const headerLine = lines[0].toLowerCase();
   const hasHeader =
-    header.includes("email") || header.includes("name") || header.includes("student");
+    headerLine.includes("email") || headerLine.includes("name") || headerLine.includes("student");
   const rows = hasHeader ? lines.slice(1) : lines;
 
-  return rows.map((line, idx) => {
+  const headers = hasHeader
+    ? headerLine.split(",").map((h) => h.trim().replace(/^"|"$/g, ""))
+    : [];
+
+  const idx = (names: string[]) =>
+    headers.findIndex((h) => names.some((n) => h === n || h.replace(/\s+/g, "_") === n));
+
+  return rows.map((line, rowIdx) => {
     const cols = line.split(",").map((p) => p.trim().replace(/^"|"$/g, ""));
-    const [name, email, student_identifier, degree, passing_year, cgpa, phone_number] = cols;
+    const get = (names: string[], positional: number) => {
+      const i = headers.length ? idx(names) : -1;
+      return (i >= 0 ? cols[i] : cols[positional]) || "";
+    };
+
+    const name = get(["name"], 0);
+    const email = get(["email"], 1);
     if (!name || !email) {
-      throw new Error(`Row ${idx + 1}: name and email are required (${line})`);
+      throw new Error(`Row ${rowIdx + 1}: name and email are required (${line})`);
     }
+
+    const student_identifier = get(["student_id", "student_identifier", "roll_number"], 2);
+    const degree = get(["degree", "program"], 3);
+    // New format: branch at 4, start at 5, end at 6. Legacy: passing_year at 4.
+    const hasNewShape =
+      headers.includes("branch") ||
+      headers.includes("academic_start_year") ||
+      headers.includes("academic_end_year") ||
+      (!headers.length && cols.length >= 8);
+    const branch = hasNewShape
+      ? get(["branch", "specialization", "department"], 4)
+      : get(["branch", "specialization"], -1);
+    const academic_start_year = hasNewShape
+      ? get(["academic_start_year", "start_year", "course_start_year"], 5)
+      : "";
+    const academic_end_year = hasNewShape
+      ? get(["academic_end_year", "end_year", "passing_year", "batch"], 6)
+      : get(["passing_year", "batch", "academic_end_year"], 4);
+    const cgpa = hasNewShape
+      ? get(["cgpa"], 7)
+      : get(["cgpa"], 5);
+    const phone_number = hasNewShape
+      ? get(["phone", "phone_number"], 8)
+      : get(["phone", "phone_number"], 6);
+
     return {
       name,
       email,
       student_identifier: student_identifier || undefined,
       degree: degree || undefined,
-      passing_year: passing_year ? Number(passing_year) : undefined,
+      branch: branch || undefined,
+      academic_start_year: academic_start_year ? Number(academic_start_year) : undefined,
+      academic_end_year: academic_end_year ? Number(academic_end_year) : undefined,
       cgpa: cgpa ? Number(cgpa) : undefined,
       phone_number: phone_number || undefined,
     };
@@ -78,8 +118,9 @@ export default function AllStudentsPage() {
     student_identifier: "",
     phone_number: "",
     degree: "",
-    course_start_year: "",
-    passing_year: "",
+    branch: "",
+    academic_start_year: "",
+    academic_end_year: "",
     cgpa: "",
   });
   const [importCollegeId, setImportCollegeId] = useState("");
@@ -98,8 +139,9 @@ export default function AllStudentsPage() {
     name: "",
     email: "",
     degree: "",
-    specialization: "",
-    passing_year: "",
+    branch: "",
+    academic_start_year: "",
+    academic_end_year: "",
     cgpa: "",
     student_identifier: "",
   });
@@ -330,7 +372,13 @@ export default function AllStudentsPage() {
         student_identifier: createForm.student_identifier || undefined,
         phone_number: createForm.phone_number || undefined,
         degree: createForm.degree || undefined,
-        passing_year: createForm.passing_year ? Number(createForm.passing_year) : undefined,
+        branch: createForm.branch || undefined,
+        academic_start_year: createForm.academic_start_year
+          ? Number(createForm.academic_start_year)
+          : undefined,
+        academic_end_year: createForm.academic_end_year
+          ? Number(createForm.academic_end_year)
+          : undefined,
         cgpa: createForm.cgpa ? Number(createForm.cgpa) : undefined,
       });
       const temp = res?.data?.temporary_password;
@@ -343,8 +391,9 @@ export default function AllStudentsPage() {
         student_identifier: "",
         phone_number: "",
         degree: "",
-        course_start_year: "",
-        passing_year: "",
+        branch: "",
+        academic_start_year: "",
+        academic_end_year: "",
         cgpa: "",
       });
       load();
@@ -408,9 +457,16 @@ export default function AllStudentsPage() {
       id: student.id,
       name: student.name,
       email: student.email,
-      degree: student.department || "",
-      specialization: "",
-      passing_year: student.batch != null ? String(student.batch) : "",
+      degree: student.degree || "",
+      branch: student.branch || student.department || "",
+      academic_start_year:
+        student.academic_start_year != null ? String(student.academic_start_year) : "",
+      academic_end_year:
+        student.academic_end_year != null
+          ? String(student.academic_end_year)
+          : student.batch != null
+            ? String(student.batch)
+            : "",
       cgpa: "",
       student_identifier: student.student_identifier || "",
     });
@@ -423,8 +479,15 @@ export default function AllStudentsPage() {
         name: p.name || "",
         email: p.email || "",
         degree: p.degree || "",
-        specialization: p.specialization || "",
-        passing_year: p.passing_year != null ? String(p.passing_year) : "",
+        branch: p.branch || p.specialization || "",
+        academic_start_year:
+          p.academic_start_year != null ? String(p.academic_start_year) : "",
+        academic_end_year:
+          p.academic_end_year != null
+            ? String(p.academic_end_year)
+            : p.passing_year != null
+              ? String(p.passing_year)
+              : "",
         cgpa: p.cgpa != null ? String(p.cgpa) : "",
         student_identifier: p.student_identifier || "",
       });
@@ -437,6 +500,19 @@ export default function AllStudentsPage() {
     }
   };
 
+  const validateYearField = (value: string, label: string): string => {
+    if (!value.trim()) return "";
+    const year = Number(value);
+    const maxYear = new Date().getFullYear() + 20;
+    if (!Number.isInteger(year) || Number.isNaN(year)) {
+      return `${label} must be a whole number`;
+    }
+    if (year < 1900 || year > maxYear) {
+      return `Enter a valid ${label.toLowerCase()} (1900–${maxYear})`;
+    }
+    return "";
+  };
+
   const validateEditForm = (): Record<string, string> => {
     const errors: Record<string, string> = {};
     if (!editForm.name.trim()) errors.name = "Name is required";
@@ -444,14 +520,18 @@ export default function AllStudentsPage() {
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editForm.email.trim())) {
       errors.email = "Enter a valid email";
     }
-    if (editForm.passing_year.trim()) {
-      const year = Number(editForm.passing_year);
-      const maxYear = new Date().getFullYear() + 20;
-      if (!Number.isInteger(year) || Number.isNaN(year)) {
-        errors.passing_year = "Passing year must be a whole number";
-      } else if (year < 1900 || year > maxYear) {
-        errors.passing_year = `Enter a valid passing year (1900–${maxYear})`;
-      }
+    const startErr = validateYearField(editForm.academic_start_year, "Academic start year");
+    if (startErr) errors.academic_start_year = startErr;
+    const endErr = validateYearField(editForm.academic_end_year, "Academic end year");
+    if (endErr) errors.academic_end_year = endErr;
+    if (
+      editForm.academic_start_year.trim() &&
+      editForm.academic_end_year.trim() &&
+      !startErr &&
+      !endErr &&
+      Number(editForm.academic_start_year) > Number(editForm.academic_end_year)
+    ) {
+      errors.academic_start_year = "Academic start year must be on or before end year";
     }
     if (editForm.cgpa.trim()) {
       const gpa = Number(editForm.cgpa);
@@ -481,8 +561,13 @@ export default function AllStudentsPage() {
         name: editForm.name.trim(),
         email: editForm.email.trim(),
         degree: editForm.degree || null,
-        specialization: editForm.specialization || null,
-        passing_year: editForm.passing_year ? Number(editForm.passing_year) : null,
+        branch: editForm.branch || null,
+        academic_start_year: editForm.academic_start_year
+          ? Number(editForm.academic_start_year)
+          : null,
+        academic_end_year: editForm.academic_end_year
+          ? Number(editForm.academic_end_year)
+          : null,
         cgpa: editForm.cgpa ? Number(editForm.cgpa) : null,
         student_identifier: editForm.student_identifier || null,
       });
@@ -646,59 +731,63 @@ export default function AllStudentsPage() {
               value={createForm.degree}
               onChange={(e) => {
                 const degree = e.target.value;
-                const end = Number(createForm.passing_year);
+                const end = Number(createForm.academic_end_year);
                 setCreateForm({
                   ...createForm,
                   degree,
-                  course_start_year: Number.isFinite(end)
+                  academic_start_year: Number.isFinite(end)
                     ? String(end - getDegreeDurationYears(degree))
-                    : createForm.course_start_year,
+                    : createForm.academic_start_year,
                 });
               }}
               className="border border-gray-200 rounded-lg px-3 py-2"
             />
+            <input
+              placeholder="Branch (e.g. Computer Science)"
+              value={createForm.branch}
+              onChange={(e) => setCreateForm({ ...createForm, branch: e.target.value })}
+              className="border border-gray-200 rounded-lg px-3 py-2"
+            />
             <div className="md:col-span-2 grid grid-cols-2 gap-3">
               <input
-                placeholder="Academic Year start (e.g. 2002)"
-                value={createForm.course_start_year}
+                placeholder="Academic start year (e.g. 2022)"
+                value={createForm.academic_start_year}
                 onChange={(e) => {
                   const start = parseInt(e.target.value, 10);
                   const duration = getDegreeDurationYears(createForm.degree);
                   setCreateForm({
                     ...createForm,
-                    course_start_year: e.target.value,
-                    passing_year: Number.isFinite(start)
+                    academic_start_year: e.target.value,
+                    academic_end_year: Number.isFinite(start)
                       ? String(start + duration)
-                      : createForm.passing_year,
+                      : createForm.academic_end_year,
                   });
                 }}
                 className="border border-gray-200 rounded-lg px-3 py-2"
               />
               <input
-                placeholder="Academic Year end (e.g. 2006)"
-                value={createForm.passing_year}
+                placeholder="Academic end year (e.g. 2026)"
+                value={createForm.academic_end_year}
                 onChange={(e) => {
                   const end = parseInt(e.target.value, 10);
                   setCreateForm({
                     ...createForm,
-                    passing_year: e.target.value,
-                    course_start_year: Number.isFinite(end)
+                    academic_end_year: e.target.value,
+                    academic_start_year: Number.isFinite(end)
                       ? String(end - getDegreeDurationYears(createForm.degree))
-                      : createForm.course_start_year,
+                      : createForm.academic_start_year,
                   });
                 }}
                 className="border border-gray-200 rounded-lg px-3 py-2"
               />
             </div>
-            {createForm.passing_year && (
+            {(createForm.academic_start_year || createForm.academic_end_year) && (
               <p className="md:col-span-2 -mt-1 text-xs text-gray-500">
                 Academic Year:{" "}
-                {formatCourseYears(
-                  createForm.degree,
-                  Number(createForm.passing_year),
-                  createForm.course_start_year && createForm.passing_year
-                    ? `${createForm.course_start_year} - ${createForm.passing_year}`
-                    : "—"
+                {formatAcademicYears(
+                  createForm.academic_start_year ? Number(createForm.academic_start_year) : null,
+                  createForm.academic_end_year ? Number(createForm.academic_end_year) : null,
+                  createForm.degree
                 )}
               </p>
             )}
@@ -797,8 +886,8 @@ export default function AllStudentsPage() {
                 </div>
                 <div>
                   <input
-                    aria-label="Degree or department"
-                    placeholder="Degree / Department"
+                    aria-label="Degree"
+                    placeholder="Degree (e.g. B.E.)"
                     value={editForm.degree}
                     onChange={(e) => setEditForm({ ...editForm, degree: e.target.value })}
                     className="w-full border border-gray-200 rounded-lg px-3 py-2"
@@ -806,32 +895,54 @@ export default function AllStudentsPage() {
                 </div>
                 <div>
                   <input
-                    aria-label="Specialization"
-                    placeholder="Specialization"
-                    value={editForm.specialization}
-                    onChange={(e) => setEditForm({ ...editForm, specialization: e.target.value })}
+                    aria-label="Branch"
+                    placeholder="Branch (e.g. Computer Science)"
+                    value={editForm.branch}
+                    onChange={(e) => setEditForm({ ...editForm, branch: e.target.value })}
                     className="w-full border border-gray-200 rounded-lg px-3 py-2"
                   />
                 </div>
                 <div>
                   <input
-                    aria-label="Academic Year"
-                    placeholder="Academic Year end (e.g. 2006)"
-                    value={editForm.passing_year}
+                    aria-label="Academic start year"
+                    placeholder="Academic start year (e.g. 2022)"
+                    value={editForm.academic_start_year}
                     onChange={(e) => {
-                      setEditForm({ ...editForm, passing_year: e.target.value });
-                      setEditFieldErrors((prev) => ({ ...prev, passing_year: "" }));
+                      setEditForm({ ...editForm, academic_start_year: e.target.value });
+                      setEditFieldErrors((prev) => ({ ...prev, academic_start_year: "" }));
                     }}
                     className={`w-full border rounded-lg px-3 py-2 ${
-                      editFieldErrors.passing_year ? "border-red-400" : "border-gray-200"
+                      editFieldErrors.academic_start_year ? "border-red-400" : "border-gray-200"
                     }`}
                   />
-                  {editFieldErrors.passing_year && (
-                    <p className="mt-1 text-xs text-red-600">{editFieldErrors.passing_year}</p>
+                  {editFieldErrors.academic_start_year && (
+                    <p className="mt-1 text-xs text-red-600">{editFieldErrors.academic_start_year}</p>
                   )}
-                  {editForm.passing_year && editForm.degree && (
+                </div>
+                <div>
+                  <input
+                    aria-label="Academic end year"
+                    placeholder="Academic end year (e.g. 2026)"
+                    value={editForm.academic_end_year}
+                    onChange={(e) => {
+                      setEditForm({ ...editForm, academic_end_year: e.target.value });
+                      setEditFieldErrors((prev) => ({ ...prev, academic_end_year: "" }));
+                    }}
+                    className={`w-full border rounded-lg px-3 py-2 ${
+                      editFieldErrors.academic_end_year ? "border-red-400" : "border-gray-200"
+                    }`}
+                  />
+                  {editFieldErrors.academic_end_year && (
+                    <p className="mt-1 text-xs text-red-600">{editFieldErrors.academic_end_year}</p>
+                  )}
+                  {(editForm.academic_start_year || editForm.academic_end_year) && (
                     <p className="mt-1 text-xs text-gray-500">
-                      Shown as {formatCourseYears(editForm.degree, Number(editForm.passing_year))}
+                      Shown as{" "}
+                      {formatAcademicYears(
+                        editForm.academic_start_year ? Number(editForm.academic_start_year) : null,
+                        editForm.academic_end_year ? Number(editForm.academic_end_year) : null,
+                        editForm.degree
+                      )}
                     </p>
                   )}
                 </div>
@@ -916,7 +1027,8 @@ export default function AllStudentsPage() {
               <p className="text-xs text-amber-900/80 mt-0.5">
                 Columns:{" "}
                 <code className="rounded bg-amber-100/80 px-1">
-                  name, email, student_id, degree, passing_year, cgpa, phone
+                  name, email, student_id, degree, branch, academic_start_year,
+                  academic_end_year, cgpa, phone
                 </code>
                 . Header row optional · max 500 rows.
               </p>
@@ -935,7 +1047,7 @@ export default function AllStudentsPage() {
             value={importCsv}
             onChange={(e) => setImportCsv(e.target.value)}
             placeholder={
-              "name,email,student_id,degree,passing_year,cgpa,phone\nJane Doe,jane@college.edu,CS21,CSE,2026,8.2,"
+              "name,email,student_id,degree,branch,academic_start_year,academic_end_year,cgpa,phone\nJane Doe,jane@college.edu,CS21,B.E,CSE,2022,2026,8.2,"
             }
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono"
           />
@@ -1006,7 +1118,7 @@ export default function AllStudentsPage() {
           </select>
           <input
             type="number"
-            placeholder="Batch (end year)"
+            placeholder="End year"
             value={batch}
             onChange={(e) => setBatch(e.target.value)}
             className="border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-admin-accent"
@@ -1128,7 +1240,7 @@ export default function AllStudentsPage() {
                     onChange={toggleAll}
                   />
                 </th>
-                {["Student Name", "College", "Department / Academic Year", "Email", "Registered", "Readiness", "Last Active", "Actions"].map((h) => (
+                {["Student Name", "College", "Branch / Academic Year", "Email", "Registered", "Readiness", "Last Active", "Actions"].map((h) => (
                   <th
                     key={h}
                     className={`px-6 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 ${
@@ -1170,8 +1282,13 @@ export default function AllStudentsPage() {
                       <td className="px-6 py-4 text-sm text-gray-500">{student.college_name || "—"}</td>
                       <td className="px-6 py-4 text-sm text-gray-500">
                         {[
-                          student.department,
-                          formatCourseYears(student.degree, student.batch, ""),
+                          student.branch || student.department,
+                          formatAcademicYears(
+                            student.academic_start_year,
+                            student.academic_end_year ?? student.batch,
+                            student.degree,
+                            ""
+                          ),
                         ]
                           .filter(Boolean)
                           .join(" · ") || "—"}

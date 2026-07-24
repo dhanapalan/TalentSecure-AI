@@ -1,6 +1,6 @@
-name,email,student_id,degree,passing_year,cgpa,phone
-Ada Lovelace,ada.lovelace@example.edu,CS2026001,Computer Science,2026,8.5,9876543210
-Alan Turing,alan.turing@example.edu,CS2026002,Computer Science,2026,9.1,9876543211
-Grace Hopper,grace.hopper@example.edu,IT2026001,Information Technology,2027,8.8,9876543212
-Katherine Johnson,katherine.johnson@example.edu,ECE2026001,Electronics,2026,9.0,9876543213
-Margaret Hamilton,margaret.hamilton@example.edu,ME2026001,Mechanical,2025,8.2,9876543214
+name,email,student_id,degree,branch,academic_start_year,academic_end_year,cgpa,phone
+Ada Lovelace,ada.lovelace@example.edu,CS2026001,B.E,Computer Science,2022,2026,8.5,9876543210
+Alan Turing,alan.turing@example.edu,CS2026002,B.E,Computer Science,2022,2026,9.1,9876543211
+Grace Hopper,grace.hopper@example.edu,IT2026001,B.Tech,Information Technology,2023,2027,8.8,9876543212
+Katherine Johnson,katherine.johnson@example.edu,ECE2026001,B.E,Electronics,2022,2026,9.0,9876543213
+Margaret Hamilton,margaret.hamilton@example.edu,ME2026001,B.E,Mechanical,2021,2025,8.2,9876543214
